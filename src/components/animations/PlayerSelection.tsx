@@ -3,8 +3,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { Player } from '@/types/Player';
 import { Team } from '@/types/Team';
-import PlayerCard from '@/components/common/PlayerCard';
 import TeamCard from '@/components/common/TeamCard';
+import { getPlayerImage } from '@/utils/helpers';
 import confetti from 'canvas-confetti';
 
 interface PlayerSelectionProps {
@@ -12,50 +12,61 @@ interface PlayerSelectionProps {
   isTeam: boolean;
   players: Player[];
   onSelectionComplete?: () => void;
+  isWinningSelection?: boolean;
 }
 
 const PlayerSelection: React.FC<PlayerSelectionProps> = ({
   currentParticipant,
   isTeam,
   players,
-  onSelectionComplete
+  onSelectionComplete,
+  isWinningSelection = false
 }) => {
   const { t } = useTranslation();
   const [showSelection, setShowSelection] = useState(false);
   const [showConfetti, setShowConfetti] = useState(false);
+  const [isComplete, setIsComplete] = useState(false);
   
   // Animation sequence
   useEffect(() => {
     const timer1 = setTimeout(() => {
       // Start by showing the "spinner" for selecting
       setShowSelection(true);
-    }, 500);
+    }, 1000);
     
     const timer2 = setTimeout(() => {
-      // Then show confetti for the selected player/team
-      setShowConfetti(true);
-      
-      // Trigger confetti animation
-      confetti({
-        particleCount: 100,
-        spread: 70,
-        origin: { y: 0.6 }
-      });
-    }, 2000);
+      // Only show confetti for winning selections
+      if (isWinningSelection) {
+        setShowConfetti(true);
+        
+        // Trigger confetti animation
+        confetti({
+          particleCount: 100,
+          spread: 70,
+          origin: { y: 0.6 }
+        });
+      }
+    }, 4000);
     
     const timer3 = setTimeout(() => {
+      // Start fade out
+      setIsComplete(true);
+    }, 5500);
+
+    const timer4 = setTimeout(() => {
       // Notify parent that selection is complete
       if (onSelectionComplete) {
         onSelectionComplete();
       }
-    }, 3000);
+    }, 6000);
     
     return () => {
       clearTimeout(timer1);
       clearTimeout(timer2);
       clearTimeout(timer3);
+      clearTimeout(timer4);
     };
-  }, [onSelectionComplete]);
+  }, [onSelectionComplete, isWinningSelection]);
   
   return (
     <AnimatePresence>
@@ -65,29 +76,40 @@ const PlayerSelection: React.FC<PlayerSelectionProps> = ({
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
+          transition={{ duration: 0.5 }}
         >
           <motion.div
-            className="text-center mb-8"
+            className="text-center mb-12"
             initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3 }}
+            animate={{ opacity: isComplete ? 0 : 1, y: isComplete ? -10 : 0 }}
+            transition={{ duration: 0.4 }}
           >
-            <h2 className="text-3xl font-bold text-white">
+            <h2 className="text-4xl font-bold text-white mb-2">
               {isTeam 
                 ? t('game.teamTurn', { team: (currentParticipant as Team).name }) 
                 : t('game.playerTurn', { player: (currentParticipant as Player).name })}
             </h2>
+            <p className="text-xl text-gray-300">
+              {t('game.getReady')}
+            </p>
           </motion.div>
           
           <motion.div
             className="relative"
             initial={{ scale: 0 }}
-            animate={{ scale: 1 }}
+            animate={{ 
+              scale: 1,
+              opacity: isComplete ? 0.3 : 1
+            }}
             transition={{ 
               type: 'spring',
-              stiffness: 300,
+              stiffness: 200,
               damping: 20,
-              delay: 0.5
+              delay: 0.8,
+              opacity: {
+                duration: 0.4,
+                delay: isComplete ? 0 : 0.8
+              }
             }}
           >
             {isTeam ? (
@@ -98,33 +120,80 @@ const PlayerSelection: React.FC<PlayerSelectionProps> = ({
                 animation={showConfetti ? 'pulse' : 'none'}
               />
             ) : (
-              <PlayerCard 
-                player={currentParticipant as Player} 
-                size="lg"
-                animation={showConfetti ? 'pulse' : 'none'}
-              />
+              <div className="flex flex-col items-center">
+                <div className="relative mb-4">
+                  {/* Outer spinning ring */}
+                  <motion.div
+                    className="absolute -inset-4 rounded-full border-4 border-t-transparent border-game-accent"
+                    animate={{ 
+                      rotate: 360,
+                      scale: [1, 1.05, 0.95, 1],
+                    }}
+                    transition={{ 
+                      rotate: {
+                        duration: 3,
+                        repeat: Infinity,
+                        ease: "linear"
+                      },
+                      scale: {
+                        duration: 2,
+                        repeat: Infinity,
+                        ease: "easeInOut"
+                      }
+                    }}
+                  />
+                  
+                  {/* Inner spinning ring */}
+                  <motion.div
+                    className="absolute -inset-2 rounded-full border-4 border-b-transparent border-game-primary"
+                    animate={{ 
+                      rotate: -360,
+                      scale: [1, 0.95, 1.05, 1],
+                    }}
+                    transition={{ 
+                      rotate: {
+                        duration: 2.5,
+                        repeat: Infinity,
+                        ease: "linear"
+                      },
+                      scale: {
+                        duration: 1.5,
+                        repeat: Infinity,
+                        ease: "easeInOut"
+                      }
+                    }}
+                  />
+                  
+                  {/* Player image container */}
+                  <motion.div
+                    className="relative w-48 h-48 rounded-full overflow-hidden"
+                    animate={showConfetti ? {
+                      scale: [1, 1.1, 1],
+                      rotate: [0, -10, 10, 0]
+                    } : {}}
+                    transition={{ 
+                      duration: 0.8,
+                      repeat: showConfetti ? 1 : 0,
+                      ease: "easeInOut"
+                    }}
+                  >
+                    <img
+                      src={getPlayerImage((currentParticipant as Player).image, (currentParticipant as Player).name)}
+                      alt={(currentParticipant as Player).name}
+                      className="w-full h-full object-cover"
+                    />
+                  </motion.div>
+                </div>
+              </div>
             )}
             
-            {/* Spinner animation */}
-            {!showConfetti && (
-              <motion.div
-                className="absolute -top-4 -right-4 -bottom-4 -left-4 border-4 border-t-transparent border-game-accent rounded-full"
-                animate={{ rotate: 360 }}
-                transition={{ 
-                  duration: 1.5,
-                  repeat: Infinity,
-                  ease: 'linear'
-                }}
-              />
-            )}
-            
-            {/* Confetti effect (in addition to canvas-confetti library) */}
-            {showConfetti && (
+            {/* Confetti effect - only shown for winning selections */}
+            {showConfetti && isWinningSelection && (
               <>
                 {[...Array(20)].map((_, i) => (
                   <motion.div
                     key={i}
-                    className="absolute w-2 h-2 rounded-full"
+                    className="absolute w-3 h-3 rounded-full"
                     style={{
                       backgroundColor: [
                         '#FF6B6B', '#4ECDC4', '#FFD166', 
@@ -135,13 +204,15 @@ const PlayerSelection: React.FC<PlayerSelectionProps> = ({
                     }}
                     initial={{ x: 0, y: 0 }}
                     animate={{
-                      x: Math.random() * 200 - 100,
-                      y: Math.random() * 200 - 100,
-                      opacity: [1, 1, 0]
+                      x: Math.random() * 300 - 150,
+                      y: Math.random() * 300 - 150,
+                      opacity: [1, 1, 0],
+                      scale: [0, 1, 0.5]
                     }}
                     transition={{
-                      duration: 1.5,
-                      ease: 'easeOut'
+                      duration: 2,
+                      ease: 'easeOut',
+                      delay: Math.random() * 0.2
                     }}
                   />
                 ))}

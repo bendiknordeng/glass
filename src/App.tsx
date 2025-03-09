@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from './contexts/ThemeContext';
 import Home from './pages/Home';
@@ -7,6 +7,10 @@ import Setup from './pages/Setup';
 import Game from './pages/Game';
 import Results from './pages/Results';
 import { loadTranslations } from './i18n';
+import AppLayout from '@/components/layout/AppLayout';
+import { GameProvider } from '@/contexts/GameContext';
+import { ThemeProvider } from '@/contexts/ThemeContext';
+import { LanguageProvider } from '@/contexts/LanguageContext';
 
 // Import default CSS
 import './index.css';
@@ -20,8 +24,6 @@ const preloadFonts = () => {
 };
 
 const App: React.FC = () => {
-  const { isDarkMode } = useTheme();
-  const { i18n } = useTranslation();
   
   // Preload fonts on mount
   useEffect(() => {
@@ -39,17 +41,20 @@ const App: React.FC = () => {
   }, []);
   
   return (
-    <div className={`min-h-screen font-game bg-gray-50 text-gray-900 ${isDarkMode ? 'dark' : ''}`}>
-      <div className="dark:bg-gray-900 dark:text-white min-h-screen">
-        <Routes>
-          <Route path="/" element={<Home />} />
-          <Route path="/setup" element={<Setup />} />
-          <Route path="/game" element={<Game />} />
-          <Route path="/results" element={<Results />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </div>
-    </div>
+    <ThemeProvider>
+      <LanguageProvider>
+        <GameProvider>
+          <AppLayout>
+            <Routes>
+              <Route path="/" element={<Home />} />
+              <Route path="/setup" element={<Setup />} />
+              <Route path="/game" element={<Game />} />
+              <Route path="/results" element={<Results />} />
+            </Routes>
+          </AppLayout>
+        </GameProvider>
+      </LanguageProvider>
+    </ThemeProvider>
   );
 };
 

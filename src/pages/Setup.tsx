@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { motion } from 'framer-motion';
@@ -15,14 +15,22 @@ const Setup: React.FC = () => {
   const { state, dispatch } = useGame();
   const [currentStep, setCurrentStep] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
+  const stateRef = useRef(state);
+  
+  // Keep ref updated with latest state
+  useEffect(() => {
+    stateRef.current = state;
+  }, [state]);
   
   // Steps for setup process
+  const MIN_PLAYERS = 2;
+
   const steps = [
     {
       id: 'players',
       title: t('setup.playerRegistration'),
       component: <PlayerRegistration />,
-      canContinue: state.players.length >= 2
+      canContinue: state.players.length >= MIN_PLAYERS
     },
     {
       id: 'teams',
@@ -62,12 +70,38 @@ const Setup: React.FC = () => {
     
     try {
       // Load default challenges if not already loaded
-      if (state.challenges.length === 0) {
+      if (stateRef.current.challenges.length === 0) {
         const defaultChallenges = generateDefaultChallenges();
-        dispatch({
-          type: 'LOAD_CHALLENGES',
-          payload: defaultChallenges
+        
+        // Dispatch challenges and wait for state to update
+        await new Promise<void>((resolve) => {
+          dispatch({
+            type: 'LOAD_CHALLENGES',
+            payload: defaultChallenges
+          });
+          
+          // Create an interval to check state updates
+          const checkInterval = setInterval(() => {
+            if (stateRef.current.challenges.length > 0) {
+              clearInterval(checkInterval);
+              resolve();
+            }
+          }, 100);
+          
+          // Set a timeout to prevent infinite checking
+          setTimeout(() => {
+            clearInterval(checkInterval);
+            if (stateRef.current.challenges.length === 0) {
+              console.error('Timeout waiting for challenges to load');
+              resolve(); // Resolve anyway to prevent hanging
+            }
+          }, 5000);
         });
+      }
+      
+      // Final verification that challenges are loaded
+      if (stateRef.current.challenges.length === 0) {
+        throw new Error('Failed to load challenges');
       }
       
       // Start the game
@@ -77,6 +111,7 @@ const Setup: React.FC = () => {
       navigate('/game');
     } catch (error) {
       console.error('Error starting game:', error);
+      alert('Failed to start game: Could not load challenges');
     } finally {
       setIsLoading(false);
     }
@@ -98,34 +133,36 @@ const Setup: React.FC = () => {
           <h1 className="text-3xl font-bold text-gray-800 dark:text-white mb-2">
             {t('setup.title')}
           </h1>
-          <div className="flex justify-center items-center gap-2">
-            <button
-              className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
-              onClick={() => navigate('/')}
-            >
-              {t('common.backToHome')}
-            </button>
-          </div>
         </motion.div>
         
         {/* Steps progress */}
         <div className="mb-8">
-          <div className="flex justify-between items-center mb-2">
+          <div className="flex justify-between items-start mb-2">
             {steps.map((step, index) => (
               <React.Fragment key={step.id}>
-                {/* Step circle */}
-                <div 
-                  className={`
-                    relative w-10 h-10 rounded-full flex items-center justify-center font-bold text-lg
-                    ${currentStep >= index ? 'bg-game-primary text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-400'}
-                  `}
-                >
-                  {index + 1}
+                {/* Step circle and title */}
+                <div className="flex flex-col items-center">
+                  <div 
+                    className={`
+                      relative w-10 h-10 rounded-full flex items-center justify-center font-bold text-lg mb-2
+                      ${currentStep >= index ? 'bg-game-primary text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-400'}
+                    `}
+                  >
+                    {index + 1}
+                  </div>
+                  <div 
+                    className={`
+                      text-xs font-medium text-center max-w-[100px]
+                      ${currentStep >= index ? 'text-game-primary' : 'text-gray-500 dark:text-gray-400'}
+                    `}
+                  >
+                    {step.title}
+                  </div>
                 </div>
                 
                 {/* Connector line */}
                 {index < steps.length - 1 && (
-                  <div className="flex-1 h-1 mx-2">
+                  <div className="flex-1 h-1 mx-1 mt-5">
                     <div 
                       className={`
                         h-full
@@ -135,21 +172,6 @@ const Setup: React.FC = () => {
                   </div>
                 )}
               </React.Fragment>
-            ))}
-          </div>
-          
-          {/* Step titles */}
-          <div className="flex justify-between">
-            {steps.map((step, index) => (
-              <div 
-                key={`title-${step.id}`}
-                className={`
-                  text-xs font-medium w-[33.33%] text-center
-                  ${currentStep >= index ? 'text-game-primary' : 'text-gray-500 dark:text-gray-400'}
-                `}
-              >
-                {step.title}
-              </div>
             ))}
           </div>
         </div>
@@ -177,7 +199,7 @@ const Setup: React.FC = () => {
               </svg>
             }
           >
-            {currentStep === 0 ? t('common.backToHome') : t('common.back')}
+            {currentStep === 0 ? t('common.home') : t('common.back')}
           </Button>
           
           <Button
@@ -204,7 +226,7 @@ const Setup: React.FC = () => {
         
         {!currentStepData.canContinue && currentStep === 0 && (
           <p className="text-center text-amber-600 dark:text-amber-400 text-sm mt-4">
-            {t('setup.needMinPlayers')}
+            {t('setup.needMinPlayers', { count: MIN_PLAYERS })}
           </p>
         )}
       </div>

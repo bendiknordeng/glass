@@ -1,8 +1,8 @@
 {
   "app": {
     "name": "Glass",
-    "tagline": "Det ultimate festspillet",
-    "creator": "Laget med ❤️ for morsomme sammenkomster"
+    "tagline": "Et bedre festspill",
+    "creator": "Laget av Bendik Nordeng"
   },
   "common": {
     "next": "Neste",
@@ -18,14 +18,27 @@
     "no": "Nei",
     "continue": "Fortsett",
     "loading": "Laster...",
-    "backToHome": "Tilbake til hovedsiden"
+    "backToHome": "Tilbake til hovedsiden",
+    "optional": "valgfritt",
+    "selected": "valgt",
+    "startGame": "Start spill",
+    "delete": "Slett",
+    "player": "Spiller",
+    "team": "Lag",
+    "points": "Poeng",
+    "point": "poeng",
+    "home": "Hjem"
   },
   "home": {
     "welcomeTitle": "Velkommen til Glass!",
     "welcomeMessage": "Klar for å krydre sammenkomsten? Start et nytt spill eller fortsett der du slapp.",
     "newGame": "Nytt spill",
     "continueGame": "Fortsett spill",
-    "settings": "Innstillinger"
+    "settings": "Innstillinger",
+    "startNewGame": "Start nytt spill",
+    "startNewGameWarning": "Å starte et nytt spill vil avslutte det nåværende spillet",
+    "startNew": "Start nytt",
+    "editSetup": "Rediger oppsett"
   },
   "setup": {
     "title": "Oppsett av spill",
@@ -50,12 +63,26 @@
     "clickToChange": "Klikk for å endre",
     "noPlayersYet": "Ingen spillere enda. Legg til spillere for å starte!",
     "addedPlayers": "Lagt til {{count}} spillere",
-    "needMinPlayers": "Må ha minst {{count}} spillere for å starte!"
+    "needMinPlayers": "Det må være minst {{count}} spillere for å starte!",
+    "teamMode": "Lag mot lag",
+    "allPlayersIndividual": "Alle spillerne spiller mot hverandre",
+    "createTeams": "Lag {{count}} lag",
+    "yourTeams": "Dine lag",
+    "playInTeams": "Spill i lag",
+    "timeLimit": "Tidsbegrensning",
+    "settings": "innstillinger",
+    "numberOfChallenges": "Antall utfordringer",
+    "currentStandings": "Nåværende stilling",
+    "unassignedPlayers": "Ikke fordelte spillere",
+    "saveTeams": "Lagre lag",
+    "moveAllHere": "Flytt alle hit",
+    "recentPlayers": "Nylig brukte spillere"
   },
   "game": {
     "round": "Runde {{round}}",
-    "playerTurn": "{{player}}s tur",
-    "teamTurn": "Lag {{team}}s tur",
+    "playerTurn": "{{player}} sin tur",
+    "teamTurn": "Lag {{team}} sin tur",
+    "currentTurn": "{{name}} sin tur",
     "challengeTypes": {
       "individual": "Individuell utfordring",
       "oneOnOne": "En mot en utfordring",
@@ -70,7 +97,16 @@
     "winner": "Vinner",
     "timeRemaining": "Gjenværende tid: {{time}}",
     "nextPlayer": "Neste spiller",
-    "gameOver": "Spillet er over!"
+    "gameOver": "Spillet er over!",
+    "loadingChallenge": "Laster utfordring...",
+    "selectWinnerInstruction": "Velg vinner",
+    "participants": "Deltakere",
+    "newChallenge": "Ny utfordring",
+    "getReady": "Gjør deg klar!",
+    "confirmEndGame": "Er du sikker på at du vil avslutte spillet?",
+    "challengeProgress": "Utfordring {{current}} av {{total}}",
+    "endGame": "Avslutt spill",
+    "noScoresYet": "Ingen poeng enda. Spill et spill for å se resultatene!"
   },
   "results": {
     "finalResults": "Endelig resultat",
@@ -84,21 +120,35 @@
     "challengesCompleted": "Fullførte utfordringer",
     "totalPoints": "Totale poeng",
     "bestChallenge": "Beste utfordring",
-    "worstChallenge": "Verste utfordring"
+    "worstChallenge": "Verste utfordring",
+    "currentStandings": "Nåværende stilling",
+    "gameStats": "Spillstatistikk",
+    "mostCommonChallengeType": "Mest vanlige utfordringstype",
+    "completionRate": "Fullføringsrate",
+    "completedChallenges": "Fullførte utfordringer",
+    "totalChallenges": "Totale utfordringer",
+    "finalStandings": "Endelig stilling",
+    "gameComplete": "Spillet er avsluttet"
   },
   "challenges": {
-    "customChallenge": "Lag egendefinert utfordring",
+    "customChallenges": "Egendefinerte utfordringer",
+    "customChallenge": "Egendefinert utfordring",
+    "createCustomChallengesDesc": "Lag egendefinerte utfordringer for å krydre spillet!",
+    "createCustomChallenge": "Lag egendefinert utfordring",
     "challengeTitle": "Utfordringstittel",
     "challengeDescription": "Utfordringsbeskrivelse",
     "challengeType": "Utfordringstype",
     "canReuse": "Kan gjenbrukes i samme spill",
     "difficulty": "Vanskelighetsgrad",
-    "points": "Poeng",
     "category": "Kategori (valgfritt)",
     "addChallenge": "Legg til utfordring",
     "editChallenge": "Rediger utfordring",
     "deleteChallenge": "Slett utfordring",
-    "deleteConfirm": "Er du sikker på at du vil slette denne utfordringen?"
+    "deleteConfirm": "Er du sikker på at du vil slette denne utfordringen?",
+    "challenges": "utfordringer",
+    "categoryPlaceholder": "Eksempel: Drikke, Quiz, Musikk",
+    "titlePlaceholder": "Eksempel: Vann eller Vodka",
+    "descriptionPlaceholder": "Eksempel: Drikk en shot av vann eller vodka. La gruppen gjette hva du drakk."
   },
   "settings": {
     "title": "Innstillinger",
@@ -113,6 +163,11 @@
     "soundEnabled": "Lyd aktivert",
     "soundDisabled": "Lyd deaktivert",
     "resetApp": "Tilbakestill app",
-    "resetConfirm": "Er du sikker på at du vil tilbakestille appen? All spilldata vil gå tapt."
+    "resetConfirm": "Er du sikker på at du vil tilbakestille appen? All spilldata vil gå tapt.",
+    "toggleLanguage": "Bytt språk",
+    "toggleTheme": "Bytt tema",
+    "resetGame": "Tilbakestill spill",
+    "resetGameWarning": "Ved tilbakestilling må du starte på nytt",
+    "reset": "Tilbakestill"
   }
 }

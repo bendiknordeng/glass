@@ -8,82 +8,54 @@ export interface Avatar {
   }
   
   /**
-   * Default avatars for players who don't upload a profile picture
-   * Each avatar is a funny cartoon character
+   * Generates a random string to use as a seed
+   * @returns Random string seed
    */
-  export const defaultAvatars: Avatar[] = [
-    {
-      id: 'avatar-1',
-      url: '/api/placeholder/150/150?text=🎮',
-      alt: 'Gamer avatar'
-    },
-    {
-      id: 'avatar-2',
-      url: '/api/placeholder/150/150?text=🎲',
-      alt: 'Dice avatar'
-    },
-    {
-      id: 'avatar-3',
-      url: '/api/placeholder/150/150?text=🍺',
-      alt: 'Beer avatar'
-    },
-    {
-      id: 'avatar-4',
-      url: '/api/placeholder/150/150?text=🎭',
-      alt: 'Party avatar'
-    },
-    {
-      id: 'avatar-5',
-      url: '/api/placeholder/150/150?text=🎯',
-      alt: 'Target avatar'
-    },
-    {
-      id: 'avatar-6',
-      url: '/api/placeholder/150/150?text=🎪',
-      alt: 'Circus avatar'
-    },
-    {
-      id: 'avatar-7',
-      url: '/api/placeholder/150/150?text=🧙',
-      alt: 'Wizard avatar'
-    },
-    {
-      id: 'avatar-8',
-      url: '/api/placeholder/150/150?text=🦸',
-      alt: 'Superhero avatar'
-    },
-    {
-      id: 'avatar-9',
-      url: '/api/placeholder/150/150?text=🤠',
-      alt: 'Cowboy avatar'
-    },
-    {
-      id: 'avatar-10',
-      url: '/api/placeholder/150/150?text=🧠',
-      alt: 'Brain avatar'
-    }
-  ];
-  
-  /**
-   * Get a random default avatar
-   * @returns Random avatar object
-   */
-  export const getRandomAvatar = (): Avatar => {
-    const randomIndex = Math.floor(Math.random() * defaultAvatars.length);
-    return defaultAvatars[randomIndex];
+  const generateRandomSeed = (): string => {
+    return Math.random().toString(36).substring(2, 15);
   };
   
   /**
-   * Get default avatar based on player name
+   * Generates a random pastel color in hex format
+   * @returns Hex color string without the # prefix
+   */
+  const generatePastelColor = (): string => {
+    // Generate pastel colors by using high base values and smaller random variations
+    const r = Math.floor((Math.random() * 55) + 200).toString(16);
+    const g = Math.floor((Math.random() * 55) + 200).toString(16);
+    const b = Math.floor((Math.random() * 55) + 200).toString(16);
+    return `${r}${g}${b}`;
+  };
+  
+  /**
+   * Creates a new random avatar
+   * @returns Random avatar object
+   */
+  export const getRandomAvatar = (): Avatar => {
+    const seed = generateRandomSeed();
+    const backgroundColor = generatePastelColor();
+    
+    return {
+      id: `avatar-${seed}`,
+      url: `https://api.dicebear.com/7.x/personas/svg?seed=${seed}&backgroundColor=${backgroundColor}`,
+      alt: 'Random player avatar'
+    };
+  };
+  
+  /**
+   * Get avatar based on player name
    * @param name - Player name
    * @returns Avatar object
    */
   export const getAvatarByName = (name: string): Avatar => {
     if (!name) return getRandomAvatar();
     
-    // Use the name to deterministically select an avatar
-    const nameSum = name.split('').reduce((sum, char) => sum + char.charCodeAt(0), 0);
-    const index = nameSum % defaultAvatars.length;
+    // Use the name as the seed to ensure consistent avatar for the same name
+    const backgroundColor = generatePastelColor();
     
-    return defaultAvatars[index];
+    return {
+      id: `avatar-${name}`,
+      url: `https://api.dicebear.com/7.x/personas/svg?seed=${encodeURIComponent(name)}&backgroundColor=${backgroundColor}`,
+      alt: `${name}'s avatar`
+    };
   };

@@ -4,11 +4,57 @@ import { useTranslation } from 'react-i18next';
 import { motion } from 'framer-motion';
 import ReactConfetti from 'react-confetti';
 import { useGame } from '@/contexts/GameContext';
-import { calculateStandings, getParticipantById } from '@/utils/helpers';
+import { calculateStandings } from '@/utils/helpers';
 import Button from '@/components/common/Button';
 import PlayerCard from '@/components/common/PlayerCard';
 import TeamCard from '@/components/common/TeamCard';
-import { Challenge, ChallengeResult } from '@/types/Challenge';
+
+// Constants for recent players storage
+const MAX_RECENT_PLAYERS = 10;
+const RECENT_PLAYERS_KEY = 'recentPlayers';
+
+// Helper function to update recent players in local storage
+const updateRecentPlayers = (players: any[]) => {
+  try {
+    const stored = localStorage.getItem(RECENT_PLAYERS_KEY);
+    const existingPlayers = stored ? JSON.parse(stored) : [];
+    
+    // Process each player
+    const updatedPlayers = players.reduce((acc: any[], player: any) => {
+      // Skip if player has no name or image
+      if (!player.name || !player.image) return acc;
+      
+      // Check if player already exists (case insensitive)
+      const existingIndex = acc.findIndex(
+        (p) => p.name.toLowerCase() === player.name.toLowerCase()
+      );
+      
+      // If player exists, update their data
+      if (existingIndex >= 0) {
+        acc[existingIndex] = {
+          ...player,
+          id: Date.now().toString() + Math.random().toString(36).substr(2, 9)
+        };
+      } else {
+        // Add new player
+        acc.push({
+          ...player,
+          id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+          score: 0 // Reset score for storage
+        });
+      }
+      
+      return acc;
+    }, existingPlayers);
+    
+    // Keep only the most recent MAX_RECENT_PLAYERS
+    const finalPlayers = updatedPlayers.slice(0, MAX_RECENT_PLAYERS);
+    
+    localStorage.setItem(RECENT_PLAYERS_KEY, JSON.stringify(finalPlayers));
+  } catch (error) {
+    console.error('Error updating recent players:', error);
+  }
+};
 
 const Results: React.FC = () => {
   const { t } = useTranslation();
@@ -48,6 +94,13 @@ const Results: React.FC = () => {
       clearTimeout(timer);
     };
   }, []);
+  
+  // Save players to recent players when game finishes
+  useEffect(() => {
+    if (state.gameFinished && state.players.length > 0) {
+      updateRecentPlayers(state.players);
+    }
+  }, [state.gameFinished, state.players]);
   
   // Calculate standings
   const standings = calculateStandings(state.players, state.teams, state.gameMode);
@@ -220,7 +273,7 @@ const Results: React.FC = () => {
                   duration: 2
                 }}
               >
-                {winners[0].score} {t('results.points')}
+                {winners[0].score} {t('common.points')}
               </motion.div>
               <h3 className="text-xl font-bold mt-4 text-gray-700 dark:text-gray-300">
                 {t('results.congratulations')}
@@ -266,13 +319,13 @@ const Results: React.FC = () => {
                       {entry.name}
                     </span>
                     <span className="text-xs text-gray-500 dark:text-gray-400 ml-2">
-                      {entry.type === 'team' ? t('game.team') : t('game.player')}
+                      {entry.type === 'team' ? t('common.team') : t('common.player')}
                     </span>
                   </div>
                 </div>
                 
                 <div className="text-lg font-bold text-game-primary">
-                  {entry.score} {t('results.points')}
+                  {entry.score} {t('common.points')}
                 </div>
               </div>
             ))}

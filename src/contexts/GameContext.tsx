@@ -48,15 +48,19 @@ type GameAction =
   | { type: 'SET_GAME_DURATION'; payload: GameDuration }
   | { type: 'ADD_PLAYER'; payload: Omit<Player, 'id' | 'score'> }
   | { type: 'REMOVE_PLAYER'; payload: string }
-  | { type: 'CREATE_TEAMS'; payload: number }
+  | { type: 'CREATE_TEAMS'; payload: { numTeams: number; teamNames: string[] } }
   | { type: 'RANDOMIZE_TEAMS' }
   | { type: 'LOAD_CHALLENGES'; payload: Challenge[] }
   | { type: 'ADD_CUSTOM_CHALLENGE'; payload: Omit<Challenge, 'id'> }
+  | { type: 'UPDATE_CUSTOM_CHALLENGE'; payload: Challenge }
   | { type: 'REMOVE_CUSTOM_CHALLENGE'; payload: string }
   | { type: 'NEXT_TURN' }
   | { type: 'SELECT_CHALLENGE'; payload: Challenge }
   | { type: 'RECORD_CHALLENGE_RESULT'; payload: Omit<ChallengeResult, 'timestamp'> }
-  | { type: 'RESET_GAME' };
+  | { type: 'RESET_GAME' }
+  | { type: 'REMOVE_PLAYER_FROM_TEAM'; payload: { teamId: string; playerId: string } }
+  | { type: 'ADD_PLAYER_TO_TEAM'; payload: { teamId: string; playerId: string } }
+  | { type: 'SAVE_TEAMS_STATE'; payload: Team[] };
 
 // Create reducer function
 const gameReducer = (state: GameState, action: GameAction): GameState => {
@@ -115,13 +119,13 @@ const gameReducer = (state: GameState, action: GameAction): GameState => {
       };
 
     case 'CREATE_TEAMS': {
-      const numTeams = action.payload;
+      const { numTeams, teamNames } = action.payload;
       const playerIds = state.players.map((player) => player.id);
       
-      // Create empty teams
+      // Create teams with provided names
       const teams: Team[] = Array.from({ length: numTeams }, (_, i) => ({
         id: generateId(),
-        name: `Team ${i + 1}`,
+        name: teamNames[i] || `Team ${i + 1}`,
         color: getTeamColor(i),
         playerIds: [],
         score: 0,
@@ -183,10 +187,14 @@ const gameReducer = (state: GameState, action: GameAction): GameState => {
     }
 
     case 'LOAD_CHALLENGES':
-      return {
-        ...state,
-        challenges: action.payload,
-      };
+      // Only update if we're loading challenges and don't already have them
+      if (action.payload.length > 0 && state.challenges.length === 0) {
+        return {
+          ...state,
+          challenges: [...action.payload],
+        };
+      }
+      return state;
 
     case 'ADD_CUSTOM_CHALLENGE': {
       const newChallenge: Challenge = {
@@ -196,6 +204,15 @@ const gameReducer = (state: GameState, action: GameAction): GameState => {
       return {
         ...state,
         customChallenges: [...state.customChallenges, newChallenge],
+      };
+    }
+
+    case 'UPDATE_CUSTOM_CHALLENGE': {
+      return {
+        ...state,
+        customChallenges: state.customChallenges.map(challenge =>
+          challenge.id === action.payload.id ? action.payload : challenge
+        ),
       };
     }
 
@@ -328,11 +345,57 @@ const gameReducer = (state: GameState, action: GameAction): GameState => {
       };
     }
 
+    case 'REMOVE_PLAYER_FROM_TEAM': {
+      const { teamId, playerId } = action.payload;
+      return {
+        ...state,
+        teams: state.teams.map(team => 
+          team.id === teamId
+            ? { ...team, playerIds: team.playerIds.filter(id => id !== playerId) }
+            : team
+        ),
+        players: state.players.map(player =>
+          player.id === playerId
+            ? { ...player, teamId: undefined }
+            : player
+        )
+      };
+    }
+
+    case 'ADD_PLAYER_TO_TEAM': {
+      const { teamId, playerId } = action.payload;
+      // First remove player from any existing team
+      const teamsWithoutPlayer = state.teams.map(team => ({
+        ...team,
+        playerIds: team.playerIds.filter(id => id !== playerId)
+      }));
+      
+      return {
+        ...state,
+        teams: teamsWithoutPlayer.map(team =>
+          team.id === teamId
+            ? { ...team, playerIds: [...team.playerIds, playerId] }
+            : team
+        ),
+        players: state.players.map(player =>
+          player.id === playerId
+            ? { ...player, teamId }
+            : player
+        )
+      };
+    }
+
     case 'RESET_GAME':
       return {
         ...initialState,
         customChallenges: state.customChallenges, // Preserve custom challenges
         challenges: state.challenges, // Preserve loaded challenges
+      };
+
+    case 'SAVE_TEAMS_STATE':
+      return {
+        ...state,
+        teams: action.payload
       };
 
     default:
@@ -394,31 +457,41 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (savedState) {
       try {
         const parsedState = JSON.parse(savedState) as GameState;
-        // Use the saved state to initialize
-        dispatch({ type: 'LOAD_CHALLENGES', payload: parsedState.challenges });
         
-        // Add saved players
-        parsedState.players.forEach(player => {
-          dispatch({ 
-            type: 'ADD_PLAYER', 
-            payload: { name: player.name, image: player.image } 
+        // Initialize state in a specific order to prevent overwrites
+        const initializeState = async () => {
+          // First, set game mode and duration as they affect other state
+          dispatch({ type: 'SET_GAME_MODE', payload: parsedState.gameMode });
+          dispatch({ type: 'SET_GAME_DURATION', payload: parsedState.gameDuration });
+          
+          // Then load challenges
+          if (parsedState.challenges.length > 0) {
+            dispatch({ type: 'LOAD_CHALLENGES', payload: parsedState.challenges });
+          }
+          
+          // Load custom challenges
+          if (parsedState.customChallenges.length > 0) {
+            parsedState.customChallenges.forEach(challenge => {
+              const { id, ...challengeData } = challenge;
+              dispatch({ type: 'ADD_CUSTOM_CHALLENGE', payload: challengeData });
+            });
+          }
+          
+          // Add saved players
+          parsedState.players.forEach(player => {
+            dispatch({ 
+              type: 'ADD_PLAYER', 
+              payload: { name: player.name, image: player.image } 
+            });
           });
-        });
+          
+          // Recreate teams if needed
+          if (parsedState.gameMode === GameMode.TEAMS && parsedState.teams.length > 0) {
+            dispatch({ type: 'CREATE_TEAMS', payload: { numTeams: parsedState.teams.length, teamNames: parsedState.teams.map(team => team.name) } });
+          }
+        };
         
-        // Set game mode and duration
-        dispatch({ type: 'SET_GAME_MODE', payload: parsedState.gameMode });
-        dispatch({ type: 'SET_GAME_DURATION', payload: parsedState.gameDuration });
-        
-        // Load custom challenges
-        parsedState.customChallenges.forEach(challenge => {
-          const { id, ...challengeData } = challenge;
-          dispatch({ type: 'ADD_CUSTOM_CHALLENGE', payload: challengeData });
-        });
-        
-        // Recreate teams if needed
-        if (parsedState.gameMode === GameMode.TEAMS && parsedState.teams.length > 0) {
-          dispatch({ type: 'CREATE_TEAMS', payload: parsedState.teams.length });
-        }
+        initializeState();
       } catch (error) {
         console.error('Error restoring game state:', error);
       }

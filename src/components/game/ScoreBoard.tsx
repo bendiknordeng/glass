@@ -83,7 +83,7 @@ const ScoreBoard: React.FC<ScoreBoardProps> = ({
                   {entry.name}
                 </span>
                 <span className="text-xs text-gray-500 dark:text-gray-400 ml-2">
-                  {entry.type === 'team' ? t('game.team') : t('game.player')}
+                  {entry.type === 'team' ? t('common.team') : t('common.player')}
                 </span>
               </div>
             </div>

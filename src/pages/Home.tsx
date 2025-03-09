@@ -4,7 +4,6 @@ import { useTranslation } from 'react-i18next';
 import { motion } from 'framer-motion';
 import { useGame } from '@/contexts/GameContext';
 import { useTheme } from '@/contexts/ThemeContext';
-import { useLanguage } from '@/contexts/LanguageContext';
 import Button from '@/components/common/Button';
 import { ConfirmModal } from '@/components/common/Modal';
 
@@ -13,11 +12,10 @@ const Home: React.FC = () => {
   const navigate = useNavigate();
   const { state, dispatch } = useGame();
   const { theme, setTheme, isDarkMode } = useTheme();
-  const { language, setLanguage } = useLanguage();
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   
   // Check if there's a game in progress
-  const hasGameInProgress = state.players.length > 0;
+  const hasGameInProgress = state.players.length > 0 && state.gameStarted && !state.gameFinished;
   
   // Handle start new game
   const handleNewGame = () => {
@@ -31,11 +29,14 @@ const Home: React.FC = () => {
   
   // Handle continue game
   const handleContinueGame = () => {
-    if (state.gameStarted && !state.gameFinished) {
+    if (hasGameInProgress) {
       navigate('/game');
-    } else {
-      navigate('/setup');
     }
+  };
+  
+  // Handle edit game setup
+  const handleEditSetup = () => {
+    navigate('/setup');
   };
   
   // Handle reset and start new game
@@ -49,32 +50,9 @@ const Home: React.FC = () => {
     setTheme(isDarkMode ? 'light' : 'dark');
   };
   
-  // Toggle language
-  const toggleLanguage = () => {
-    setLanguage(language === 'en' ? 'no' : 'en');
-  };
-  
   return (
     <div className="min-h-screen flex flex-col">
-      {/* Language and Theme toggles */}
-      <div className="absolute top-4 right-4 flex gap-3">
-        <button
-          onClick={toggleLanguage}
-          className="p-2 rounded-full bg-white dark:bg-gray-800 shadow-md text-gray-700 dark:text-white"
-          aria-label={t('settings.toggleLanguage')}
-        >
-          {language === 'en' ? '🇬🇧' : '🇳🇴'}
-        </button>
-        
-        <button
-          onClick={toggleTheme}
-          className="p-2 rounded-full bg-white dark:bg-gray-800 shadow-md text-gray-700 dark:text-white"
-          aria-label={t('settings.toggleTheme')}
-        >
-          {isDarkMode ? '☀️' : '🌙'}
-        </button>
-      </div>
-      
+    
       {/* Main content */}
       <div className="flex-1 flex flex-col items-center justify-center p-6">
         <motion.div
@@ -83,6 +61,14 @@ const Home: React.FC = () => {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6 }}
         >
+          <motion.img
+            src="/assets/images/glass.png"
+            alt={t('app.name')}
+            className="mx-auto mb-6 w-64 h-64"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.6 }}
+          />
           <motion.h1 
             className="text-5xl font-bold mb-2 text-game-primary"
             animate={{ 
@@ -119,15 +105,32 @@ const Home: React.FC = () => {
             </Button>
             
             {hasGameInProgress && (
-              <Button
-                variant="secondary"
-                size="lg"
-                isFullWidth
-                onClick={handleContinueGame}
-                className="text-lg"
-              >
-                {t('home.continueGame')}
-              </Button>
+              <div className="relative">
+                <Button
+                  variant="secondary"
+                  size="lg"
+                  isFullWidth
+                  onClick={handleContinueGame}
+                  className="text-lg"
+                >
+                  {t('home.continueGame')}
+                </Button>
+                <button
+                  onClick={handleEditSetup}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 p-2 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-full transition-colors"
+                  title={t('home.editSetup')}
+                  aria-label={t('home.editSetup')}
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="h-5 w-5"
+                    viewBox="0 0 20 20"
+                    fill="currentColor"
+                  >
+                    <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
+                  </svg>
+                </button>
+              </div>
             )}
           </div>
         </motion.div>

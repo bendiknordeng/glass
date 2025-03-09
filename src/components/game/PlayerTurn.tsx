@@ -2,9 +2,9 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { Player } from '@/types/Player';
-import { Team, GameMode } from '@/types/Team';
-import PlayerCard from '@/components/common/PlayerCard';
+import { Team } from '@/types/Team';
 import TeamCard from '@/components/common/TeamCard';
+import { getPlayerImage } from '@/utils/helpers';
 
 interface PlayerTurnProps {
   participant: Player | Team;
@@ -34,7 +34,7 @@ const PlayerTurn: React.FC<PlayerTurnProps> = ({
           className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1"
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3 }}
+          transition={{ duration: 0.6 }}
         >
           {t('game.round', { round })}
         </motion.div>
@@ -43,7 +43,7 @@ const PlayerTurn: React.FC<PlayerTurnProps> = ({
           className="text-2xl font-bold text-gray-800 dark:text-white"
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3, delay: 0.1 }}
+          transition={{ duration: 0.6, delay: 0.2 }}
         >
           {isTeam 
             ? t('game.teamTurn', { team: (participant as Team).name }) 
@@ -55,7 +55,7 @@ const PlayerTurn: React.FC<PlayerTurnProps> = ({
         className="flex justify-center mb-6"
         initial={{ opacity: 0, scale: 0.9 }}
         animate={{ opacity: 1, scale: 1 }}
-        transition={{ duration: 0.4, delay: 0.2 }}
+        transition={{ duration: 0.8, delay: 0.4 }}
       >
         {isTeam ? (
           <TeamCard 
@@ -65,11 +65,48 @@ const PlayerTurn: React.FC<PlayerTurnProps> = ({
             animation="pulse"
           />
         ) : (
-          <PlayerCard 
-            player={participant as Player} 
-            size="lg"
-            animation="pulse"
-          />
+          <div className="relative">
+            {/* Spinning border */}
+            <motion.div
+              className="absolute -inset-2 rounded-full border-4 border-t-transparent border-game-primary"
+              animate={{ rotate: 360 }}
+              transition={{ 
+                duration: 3,
+                repeat: Infinity,
+                ease: "linear"
+              }}
+            />
+            
+            {/* Player image */}
+            <motion.div
+              className="relative w-32 h-32 rounded-full overflow-hidden"
+              animate={{ 
+                scale: [1, 1.05, 1],
+              }}
+              transition={{ 
+                duration: 2,
+                repeat: Infinity,
+                repeatType: "reverse",
+                ease: "easeInOut"
+              }}
+            >
+              <img
+                src={getPlayerImage((participant as Player).image, (participant as Player).name)}
+                alt={(participant as Player).name}
+                className="w-full h-full object-cover"
+              />
+            </motion.div>
+            
+            {/* Player name */}
+            <motion.div
+              className="mt-4 text-xl font-bold text-gray-800 dark:text-white"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6, delay: 0.8 }}
+            >
+              {(participant as Player).name}
+            </motion.div>
+          </div>
         )}
       </motion.div>
       
@@ -80,7 +117,7 @@ const PlayerTurn: React.FC<PlayerTurnProps> = ({
             onClick={onNext}
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3, delay: 0.4 }}
+            transition={{ duration: 0.6, delay: 1 }}
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
           >

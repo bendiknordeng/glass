@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { motion } from 'framer-motion';
-import { ChallengeType } from '@/types/Challenge';
+import { ChallengeType, Challenge } from '@/types/Challenge';
 import { useGame } from '@/contexts/GameContext';
 import Button from '@/components/common/Button';
 import Modal from '@/components/common/Modal';
@@ -9,11 +9,13 @@ import Modal from '@/components/common/Modal';
 interface CustomChallengeFormProps {
   isOpen: boolean;
   onClose: () => void;
+  editChallenge?: Challenge; // Challenge to edit, if in edit mode
 }
 
 const CustomChallengeForm: React.FC<CustomChallengeFormProps> = ({
   isOpen,
-  onClose
+  onClose,
+  editChallenge
 }) => {
   const { t } = useTranslation();
   const { dispatch } = useGame();
@@ -28,31 +30,61 @@ const CustomChallengeForm: React.FC<CustomChallengeFormProps> = ({
   const [category, setCategory] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   
+  // Load challenge data when editing
+  useEffect(() => {
+    if (editChallenge) {
+      setTitle(editChallenge.title);
+      setDescription(editChallenge.description);
+      setType(editChallenge.type);
+      setDifficulty(editChallenge.difficulty);
+      setPoints(editChallenge.points);
+      setCanReuse(editChallenge.canReuse);
+      setCategory(editChallenge.category || '');
+    }
+  }, [editChallenge]);
+  
   // Handle form submission
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
     
     try {
-      // Add custom challenge
-      dispatch({
-        type: 'ADD_CUSTOM_CHALLENGE',
-        payload: {
-          title,
-          description,
-          type,
-          difficulty,
-          points,
-          canReuse,
-          category: category.trim() || undefined
-        }
-      });
+      if (editChallenge) {
+        // Update existing challenge
+        dispatch({
+          type: 'UPDATE_CUSTOM_CHALLENGE',
+          payload: {
+            id: editChallenge.id,
+            title,
+            description,
+            type,
+            difficulty,
+            points,
+            canReuse,
+            category: category.trim() || undefined
+          }
+        });
+      } else {
+        // Add new challenge
+        dispatch({
+          type: 'ADD_CUSTOM_CHALLENGE',
+          payload: {
+            title,
+            description,
+            type,
+            difficulty,
+            points,
+            canReuse,
+            category: category.trim() || undefined
+          }
+        });
+      }
       
       // Reset form and close modal
       resetForm();
       onClose();
     } catch (error) {
-      console.error('Error adding custom challenge:', error);
+      console.error('Error saving custom challenge:', error);
     } finally {
       setIsSubmitting(false);
     }
@@ -79,7 +111,7 @@ const CustomChallengeForm: React.FC<CustomChallengeFormProps> = ({
     <Modal
       isOpen={isOpen}
       onClose={handleClose}
-      title={t('challenges.customChallenge')}
+      title={editChallenge ? t('challenges.editChallenge') : t('challenges.customChallenge')}
       size="lg"
     >
       <form onSubmit={handleSubmit}>
@@ -191,7 +223,7 @@ const CustomChallengeForm: React.FC<CustomChallengeFormProps> = ({
             {/* Points */}
             <div>
               <label htmlFor="challenge-points" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                {t('challenges.points')} *
+                {t('common.points')} *
               </label>
               <select
                 id="challenge-points"
@@ -199,9 +231,9 @@ const CustomChallengeForm: React.FC<CustomChallengeFormProps> = ({
                 onChange={(e) => setPoints(parseInt(e.target.value) as 1 | 2 | 3)}
                 className="w-full rounded-md border-gray-300 dark:border-gray-700 shadow-sm focus:border-game-primary focus:ring focus:ring-game-primary focus:ring-opacity-50 dark:bg-gray-700 dark:text-white"
               >
-                <option value={1}>1 {t('challenges.point')}</option>
-                <option value={2}>2 {t('challenges.points')}</option>
-                <option value={3}>3 {t('challenges.points')}</option>
+                <option value={1}>1 {t('common.point')}</option>
+                <option value={2}>2 {t('common.points')}</option>
+                <option value={3}>3 {t('common.points')}</option>
               </select>
             </div>
           </div>

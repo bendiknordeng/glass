@@ -34,6 +34,9 @@ const ChallengeDisplay: React.FC<ChallengeDisplayProps> = ({
     getParticipantById(id, players, teams)
   ).filter(p => p !== null) as { id: string; name: string; type: 'player' | 'team' }[];
   
+  // Get current participant (first participant is always the current player/team)
+  const currentParticipant = participantDetails[0];
+  
   // Handle challenge completion
   const handleCompleteChallenge = (completed: boolean) => {
     if (completed) {
@@ -60,6 +63,18 @@ const ChallengeDisplay: React.FC<ChallengeDisplayProps> = ({
   
   return (
     <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 max-w-2xl mx-auto">
+      {/* Current Turn Indicator */}
+      <div className="mb-6 text-center">
+        <div className="inline-block bg-game-primary text-white px-4 py-2 rounded-full mb-4">
+          <span className="font-medium">
+            {t('game.currentTurn', {
+              name: currentParticipant?.name,
+              type: currentParticipant?.type === 'team' ? t('common.team') : t('common.player')
+            })}
+          </span>
+        </div>
+      </div>
+
       {/* Challenge Header */}
       <div className="mb-6 text-center">
         <h2 className="text-2xl font-bold text-gray-800 dark:text-white mb-2">
@@ -77,7 +92,7 @@ const ChallengeDisplay: React.FC<ChallengeDisplayProps> = ({
                 : t('game.challengeTypes.team')}
           </span>
           <span className="bg-game-accent text-gray-800 text-sm font-medium px-3 py-1 rounded-full">
-            {challenge.points} {challenge.points === 1 ? t('challenges.point') : t('challenges.points')}
+            {challenge.points} {challenge.points === 1 ? t('common.point') : t('common.points')}
           </span>
         </div>
       </div>

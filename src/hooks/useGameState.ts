@@ -55,22 +55,50 @@ export const useGameState = () => {
   }, [timerActive, timeRemaining, dispatch]);
   
   /**
-   * Starts a new game
+   * Gets the current participant (player or team)
    */
-  const startGame = useCallback(() => {
-    dispatch({ type: 'START_GAME' });
-    // Start with player selection animation
-    setIsSelectingPlayer(true);
-    setTimeout(() => {
-      setIsSelectingPlayer(false);
-      selectNextChallenge();
-    }, 2000);
-  }, [dispatch]);
-  
+  const getCurrentParticipant = useCallback(() => {
+    if (!state.currentChallengeParticipants || state.currentChallengeParticipants.length === 0) {
+      return null;
+    }
+    const participant = getParticipantById(state.currentChallengeParticipants[0], state.players, state.teams);
+    if (!participant) return null;
+    
+    // Return the full player or team object
+    return 'playerIds' in participant 
+      ? state.teams.find(t => t.id === participant.id)
+      : state.players.find(p => p.id === participant.id);
+  }, [state.currentChallengeParticipants, state.players, state.teams]);
+
+  /**
+   * Gets all participants for the current challenge
+   */
+  const getChallengeParticipants = useCallback(() => {
+    if (!state.currentChallengeParticipants) return [];
+    return state.currentChallengeParticipants.map(id => {
+      const participant = getParticipantById(id, state.players, state.teams);
+      if (!participant) return null;
+      return {
+        id: participant.id,
+        name: participant.name,
+        type: 'playerIds' in participant ? 'team' : 'player'
+      };
+    }).filter(p => p !== null);
+  }, [state.currentChallengeParticipants, state.players, state.teams]);
+
   /**
    * Selects the next challenge
    */
   const selectNextChallenge = useCallback(() => {
+    // Ensure we have challenges to select from
+    if (state.challenges.length === 0) {
+      console.error('No challenges available');
+      return;
+    }
+
+    // Advance to next player's turn
+    dispatch({ type: 'NEXT_TURN' });
+
     const challenge = getNextChallenge(
       state.challenges, 
       state.usedChallenges, 
@@ -79,20 +107,39 @@ export const useGameState = () => {
     );
     
     if (challenge) {
-      // Trigger challenge reveal animation
-      setIsRevealingChallenge(true);
+      // First select the challenge internally
+      dispatch({ type: 'SELECT_CHALLENGE', payload: challenge });
+      
+      // First show player selection
+      setIsSelectingPlayer(true);
+      
+      // After player selection completes, show challenge reveal
       setTimeout(() => {
-        dispatch({ type: 'SELECT_CHALLENGE', payload: challenge });
-        setIsRevealingChallenge(false);
-      }, 1500);
+        setIsSelectingPlayer(false);
+        setIsRevealingChallenge(true);
+        
+        // After challenge reveal completes, show the main game
+        setTimeout(() => {
+          setIsRevealingChallenge(false);
+        }, 6000); // Match ChallengeReveal duration
+      }, 6000); // Match PlayerSelection duration
     } else {
       // No more challenges available, end the game
+      console.log('No more challenges available, ending game');
       dispatch({ type: 'END_GAME' });
     }
   }, [state.challenges, state.usedChallenges, state.gameMode, state.customChallenges, dispatch]);
-  
+
   /**
-   * Completes the current challenge and moves to the next turn
+   * Starts a new game
+   */
+  const startGame = useCallback(() => {
+    dispatch({ type: 'START_GAME' });
+    selectNextChallenge();
+  }, [dispatch, selectNextChallenge]);
+
+  /**
+   * Completes the current challenge
    */
   const completeChallenge = useCallback((completed: boolean, winnerId?: string) => {
     if (!state.currentChallenge) return;
@@ -103,105 +150,26 @@ export const useGameState = () => {
         challengeId: state.currentChallenge.id,
         completed,
         winnerId,
-        participantIds: state.currentChallengeParticipants,
+        participantIds: state.currentChallengeParticipants
       }
     });
     
-    // Show results briefly before moving to next turn
-    setIsShowingResults(true);
-    setTimeout(() => {
-      setIsShowingResults(false);
-      
-      // Move to next player/team turn
-      dispatch({ type: 'NEXT_TURN' });
-      
-      // If game is not finished, select next player and challenge
-      if (!state.gameFinished) {
-        // Start with player selection animation
-        setIsSelectingPlayer(true);
-        setTimeout(() => {
-          setIsSelectingPlayer(false);
-          selectNextChallenge();
-        }, 2000);
-      }
-    }, 3000);
-  }, [state.currentChallenge, state.currentChallengeParticipants, state.gameFinished, dispatch]);
-  
-  /**
-   * Gets the current player or team whose turn it is
-   */
-  const getCurrentParticipant = useCallback(() => {
-    if (state.gameMode === GameMode.TEAMS) {
-      return state.teams[state.currentTurnIndex];
-    } else {
-      return state.players[state.currentTurnIndex];
-    }
-  }, [state.gameMode, state.teams, state.players, state.currentTurnIndex]);
-  
-  /**
-   * Gets participants for the current challenge
-   */
-  const getChallengeParticipants = useCallback(() => {
-    if (!state.currentChallenge) return [];
-    
-    return state.currentChallengeParticipants.map(id => 
-      getParticipantById(id, state.players, state.teams)
-    ).filter(p => p !== null) as { id: string; name: string; type: 'player' | 'team' }[];
-  }, [state.currentChallenge, state.currentChallengeParticipants, state.players, state.teams]);
-  
-  /**
-   * Adds a custom challenge to the game
-   */
-  const addCustomChallenge = useCallback((
-    title: string,
-    description: string,
-    type: ChallengeType,
-    canReuse: boolean,
-    difficulty: 1 | 2 | 3,
-    points: number,
-    category?: string
-  ) => {
-    dispatch({
-      type: 'ADD_CUSTOM_CHALLENGE',
-      payload: {
-        title,
-        description,
-        type,
-        canReuse,
-        difficulty,
-        points,
-        category
-      }
-    });
-  }, [dispatch]);
-  
-  /**
-   * Gets the leaderboard of players or teams
-   */
-  const getLeaderboard = useCallback(() => {
-    if (state.gameMode === GameMode.TEAMS) {
-      return [...state.teams].sort((a, b) => b.score - a.score);
-    } else {
-      return [...state.players].sort((a, b) => b.score - a.score);
-    }
-  }, [state.gameMode, state.teams, state.players]);
+    // Start next turn with player selection and challenge reveal
+    selectNextChallenge();
+  }, [state.currentChallenge, state.currentChallengeParticipants, dispatch, selectNextChallenge]);
 
   return {
-    // State
     gameState: state,
     timeRemaining,
     isSelectingPlayer,
     isRevealingChallenge,
     isShowingResults,
-    
-    // Actions
-    startGame,
-    completeChallenge,
-    addCustomChallenge,
-    
-    // Getters
     getCurrentParticipant,
     getChallengeParticipants,
-    getLeaderboard
+    startGame,
+    selectNextChallenge,
+    completeChallenge
   };
 };
+
+export default useGameState;

@@ -1,8 +1,8 @@
 {
   "app": {
     "name": "Glass",
-    "tagline": "The ultimate party game",
-    "creator": "Created with ❤️ for fun gatherings"
+    "tagline": "A better party game",
+    "creator": "Made by Bendik Nordeng"
   },
   "common": {
     "next": "Next",
@@ -18,14 +18,27 @@
     "no": "No",
     "continue": "Continue",
     "loading": "Loading...",
-    "backToHome": "Back to Home"
+    "backToHome": "Back to Home",
+    "optional": "optional",
+    "selected": "Selected",
+    "startGame": "Start Game",
+    "delete": "Delete",
+    "player": "Player",
+    "team": "Team",
+    "points": "Points",
+    "point": "point",
+    "home": "Home"
   },
   "home": {
     "welcomeTitle": "Welcome to Glass!",
     "welcomeMessage": "Ready to spice up your gathering? Start a new game or continue where you left off.",
     "newGame": "New Game",
     "continueGame": "Continue Game",
-    "settings": "Settings"
+    "settings": "Settings",
+    "startNewGame": "Start New Game",
+    "startNewGameWarning": "Starting a new game will end your current game",
+    "startNew": "Start New",
+    "editSetup": "Edit Setup"
   },
   "setup": {
     "title": "Game Setup",
@@ -50,7 +63,19 @@
     "clickToChange": "Click to change",
     "noPlayersYet": "No players yet. Add players to start!",
     "addedPlayers": "Added {{count}} players",
-    "needMinPlayers": "Need at least {{count}} players to start!"
+    "needMinPlayers": "Need at least {{count}} players to start!",
+    "teamMode": "Team Mode",
+    "allPlayersIndividual": "All players play against each other",
+    "createTeams": "Create {{count}} teams",
+    "yourTeams": "Your Teams",
+    "playInTeams": "Play in Teams",
+    "timeLimit": "Time Limit",
+    "settings": "Settings",
+    "numberOfChallenges": "Number of Challenges",
+    "unassignedPlayers": "Unassigned Players",
+    "saveTeams": "Save Teams",
+    "moveAllHere": "Move all here",
+    "recentPlayers": "Recent Players"
   },
   "game": {
     "round": "Round {{round}}",
@@ -70,7 +95,16 @@
     "winner": "Winner",
     "timeRemaining": "Time Remaining: {{time}}",
     "nextPlayer": "Next Player",
-    "gameOver": "Game Over!"
+    "gameOver": "Game Over!",
+    "loadingChallenge": "Loading challenge...",
+    "selectWinnerInstruction": "Select Winner",
+    "participants": "Participants",
+    "newChallenge": "New Challenge",
+    "getReady": "Get ready!",
+    "confirmEndGame": "Are you sure you want to end the game?",
+    "challengeProgress": "Challenge {{current}} of {{total}}",
+    "endGame": "End Game",
+    "noScoresYet": "No scores yet. Play a game to see the results!"
   },
   "results": {
     "finalResults": "Final Results",
@@ -84,21 +118,35 @@
     "challengesCompleted": "Challenges Completed",
     "totalPoints": "Total Points",
     "bestChallenge": "Best Challenge",
-    "worstChallenge": "Worst Challenge"
+    "worstChallenge": "Worst Challenge",
+    "currentStandings": "Current Standings",
+    "gameStats": "Game Stats",
+    "mostCommonChallengeType": "Most Common Challenge Type",
+    "completionRate": "Completion Rate",
+    "completedChallenges": "Completed Challenges",
+    "totalChallenges": "Total Challenges",
+    "finalStandings": "Final Standings",
+    "gameComplete": "Game Completed"
   },
   "challenges": {
-    "customChallenge": "Create Custom Challenge",
+    "customChallenges": "Custom Challenges",
+    "customChallenge": "Custom Challenge",
+    "createCustomChallengesDesc": "Create custom challenges to spice up your game!",
+    "createCustomChallenge": "Create Custom Challenge",
     "challengeTitle": "Challenge Title",
     "challengeDescription": "Challenge Description",
     "challengeType": "Challenge Type",
     "canReuse": "Can be reused in the same game",
     "difficulty": "Difficulty",
-    "points": "Points",
     "category": "Category (Optional)",
     "addChallenge": "Add Challenge",
     "editChallenge": "Edit Challenge",
     "deleteChallenge": "Delete Challenge",
-    "deleteConfirm": "Are you sure you want to delete this challenge?"
+    "deleteConfirm": "Are you sure you want to delete this challenge?",
+    "challenges": "challenges",
+    "categoryPlaceholder": "Example: Drink, Quiz, Music",
+    "titlePlaceholder": "Example: Water or Vodka",
+    "descriptionPlaceholder": "Example: Drink a shot of water or vodka. Have the group guess what you drank."
   },
   "settings": {
     "title": "Settings",
@@ -113,6 +161,11 @@
     "soundEnabled": "Sound Enabled",
     "soundDisabled": "Sound Disabled",
     "resetApp": "Reset App",
-    "resetConfirm": "Are you sure you want to reset the app? All game data will be lost."
+    "resetConfirm": "Are you sure you want to reset the app? All game data will be lost.",
+    "toggleLanguage": "Toggle Language",
+    "toggleTheme": "Toggle Theme",
+    "resetGame": "Reset Game",
+    "resetGameWarning": "By resetting the game, you will start over",
+    "reset": "Reset"
   }
 }
