@@ -162,13 +162,6 @@ const ChallengeDisplay: React.FC<ChallengeDisplayProps> = ({
           {/* Display player information for individual challenges */}
           {challenge.type === ChallengeType.INDIVIDUAL && participantInfo && participantInfo.player && (
             <div className="flex flex-col items-center mb-6">
-              {/* Team badge if in team mode */}
-              {gameMode === GameMode.TEAMS && participantInfo.team && (
-                <div className="mb-2 text-sm font-medium text-game-primary">
-                  {t('game.teamMember', { team: participantInfo.team.name })}
-                </div>
-              )}
-              
               {/* Player image and name */}
               <motion.div
                 initial={{ scale: 0.9, opacity: 0 }}
