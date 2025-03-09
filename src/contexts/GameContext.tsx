@@ -2,10 +2,10 @@ import React, { createContext, useContext, useReducer, useEffect } from 'react';
 import { Player } from '@/types/Player';
 import { Team, GameMode, GameDuration } from '@/types/Team';
 import { Challenge, ChallengeResult } from '@/types/Challenge';
-import { generateId } from '@/utils/helpers';
+import { generateId, getParticipantById } from '@/utils/helpers';
 
 // Define the state shape
-interface GameState {
+export interface GameState {
   gameStarted: boolean;
   gameFinished: boolean;
   gameMode: GameMode;
@@ -60,7 +60,8 @@ type GameAction =
   | { type: 'RESET_GAME' }
   | { type: 'REMOVE_PLAYER_FROM_TEAM'; payload: { teamId: string; playerId: string } }
   | { type: 'ADD_PLAYER_TO_TEAM'; payload: { teamId: string; playerId: string } }
-  | { type: 'SAVE_TEAMS_STATE'; payload: Team[] };
+  | { type: 'SAVE_TEAMS_STATE'; payload: Team[] }
+  | { type: 'RESTORE_GAME_STATE'; payload: GameState };
 
 // Create reducer function
 const gameReducer = (state: GameState, action: GameAction): GameState => {
@@ -258,15 +259,6 @@ const gameReducer = (state: GameState, action: GameAction): GameState => {
          /* Time check will be handled by a separate timer component */
          false);
       
-      console.log("NEXT_TURN:", {
-        prevTurnIndex: state.currentTurnIndex,
-        nextTurnIndex,
-        prevRound: state.currentRound,
-        nextRound,
-        prevChallengeType: prevChallenge?.type,
-        wasAdvanced: nextTurnIndex !== state.currentTurnIndex
-      });
-      
       return {
         ...state,
         currentTurnIndex: nextTurnIndex,
@@ -279,25 +271,29 @@ const gameReducer = (state: GameState, action: GameAction): GameState => {
       const challenge = action.payload;
       let participants: string[] = [];
       
-      console.log("SELECT_CHALLENGE called", {
-        challengeType: challenge.type,
-        gameMode: state.gameMode,
-        currentTurnIndex: state.currentTurnIndex
-      });
+      // Get current participant ID before determining participants
+      const currentId = getCurrentParticipantId(state);
+      if (!currentId) {
+        console.error('No current participant ID found');
+        return state;
+      }
       
       // Determine participants based on challenge type
       if (challenge.type === 'individual') {
         // Current player/team only
-        participants = [getCurrentParticipantId(state)];
-        console.log("Individual challenge: Current participant ID:", participants[0]);
+        participants = [currentId];
       } else if (challenge.type === 'oneOnOne') {
         if (state.gameMode === GameMode.TEAMS) {
           // In team mode, one-on-one is between all teams - each team selects a player
           participants = state.teams.map(team => team.id);
-          console.log("One-on-one challenge in team mode: All teams participating");
+          
+          // Ensure we have at least two teams
+          if (participants.length < 2) {
+            console.error('Not enough teams for one-on-one challenge');
+            return state;
+          }
         } else {
           // In free-for-all, select the current player plus one random opponent
-          const currentId = getCurrentParticipantId(state);
           const otherIds = getAllParticipantIds(state).filter(id => id !== currentId);
           
           if (otherIds.length > 0) {
@@ -305,25 +301,51 @@ const gameReducer = (state: GameState, action: GameAction): GameState => {
             participants = [currentId, randomOpponentId];
           } else {
             // Fallback if there are no other players
-            participants = [currentId];
+            console.error('Not enough players for one-on-one challenge');
+            return state;
           }
-          console.log("One-on-one challenge in free-for-all: Participants", participants);
         }
       } else if (challenge.type === 'team') {
         // All teams participate in team challenges
         if (state.gameMode === GameMode.TEAMS) {
           participants = state.teams.map(team => team.id);
-          console.log("Team challenge in team mode: All teams participating");
+          
+          // Ensure we have at least one team
+          if (participants.length === 0) {
+            console.error('No teams available for team challenge');
+            return state;
+          }
         } else {
           // In free-for-all, create two random groups
           const playerIds = shuffleArray([...state.players.map(player => player.id)]);
+          if (playerIds.length < 2) {
+            console.error('Not enough players for team challenge');
+            return state;
+          }
+          
           const midpoint = Math.ceil(playerIds.length / 2);
           participants = [
             'group1:' + playerIds.slice(0, midpoint).join(','),
             'group2:' + playerIds.slice(midpoint).join(',')
           ];
-          console.log("Team challenge in free-for-all: Created two groups");
         }
+      }
+      
+      // Validate that we have participants
+      if (participants.length === 0) {
+        console.error('No participants selected for challenge');
+        return state;
+      }
+      
+      // Validate each participant exists
+      const validParticipants = participants.every(id => {
+        if (id.startsWith('group')) return true; // Group IDs are valid by construction
+        return getParticipantById(id, state.players, state.teams) !== null;
+      });
+      
+      if (!validParticipants) {
+        console.error('Invalid participants selected');
+        return state;
       }
       
       return {
@@ -437,6 +459,27 @@ const gameReducer = (state: GameState, action: GameAction): GameState => {
         teams: action.payload
       };
 
+    case 'RESTORE_GAME_STATE': {
+      const { gameStarted, gameFinished, gameMode, gameDuration, currentRound, currentTurnIndex, players, teams, challenges, usedChallenges, results, customChallenges, currentChallenge, currentChallengeParticipants } = action.payload;
+      return {
+        ...state,
+        gameStarted,
+        gameFinished,
+        gameMode,
+        gameDuration,
+        currentRound,
+        currentTurnIndex,
+        players: players.map(p => ({ ...p })),
+        teams: teams.map(t => ({ ...t })),
+        challenges: challenges.map(c => ({ ...c })),
+        usedChallenges,
+        results: results.map(r => ({ ...r })),
+        customChallenges: customChallenges.map(c => ({ ...c })),
+        currentChallenge: currentChallenge ? { ...currentChallenge } : null,
+        currentChallengeParticipants,
+      };
+    }
+
     default:
       return state;
   }
@@ -531,49 +574,39 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       try {
         const parsedState = JSON.parse(savedState) as GameState;
         
-        // Initialize state in a specific order to prevent overwrites
-        const initializeState = async () => {
-          // First, set game mode and duration as they affect other state
-          dispatch({ type: 'SET_GAME_MODE', payload: parsedState.gameMode });
-          dispatch({ type: 'SET_GAME_DURATION', payload: parsedState.gameDuration });
-          
-          // Then load challenges
-          if (parsedState.challenges.length > 0) {
-            dispatch({ type: 'LOAD_CHALLENGES', payload: parsedState.challenges });
-          }
-          
-          // Load custom challenges
-          if (parsedState.customChallenges.length > 0) {
-            parsedState.customChallenges.forEach(challenge => {
-              const { id, ...challengeData } = challenge;
-              dispatch({ type: 'ADD_CUSTOM_CHALLENGE', payload: challengeData });
-            });
-          }
-          
-          // Add saved players
-          parsedState.players.forEach(player => {
-            dispatch({ 
-              type: 'ADD_PLAYER', 
-              payload: { name: player.name, image: player.image } 
-            });
+        // Restore the complete game state at once
+        if (parsedState.gameStarted && !parsedState.gameFinished) {
+          // Only restore if there's an active game
+          dispatch({ 
+            type: 'RESTORE_GAME_STATE', 
+            payload: {
+              ...parsedState,
+              // Ensure we keep the same references for complex objects
+              players: parsedState.players.map(p => ({ ...p })),
+              teams: parsedState.teams.map(t => ({ ...t })),
+              challenges: parsedState.challenges.map(c => ({ ...c })),
+              customChallenges: parsedState.customChallenges.map(c => ({ ...c })),
+              results: parsedState.results.map(r => ({ ...r })),
+              currentChallenge: parsedState.currentChallenge ? { ...parsedState.currentChallenge } : null,
+              currentChallengeParticipants: [...parsedState.currentChallengeParticipants]
+            }
           });
-          
-          // Recreate teams if needed
-          if (parsedState.gameMode === GameMode.TEAMS && parsedState.teams.length > 0) {
-            dispatch({ type: 'CREATE_TEAMS', payload: { numTeams: parsedState.teams.length, teamNames: parsedState.teams.map(team => team.name) } });
-          }
-        };
-        
-        initializeState();
+        }
       } catch (error) {
         console.error('Error restoring game state:', error);
       }
     }
   }, []);
 
-  // Save game state to localStorage when it changes
+  // Save game state to localStorage whenever it changes
   useEffect(() => {
-    localStorage.setItem('glassGameState', JSON.stringify(state));
+    // Only save if we have an active game
+    if (state.gameStarted && !state.gameFinished) {
+      localStorage.setItem('glassGameState', JSON.stringify(state));
+    } else if (state.gameFinished) {
+      // Clear saved state when game is finished
+      localStorage.removeItem('glassGameState');
+    }
   }, [state]);
 
   return (

@@ -78,8 +78,8 @@ const ScoreBoard: React.FC<ScoreBoardProps> = ({
                 <div className={`
                   w-8 h-8 flex items-center justify-center rounded-full mr-3
                   ${index === 0 ? 'bg-game-accent text-gray-800' : 
-                    index === 1 ? 'bg-gray-300 text-gray-800' : 
-                    index === 2 ? 'bg-amber-700 text-white' : 'bg-gray-200 text-gray-500'}
+                    index === 1 ? 'bg-gray-400 text-gray-800' : 
+                    index === 2 ? 'bg-amber-700 text-white' : 'bg-white text-gray-800'}
                   font-bold
                 `}>
                   {index + 1}

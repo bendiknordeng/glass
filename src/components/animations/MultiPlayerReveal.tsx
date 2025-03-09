@@ -25,30 +25,19 @@ const MultiPlayerReveal: React.FC<MultiPlayerRevealProps> = ({
   const [showVersus, setShowVersus] = useState(false);
   const [isComplete, setIsComplete] = useState(false);
   
-  console.log("MultiPlayerReveal component rendered", {
-    players: players.map(p => p.name),
-    teamMode,
-    teamNames
-  });
-  
   // Animation sequence
   useEffect(() => {
-    console.log("MultiPlayerReveal animation sequence started");
-    
     const timer1 = setTimeout(() => {
-      console.log("MultiPlayerReveal Timer 1: showing component");
       // Start by showing the component
       setShowReveal(true);
     }, 500);
     
     const timer2 = setTimeout(() => {
-      console.log("MultiPlayerReveal Timer 2: showing players");
       // Show the players
       setShowPlayers(true);
     }, 1500);
     
     const timer3 = setTimeout(() => {
-      console.log("MultiPlayerReveal Timer 3: showing versus");
       // Show the "VERSUS" text
       setShowVersus(true);
       
@@ -61,23 +50,18 @@ const MultiPlayerReveal: React.FC<MultiPlayerRevealProps> = ({
     }, 2500);
     
     const timer4 = setTimeout(() => {
-      console.log("MultiPlayerReveal Timer 4: starting fade out");
       // Start fade out
       setIsComplete(true);
     }, 4500);
 
     const timer5 = setTimeout(() => {
-      console.log("MultiPlayerReveal Timer 5: notifying completion");
       // Notify parent that reveal is complete
       if (onRevealComplete) {
         onRevealComplete();
-      } else {
-        console.log("No onRevealComplete callback provided for MultiPlayerReveal");
       }
     }, 5000);
     
     return () => {
-      console.log("MultiPlayerReveal component unmounting, clearing timers");
       clearTimeout(timer1);
       clearTimeout(timer2);
       clearTimeout(timer3);
@@ -98,7 +82,7 @@ const MultiPlayerReveal: React.FC<MultiPlayerRevealProps> = ({
         >
           {/* Header */}
           <motion.div
-            className="absolute top-1/6 text-center mb-12"
+            className="text-center mb-6"
             initial={{ opacity: 0, y: -20 }}
             animate={{ 
               opacity: showPlayers ? (isComplete ? 0 : 1) : 0,
@@ -106,7 +90,7 @@ const MultiPlayerReveal: React.FC<MultiPlayerRevealProps> = ({
             }}
             transition={{ duration: 0.5 }}
           >
-            <h2 className="text-4xl font-bold text-white mb-2">
+            <h2 className="text-4xl font-bold text-white">
               {t('game.showdown')}
             </h2>
           </motion.div>

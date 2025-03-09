@@ -4,6 +4,7 @@ import { getNextChallenge } from '@/utils/challengeGenerator';
 import { ChallengeType } from '@/types/Challenge';
 import { GameMode } from '@/types/Team';
 import { generateId, getParticipantById } from '@/utils/helpers';
+import { getCurrentParticipantId } from '@/utils/gameHelpers';
 
 /**
  * Custom hook for game state management and logic
@@ -90,49 +91,93 @@ export const useGameState = () => {
    * Selects the next challenge
    */
   const selectNextChallenge = useCallback(() => {
-    console.log("selectNextChallenge called - starting next turn");
     // Ensure we have challenges to select from
     if (state.challenges.length === 0) {
       console.error('No challenges available');
       return;
     }
 
-    // Advance to next player's turn
+    // First advance to next player's turn and wait for state update
     dispatch({ type: 'NEXT_TURN' });
-    console.log("After NEXT_TURN dispatch, current turn index:", state.currentTurnIndex);
 
-    const challenge = getNextChallenge(
-      state.challenges, 
-      state.usedChallenges, 
-      state.gameMode, 
-      state.customChallenges
-    );
-    
-    console.log("Selected challenge:", challenge?.title, "Type:", challenge?.type);
-    
-    if (challenge) {
-      // First select the challenge internally
-      dispatch({ type: 'SELECT_CHALLENGE', payload: challenge });
-      console.log("After SELECT_CHALLENGE dispatch, participants:", state.currentChallengeParticipants);
+    // Wait for turn update before proceeding
+    setTimeout(() => {
+      // Get the next challenge
+      const challenge = getNextChallenge(
+        state.challenges, 
+        state.usedChallenges, 
+        state.gameMode, 
+        state.customChallenges
+      );
       
-      // Start player selection animation
-      // The Game component will handle all the animation flow from here
-      console.log("Setting isSelectingPlayer to true");
-      setIsSelectingPlayer(true);
-    } else {
-      // No more challenges available, end the game
-      console.log('No more challenges available, ending game');
-      dispatch({ type: 'END_GAME' });
-    }
-  }, [state.challenges, state.usedChallenges, state.gameMode, state.currentTurnIndex, state.currentChallengeParticipants, state.customChallenges, dispatch]);
+      if (!challenge) {
+        // No more challenges available, end the game
+        dispatch({ type: 'END_GAME' });
+        return;
+      }
+
+      // First, ensure we have valid participants for this challenge type
+      const canHaveParticipants = (
+        (state.gameMode === GameMode.TEAMS && state.teams.length > 0) ||
+        (state.gameMode === GameMode.FREE_FOR_ALL && state.players.length > 0)
+      );
+
+      if (!canHaveParticipants) {
+        console.error('No valid participants available for the game mode');
+        setIsRevealingChallenge(true);
+        return;
+      }
+
+      // Select the challenge and set up participants
+      dispatch({ type: 'SELECT_CHALLENGE', payload: challenge });
+
+      // Wait for challenge selection update
+      setTimeout(() => {
+        const participant = getCurrentParticipant();
+        if (participant) {
+          setIsSelectingPlayer(true);
+        } else {
+          // Log more details for debugging
+          console.warn('Initial participant check failed, debug info:', {
+            challenge: challenge.type,
+            gameMode: state.gameMode,
+            currentTurnIndex: state.currentTurnIndex,
+            participants: state.currentChallengeParticipants,
+            players: state.players.length,
+            teams: state.teams.length,
+            currentParticipantId: getCurrentParticipantId(state)
+          });
+          
+          // One more attempt with a longer delay
+          setTimeout(() => {
+            const recoveredParticipant = getCurrentParticipant();
+            if (recoveredParticipant) {
+              setIsSelectingPlayer(true);
+            } else {
+              console.error('Could not establish valid participants, falling back to challenge reveal');
+              setIsRevealingChallenge(true);
+            }
+          }, 100);
+        }
+      }, 50);
+    }, 50);
+  }, [
+    state.challenges,
+    state.usedChallenges,
+    state.gameMode,
+    state.currentTurnIndex,
+    state.players,
+    state.teams,
+    state.customChallenges,
+    dispatch,
+    getCurrentParticipant
+  ]);
 
   /**
    * Starts a new game
    */
   const startGame = useCallback(() => {
-    console.log("startGame called - initializing new game");
     dispatch({ type: 'START_GAME' });
-    console.log("After START_GAME dispatch, game started:", state.gameStarted);
     selectNextChallenge();
   }, [dispatch, selectNextChallenge, state.gameStarted]);
 
@@ -142,6 +187,7 @@ export const useGameState = () => {
   const completeChallenge = useCallback((completed: boolean, winnerId?: string) => {
     if (!state.currentChallenge) return;
     
+    // Record the result and wait for state update before proceeding
     dispatch({
       type: 'RECORD_CHALLENGE_RESULT',
       payload: {
@@ -151,9 +197,19 @@ export const useGameState = () => {
         participantIds: state.currentChallengeParticipants
       }
     });
-    
-    // Start next turn with player selection and challenge reveal
-    selectNextChallenge();
+
+    // Wait for state update before selecting next challenge
+    setTimeout(() => {
+      // Verify state was updated
+      if (state.currentChallenge) {
+        console.warn('State not yet updated after recording result, waiting...');
+        setTimeout(() => {
+          selectNextChallenge();
+        }, 50);
+      } else {
+        selectNextChallenge();
+      }
+    }, 0);
   }, [state.currentChallenge, state.currentChallengeParticipants, dispatch, selectNextChallenge]);
 
   return {

@@ -32,6 +32,19 @@ const updateRecentPlayers = (newPlayer: Player) => {
   }
 };
 
+// Helper function to delete a player from recent players
+const deleteRecentPlayer = (playerId: string) => {
+  try {
+    const recentPlayers = JSON.parse(localStorage.getItem(RECENT_PLAYERS_KEY) || '[]');
+    const updatedPlayers = recentPlayers.filter((player: Player) => player.id !== playerId);
+    localStorage.setItem(RECENT_PLAYERS_KEY, JSON.stringify(updatedPlayers));
+    return updatedPlayers;
+  } catch (error) {
+    console.error('Error deleting recent player:', error);
+    return [];
+  }
+};
+
 const PlayerRegistration: React.FC = () => {
   const { t } = useTranslation();
   const { state, dispatch } = useGame();
@@ -156,12 +169,36 @@ const PlayerRegistration: React.FC = () => {
     setRecentPlayers(getRecentPlayers());
   };
   
+  // Add all recent players to the game
+  const handleAddAllRecentPlayers = () => {
+    recentPlayers.forEach(player => {
+      dispatch({
+        type: 'ADD_PLAYER',
+        payload: {
+          name: player.name,
+          image: player.image
+        }
+      });
+      // Move each player to top of recent players list
+      updateRecentPlayers(player);
+    });
+    // Update the displayed recent players (this will exclude all just-added players)
+    setRecentPlayers(getRecentPlayers());
+  };
+  
   // Remove a player
   const handleRemovePlayer = (playerId: string) => {
     dispatch({
       type: 'REMOVE_PLAYER',
       payload: playerId
     });
+  };
+  
+  // Handle deleting a recent player
+  const handleDeleteRecentPlayer = (e: React.MouseEvent, playerId: string) => {
+    e.stopPropagation(); // Prevent triggering the add player action
+    const updatedPlayers = deleteRecentPlayer(playerId);
+    setRecentPlayers(updatedPlayers);
   };
   
   return (
@@ -242,9 +279,19 @@ const PlayerRegistration: React.FC = () => {
       {/* Recent Players */}
       {recentPlayers.length > 0 && (
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 mb-8">
-          <h3 className="text-lg font-semibold mb-4 text-gray-700 dark:text-gray-300">
-            {t('setup.recentPlayers')}
-          </h3>
+          <div className="flex justify-between items-center mb-4">
+            <h3 className="text-lg font-semibold text-gray-700 dark:text-gray-300">
+              {t('setup.recentPlayers')}
+            </h3>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={handleAddAllRecentPlayers}
+              className="ml-4"
+            >
+              {t('setup.addAllPlayers')}
+            </Button>
+          </div>
           <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-4">
             {recentPlayers.map((player) => (
               <motion.div
@@ -255,6 +302,12 @@ const PlayerRegistration: React.FC = () => {
                 onClick={() => handleAddRecentPlayer(player)}
               >
                 <PlayerCard player={player} showScore={false} size="sm" />
+                <button
+                  className="absolute -top-2 -left-2 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center shadow-md hover:bg-red-600 transition-colors focus:outline-none"
+                  onClick={(e) => handleDeleteRecentPlayer(e, player.id)}
+                >
+                  &times;
+                </button>
               </motion.div>
             ))}
           </div>

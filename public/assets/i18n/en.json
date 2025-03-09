@@ -77,7 +77,8 @@
     "saveTeams": "Save Teams",
     "moveAllHere": "Move all here",
     "recentPlayers": "Recent Players",
-    "teamSetup": "Team Setup"
+    "teamSetup": "Team Setup",
+    "addAllPlayers": "Add all"
   },
   "game": {
     "round": "Round {{round}}",

@@ -27,29 +27,17 @@ const PlayerSelection: React.FC<PlayerSelectionProps> = ({
   const [showConfetti, setShowConfetti] = useState(false);
   const [isComplete, setIsComplete] = useState(false);
   
-  console.log("PlayerSelection component mounted", {
-    isTeam,
-    participantType: isTeam ? 'team' : 'player',
-    name: currentParticipant.name,
-    hasCallback: !!onSelectionComplete
-  });
-  
   // Animation sequence
   useEffect(() => {
-    console.log("PlayerSelection animation sequence started");
-    
     const timer1 = setTimeout(() => {
-      console.log("Timer 1: showing selection");
       // Start by showing the "spinner" for selecting
       setShowSelection(true);
     }, 1000);
     
     const timer2 = setTimeout(() => {
-      console.log("Timer 2: confetti check");
       // Only show confetti for winning selections
       if (isWinningSelection) {
         setShowConfetti(true);
-        console.log("Showing confetti for winning selection");
         
         // Trigger confetti animation
         confetti({
@@ -61,23 +49,18 @@ const PlayerSelection: React.FC<PlayerSelectionProps> = ({
     }, 4000);
     
     const timer3 = setTimeout(() => {
-      console.log("Timer 3: starting fade out");
       // Start fade out
       setIsComplete(true);
     }, 5500);
 
     const timer4 = setTimeout(() => {
-      console.log("Timer 4: notifying completion");
       // Notify parent that selection is complete
       if (onSelectionComplete) {
         onSelectionComplete();
-      } else {
-        console.log("No onSelectionComplete callback provided");
       }
     }, 6000);
     
     return () => {
-      console.log("PlayerSelection component unmounting, clearing timers");
       clearTimeout(timer1);
       clearTimeout(timer2);
       clearTimeout(timer3);

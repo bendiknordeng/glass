@@ -86,7 +86,7 @@ const PlayerCard: React.FC<PlayerCardProps> = ({
       </div>
       
       {/* Player Name */}
-      <div className="w-full h-1/4 flex items-center justify-center bg-white dark:bg-gray-800 p-1">
+      <div className="w-full h-1/4 flex items-center justify-center bg-white dark:bg-gray-900 p-1">
         <span className="truncate font-medium text-center dark:text-white">
           {player.name}
         </span>

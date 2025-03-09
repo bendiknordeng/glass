@@ -46,20 +46,6 @@ const Game: React.FC = () => {
   
   // Redirect to home if no game started
   useEffect(() => {
-    console.log("Game initialization useEffect running");
-    console.log("Game state:", {
-      hasPlayers: !!state.players.length,
-      gameFinished: state.gameFinished,
-      hasCurrentChallenge: !!state.currentChallenge,
-      isSelectingPlayer,
-      isRevealingChallenge,
-      isRevealingTeam,
-      isRevealingPlayer,
-      isRevealingMultiPlayers,
-      resultsLength: state.results.length,
-      gameMode: state.gameMode
-    });
-
     if (!state.players.length) {
       navigate('/');
       return;
@@ -74,14 +60,11 @@ const Game: React.FC = () => {
     // Initialize or continue the game
     if (!state.currentChallenge && !isSelectingPlayer && !isRevealingChallenge &&
         !isRevealingTeam && !isRevealingPlayer && !isRevealingMultiPlayers) {
-      console.log("No active challenges or animations, starting game flow");
       // For continued games, just select the next challenge without animations
       if (state.results.length > 0) {
-        console.log("Continued game - select next challenge");
         selectNextChallenge();
       } else {
         // For new games, start with full animation flow
-        console.log("New game - start game flow");
         startGame();
       }
     }
@@ -98,14 +81,11 @@ const Game: React.FC = () => {
   
   // Handle team reveal complete
   const handleTeamRevealComplete = () => {
-    console.log('Team reveal complete, challenge type:', state.currentChallenge?.type);
-    
     // Set transitioning state
     setIsTransitioning(true);
     
     const challenge = state.currentChallenge;
     if (!challenge) {
-      console.log('No challenge found, going to challenge reveal');
       // If no challenge somehow, just go to challenge reveal
       setIsRevealingTeam(false);
       setIsRevealingChallenge(true);
@@ -122,7 +102,6 @@ const Game: React.FC = () => {
     
     // For individual challenges in team mode, show player reveal next
     if (challenge.type === ChallengeType.INDIVIDUAL && state.gameMode === GameMode.TEAMS) {
-      console.log('Individual challenge in team mode, preparing player reveal');
       // Find a player from the team
       const currentTeam = currentParticipant as Team;
       if (currentTeam && currentTeam.playerIds.length > 0) {
@@ -132,7 +111,6 @@ const Game: React.FC = () => {
         const selectedPlayer = state.players.find(p => p.id === selectedPlayerId);
         
         if (selectedPlayer) {
-          console.log('Selected player for reveal:', selectedPlayer.name);
           setTimeout(() => {
             setIsRevealingPlayer(true);
             
@@ -145,7 +123,6 @@ const Game: React.FC = () => {
         }
       }
     } else if (challenge.type === ChallengeType.ONE_ON_ONE) {
-      console.log('One-on-one challenge, preparing multi-player reveal');
       // For one-on-one challenges, show multi-player reveal
       
       // Get all players for the one-on-one challenge
@@ -169,7 +146,6 @@ const Game: React.FC = () => {
       
       // Only proceed if we have players
       if (playerIds.length > 0) {
-        console.log('Selected players for multi-player reveal:', playerIds.length);
         setTimeout(() => {
           setIsRevealingMultiPlayers(true);
           
@@ -183,7 +159,6 @@ const Game: React.FC = () => {
     }
     
     // Default case: go to challenge reveal
-    console.log('Going to challenge reveal');
     setTimeout(() => {
       setIsRevealingChallenge(true);
       
@@ -196,8 +171,6 @@ const Game: React.FC = () => {
   
   // Handle player reveal complete
   const handlePlayerRevealComplete = () => {
-    console.log('Player reveal complete, going to challenge reveal');
-    
     // Set transitioning state
     setIsTransitioning(true);
     
@@ -217,8 +190,6 @@ const Game: React.FC = () => {
   
   // Handle multi-player reveal complete
   const handleMultiPlayerRevealComplete = () => {
-    console.log('Multi-player reveal complete, going to challenge reveal');
-    
     // Set transitioning state to prevent showing main game area prematurely
     setIsTransitioning(true);
     
@@ -240,12 +211,6 @@ const Game: React.FC = () => {
   const getSelectedPlayersForReveal = (): Player[] => {
     // Default is a single player from the current participant
     let selectedPlayers: Player[] = [];
-    
-    console.log("getSelectedPlayersForReveal called", {
-      challengeType: state.currentChallenge?.type,
-      gameMode: state.gameMode,
-      participantIds: state.currentChallengeParticipants
-    });
     
     // For one-on-one challenges, we need one player from each team
     if (state.currentChallenge?.type === ChallengeType.ONE_ON_ONE) {
@@ -291,7 +256,6 @@ const Game: React.FC = () => {
       }
     }
     
-    console.log("Selected players for reveal:", selectedPlayers.map(p => p.name));
     return selectedPlayers;
   };
   
@@ -310,11 +274,6 @@ const Game: React.FC = () => {
         if (playerTeam) {
           teamNames[player.id] = playerTeam.name;
         }
-      });
-      
-      console.log("Generated team names for selected players:", {
-        selectedPlayers: selectedPlayers.map(p => p.name),
-        teamNames
       });
     }
     
@@ -342,35 +301,25 @@ const Game: React.FC = () => {
                           !isRevealingMultiPlayers &&
                           !isTransitioning;
   
-  // Handle player selection complete
-  useEffect(() => {
-    console.log("Player selection useEffect running:", {
-      isSelectingPlayer,
-      hasCurrentParticipant: !!currentParticipant,
-      currentParticipantType: currentParticipant ? ('playerIds' in currentParticipant ? 'team' : 'player') : 'none',
-      challengeType: state.currentChallenge?.type
-    });
-    
-    // We've moved the completion logic to the PlayerSelection onSelectionComplete callback
-    // This useEffect only needs to run monitoring, not transition logic
-    if (isSelectingPlayer && currentParticipant) {
-      console.log("Player selection active with participant:", 
-        'playerIds' in currentParticipant ? `Team: ${currentParticipant.name}` : `Player: ${currentParticipant.name}`);
-    }
-  }, [isSelectingPlayer, currentParticipant, state.currentChallenge?.type]);
-  
   // Add this useEffect to check important state values when they change
   useEffect(() => {
     // If isSelectingPlayer is true but currentParticipant is null, we have a problem
-    if (isSelectingPlayer && !currentParticipant) {
-      console.error("isSelectingPlayer is true but currentParticipant is null, forcing challenge reveal");
-      // Force a transition to challenge reveal to avoid getting stuck
-      setIsSelectingPlayer(false);
-      if (state.currentChallenge) {
-        setIsRevealingChallenge(true);
+    if (isSelectingPlayer) {
+      if (!currentParticipant) {
+        console.error("isSelectingPlayer is true but currentParticipant is null, forcing challenge reveal");
+        // Force a transition to challenge reveal to avoid getting stuck
+        setIsSelectingPlayer(false);
+        if (state.currentChallenge) {
+          setIsRevealingChallenge(true);
+        }
+      } else if (!state.currentChallenge) {
+        // Also handle case where we have a participant but no challenge
+        console.error("isSelectingPlayer is true but no current challenge");
+        setIsSelectingPlayer(false);
+        selectNextChallenge();
       }
     }
-  }, [isSelectingPlayer, currentParticipant, state.currentChallenge]);
+  }, [isSelectingPlayer, currentParticipant, state.currentChallenge, setIsSelectingPlayer, setIsRevealingChallenge, selectNextChallenge]);
   
   // Update the showGameContent logic to store selected players
   const selectedPlayersForOneOnOne = 
@@ -479,21 +428,12 @@ const Game: React.FC = () => {
             return null;
           }
           
-          // Log before rendering
-          console.log("Rendering PlayerSelection with:", {
-            isTeam: state.gameMode === 'teams',
-            participantType: 'playerIds' in currentParticipant ? 'team' : 'player',
-            participantName: currentParticipant.name,
-            challengeType: state.currentChallenge?.type
-          });
-          
           return (
             <PlayerSelection
               currentParticipant={currentParticipant}
               isTeam={state.gameMode === 'teams'}
               players={state.players}
               onSelectionComplete={() => {
-                console.log("PlayerSelection completed callback received in Game component");
                 // Use the callback to trigger the transition directly
                 setIsSelectingPlayer(false);
                 
@@ -504,8 +444,6 @@ const Game: React.FC = () => {
                   return;
                 }
                 
-                console.log("Challenge type for flow decision:", challenge.type);
-                
                 // Choose the correct next reveal based on game mode and challenge type
                 if (state.gameMode === GameMode.TEAMS) {
                   if (challenge.type === ChallengeType.TEAM) {
@@ -515,14 +453,12 @@ const Game: React.FC = () => {
                     // For one-on-one in team mode, we skip team reveal and go directly to multi-player
                     // This fixes the issue where selected players weren't being shown
                     const selectedPlayers = getSelectedPlayersForReveal();
-                    console.log("Selected players for one-on-one:", selectedPlayers.map(p => p.name));
                     
                     if (selectedPlayers.length >= 2) {
                       // We have enough players for a one-on-one
                       setIsRevealingMultiPlayers(true);
                     } else {
                       // Fallback if we don't have enough players
-                      console.error("Not enough players for one-on-one challenge");
                       setIsRevealingChallenge(true);
                     }
                   } else if (currentParticipant && 'playerIds' in currentParticipant) {
@@ -582,7 +518,6 @@ const Game: React.FC = () => {
             challenge={state.currentChallenge}
             onRevealComplete={() => {
               // End the challenge reveal animation and display the challenge in the main game area
-              console.log('Challenge reveal complete, showing main game area');
               setIsRevealingChallenge(false);
             }}
           />

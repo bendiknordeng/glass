@@ -23,17 +23,13 @@ const TeamReveal: React.FC<TeamRevealProps> = ({
   const [isComplete, setIsComplete] = useState(false);
   
   // Animation sequence
-  useEffect(() => {
-    console.log("TeamReveal animation sequence started");
-    
+  useEffect(() => {    
     const timer1 = setTimeout(() => {
-      console.log("TeamReveal Timer 1: showing component");
       // Start by showing the component
       setShowReveal(true);
     }, 500);
     
     const timer2 = setTimeout(() => {
-      console.log("TeamReveal Timer 2: showing text and confetti");
       // Show the text announcement
       setShowText(true);
       
@@ -46,23 +42,18 @@ const TeamReveal: React.FC<TeamRevealProps> = ({
     }, 1500);
     
     const timer3 = setTimeout(() => {
-      console.log("TeamReveal Timer 3: starting fade out");
       // Start fade out
       setIsComplete(true);
     }, 4500);
 
     const timer4 = setTimeout(() => {
-      console.log("TeamReveal Timer 4: notifying completion");
       // Notify parent that reveal is complete
       if (onRevealComplete) {
         onRevealComplete();
-      } else {
-        console.log("No onRevealComplete callback provided for TeamReveal");
       }
     }, 5000);
     
     return () => {
-      console.log("TeamReveal component unmounting, clearing timers");
       clearTimeout(timer1);
       clearTimeout(timer2);
       clearTimeout(timer3);
