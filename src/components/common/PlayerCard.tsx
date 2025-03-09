@@ -10,7 +10,7 @@ interface PlayerCardProps {
   onClick?: () => void;
   className?: string;
   showScore?: boolean;
-  size?: 'sm' | 'md' | 'lg';
+  size?: 'xs' | 'sm' | 'md' | 'lg';
   animation?: 'highlight' | 'pulse' | 'bounce' | 'none';
 }
 
@@ -26,6 +26,7 @@ const PlayerCard: React.FC<PlayerCardProps> = ({
 }) => {
   // Determine card size
   const sizeClasses = {
+    xs: 'w-12 h-12 text-xs',
     sm: 'w-16 h-16 text-xs',
     md: 'w-24 h-24 text-sm',
     lg: 'w-32 h-32 text-base'
@@ -52,7 +53,7 @@ const PlayerCard: React.FC<PlayerCardProps> = ({
       }
     },
     bounce: {
-      y: [0, -10, 0],
+      y: [0, -5, 0],
       transition: { 
         repeat: Infinity,
         duration: 1

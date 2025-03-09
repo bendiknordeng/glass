@@ -21,7 +21,7 @@ const Header: React.FC<HeaderProps> = ({ showHomeButton = false }) => {
   const location = useLocation();
   const { theme, setTheme, isDarkMode } = useTheme();
   const { language, setLanguage } = useLanguage();
-  const { state } = useGame();
+  const { state, dispatch } = useGame();
   const [showEndGameModal, setShowEndGameModal] = useState(false);
 
   // Toggle theme
@@ -113,7 +113,10 @@ const Header: React.FC<HeaderProps> = ({ showHomeButton = false }) => {
       <ConfirmModal
         isOpen={showEndGameModal}
         onClose={() => setShowEndGameModal(false)}
-        onConfirm={() => navigate('/results')}
+        onConfirm={() => {
+          dispatch({ type: 'END_GAME' });
+          navigate('/results');
+        }}
         title={t('game.endGame')}
         message={t('game.confirmEndGame')}
         confirmText={t('game.endGame')}

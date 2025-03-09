@@ -25,6 +25,7 @@
     "delete": "Delete",
     "player": "Player",
     "team": "Team",
+    "teamMembers": "Team Members",
     "points": "Points",
     "point": "point",
     "home": "Home"
@@ -75,19 +76,27 @@
     "unassignedPlayers": "Unassigned Players",
     "saveTeams": "Save Teams",
     "moveAllHere": "Move all here",
-    "recentPlayers": "Recent Players"
+    "recentPlayers": "Recent Players",
+    "teamSetup": "Team Setup"
   },
   "game": {
     "round": "Round {{round}}",
     "playerTurn": "{{player}}'s Turn",
     "teamTurn": "Team {{team}}'s Turn",
+    "teamTurnAnnouncement": "{{team}}'s Turn!",
+    "teamTurnBanner": "Team {{team}}",
+    "showdown": "Showdown!",
+    "areYouReady": "Are you ready?",
+    "currentTurn": "{{name}}'s turn",
+    "teamMember": "Team {{team}} Member",
+    "performingChallenge": "Performing the challenge",
     "challengeTypes": {
       "individual": "Individual Challenge",
       "oneOnOne": "One-on-One Challenge",
       "team": "Team Challenge"
     },
     "challengeReveal": "Your challenge is...",
-    "challengeQuestion": "Did you complete the challenge?",
+    "challengeQuestion": "Was the challenge completed?",
     "challengeResult": "Challenge Result",
     "completed": "Completed",
     "failed": "Failed",
@@ -97,6 +106,7 @@
     "nextPlayer": "Next Player",
     "gameOver": "Game Over!",
     "loadingChallenge": "Loading challenge...",
+    "selectWinner": "Please select a winner",
     "selectWinnerInstruction": "Select Winner",
     "participants": "Participants",
     "newChallenge": "New Challenge",
@@ -146,7 +156,8 @@
     "challenges": "challenges",
     "categoryPlaceholder": "Example: Drink, Quiz, Music",
     "titlePlaceholder": "Example: Water or Vodka",
-    "descriptionPlaceholder": "Example: Drink a shot of water or vodka. Have the group guess what you drank."
+    "descriptionPlaceholder": "Example: Drink a shot of water or vodka. Have the group guess what you drank.",
+    "recentCustomChallenges": "Recent Custom Challenges"
   },
   "settings": {
     "title": "Settings",

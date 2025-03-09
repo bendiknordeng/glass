@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useGame } from '@/contexts/GameContext';
 import { GameMode } from '@/types/Team';
 import { Challenge } from '@/types/Challenge';
@@ -8,17 +8,64 @@ import Button from '@/components/common/Button';
 import { ConfirmModal } from '@/components/common/Modal';
 import CustomChallengeForm from '@/components/game/CustomChallengeForm';
 
+// Maximum number of recent custom challenges to store
+const MAX_RECENT_CHALLENGES = 10;
+const RECENT_CHALLENGES_KEY = 'recentCustomChallenges';
+
+// Helper function to update recent challenges in local storage
+const updateRecentChallenges = (newChallenge: Challenge) => {
+  try {
+    const recentChallenges = JSON.parse(localStorage.getItem(RECENT_CHALLENGES_KEY) || '[]');
+    
+    // Remove any existing challenge with the same title (case insensitive)
+    const filteredChallenges = recentChallenges.filter(
+      (challenge: Challenge) => challenge.title.toLowerCase() !== newChallenge.title.toLowerCase()
+    );
+    
+    // Add new challenge to the beginning
+    const updatedChallenges = [newChallenge, ...filteredChallenges].slice(0, MAX_RECENT_CHALLENGES);
+    
+    localStorage.setItem(RECENT_CHALLENGES_KEY, JSON.stringify(updatedChallenges));
+  } catch (error) {
+    console.error('Error updating recent challenges:', error);
+  }
+};
+
 const GameSettings: React.FC = () => {
   const { t } = useTranslation();
   const { state, dispatch } = useGame();
   const [durationType, setDurationType] = useState(state.gameDuration.type);
   const [durationValue, setDurationValue] = useState(state.gameDuration.value);
-  const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [showCustomChallengeForm, setShowCustomChallengeForm] = useState(false);
   const [editingChallenge, setEditingChallenge] = useState<Challenge | undefined>(undefined);
+  const [recentChallenges, setRecentChallenges] = useState<Challenge[]>([]);
   
-  // Update game duration settings
-  const handleSaveDuration = () => {
+  // Helper function to get recent challenges from local storage
+  const getRecentChallenges = (): Challenge[] => {
+    try {
+      const stored = localStorage.getItem(RECENT_CHALLENGES_KEY);
+      if (!stored) return [];
+      
+      const challenges = JSON.parse(stored);
+      // Filter out any challenges that are currently in the game (case insensitive)
+      return challenges.filter((recentChallenge: Challenge) => 
+        !state.customChallenges.some((currentChallenge: Challenge) => 
+          currentChallenge.title.toLowerCase() === recentChallenge.title.toLowerCase()
+        )
+      );
+    } catch (error) {
+      console.error('Error reading recent challenges:', error);
+      return [];
+    }
+  };
+  
+  // Load recent challenges on mount
+  useEffect(() => {
+    setRecentChallenges(getRecentChallenges());
+  }, [state.customChallenges]); // Update when current challenges change
+  
+  // Auto-save when duration type or value changes
+  useEffect(() => {
     dispatch({
       type: 'SET_GAME_DURATION',
       payload: {
@@ -26,16 +73,21 @@ const GameSettings: React.FC = () => {
         value: durationValue
       }
     });
-  };
+  }, [durationType, durationValue, dispatch]);
   
-  // Reset game
-  const handleResetGame = () => {
+  // Add a recent challenge to current game
+  const handleAddRecentChallenge = (challenge: Challenge) => {
     dispatch({
-      type: 'RESET_GAME'
+      type: 'ADD_CUSTOM_CHALLENGE',
+      payload: challenge
     });
-    setShowResetConfirm(false);
+    
+    // Move this challenge to the top of recent challenges
+    updateRecentChallenges(challenge);
+    setRecentChallenges(getRecentChallenges());
   };
   
+ 
   return (
     <div className="max-w-4xl mx-auto">
       <h2 className="text-2xl font-bold mb-6 text-gray-800 dark:text-white text-center">
@@ -49,7 +101,7 @@ const GameSettings: React.FC = () => {
             {t('setup.gameDuration')}
           </h3>
           
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-1 gap-6">
             {/* Duration Type */}
             <div>
               <div className="flex gap-4 mb-4">
@@ -85,50 +137,130 @@ const GameSettings: React.FC = () => {
                   <label htmlFor="challengeCount" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     {t('setup.numberOfChallenges')}
                   </label>
-                  <select
-                    id="challengeCount"
-                    value={durationValue}
-                    onChange={(e) => setDurationValue(parseInt(e.target.value))}
-                    className="w-full rounded-md border-gray-300 dark:border-gray-700 shadow-sm focus:border-game-primary focus:ring focus:ring-game-primary focus:ring-opacity-50 dark:bg-gray-700 dark:text-white"
-                  >
-                    <option value={10}>10 {t('challenges.challenges')}</option>
-                    <option value={15}>15 {t('challenges.challenges')}</option>
-                    <option value={20}>20 {t('challenges.challenges')}</option>
-                    <option value={30}>30 {t('challenges.challenges')}</option>
-                    <option value={50}>50 {t('challenges.challenges')}</option>
-                  </select>
+                  <div className="flex items-center">
+                    <input
+                      id="challengeCount"
+                      type="number"
+                      min="1"
+                      value={durationValue}
+                      onChange={(e) => setDurationValue(Math.max(1, parseInt(e.target.value) || 1))}
+                      className="w-full py-2 px-3 text-center rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-game-primary focus:ring focus:ring-game-primary focus:ring-opacity-50 dark:bg-gray-700 dark:text-white [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                    />
+                    <span className="ml-3 text-gray-600 dark:text-gray-400 font-medium">
+                      {t('challenges.challenges')}
+                    </span>
+                  </div>
+                  
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setDurationValue(Math.max(1, durationValue - 5))}
+                      className="flex-none py-1 px-2 rounded-md bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 border border-gray-300 dark:border-gray-600 transition-colors text-sm font-medium"
+                    >
+                      -5
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setDurationValue(Math.max(1, durationValue - 1))}
+                      className="flex-none py-1 px-2 rounded-md bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 border border-gray-300 dark:border-gray-600 transition-colors text-sm font-medium"
+                    >
+                      -1
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setDurationValue(durationValue + 1)}
+                      className="flex-none py-1 px-2 rounded-md bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 border border-gray-300 dark:border-gray-600 transition-colors text-sm font-medium"
+                    >
+                      +1
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setDurationValue(durationValue + 5)}
+                      className="flex-none py-1 px-2 rounded-md bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 border border-gray-300 dark:border-gray-600 transition-colors text-sm font-medium"
+                    >
+                      +5
+                    </button>
+                  </div>
                 </div>
               ) : (
                 <div>
                   <label htmlFor="timeLimit" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     {t('setup.timeLimit')}
                   </label>
-                  <select
-                    id="timeLimit"
-                    value={durationValue}
-                    onChange={(e) => setDurationValue(parseInt(e.target.value))}
-                    className="w-full rounded-md border-gray-300 dark:border-gray-700 shadow-sm focus:border-game-primary focus:ring focus:ring-game-primary focus:ring-opacity-50 dark:bg-gray-700 dark:text-white"
-                  >
-                    <option value={15}>15 {t('setup.minutes')}</option>
-                    <option value={30}>30 {t('setup.minutes')}</option>
-                    <option value={45}>45 {t('setup.minutes')}</option>
-                    <option value={60}>60 {t('setup.minutes')}</option>
-                    <option value={90}>90 {t('setup.minutes')}</option>
-                    <option value={120}>120 {t('setup.minutes')}</option>
-                  </select>
+                  <div className="flex items-center">
+                    <input
+                      id="timeLimit"
+                      type="number"
+                      min="1"
+                      value={durationValue}
+                      onChange={(e) => setDurationValue(Math.max(1, parseInt(e.target.value) || 1))}
+                      className="w-full py-2 px-3 text-center rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-game-primary focus:ring focus:ring-game-primary focus:ring-opacity-50 dark:bg-gray-700 dark:text-white [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                    />
+                    <span className="ml-3 text-gray-600 dark:text-gray-400 font-medium">
+                      {t('setup.minutes')}
+                    </span>
+                  </div>
+                  
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setDurationValue(Math.max(1, durationValue - 30))}
+                      className="flex-none py-1 px-2 rounded-md bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 border border-gray-300 dark:border-gray-600 transition-colors text-sm font-medium"
+                    >
+                      -30
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setDurationValue(Math.max(1, durationValue - 15))}
+                      className="flex-none py-1 px-2 rounded-md bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 border border-gray-300 dark:border-gray-600 transition-colors text-sm font-medium"
+                    >
+                      -15
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setDurationValue(Math.max(1, durationValue - 5))}
+                      className="flex-none py-1 px-2 rounded-md bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 border border-gray-300 dark:border-gray-600 transition-colors text-sm font-medium"
+                    >
+                      -5
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setDurationValue(Math.max(1, durationValue - 1))}
+                      className="flex-none py-1 px-2 rounded-md bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 border border-gray-300 dark:border-gray-600 transition-colors text-sm font-medium"
+                    >
+                      -1
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setDurationValue(durationValue + 1)}
+                      className="flex-none py-1 px-2 rounded-md bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 border border-gray-300 dark:border-gray-600 transition-colors text-sm font-medium"
+                    >
+                      +1
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setDurationValue(durationValue + 5)}
+                      className="flex-none py-1 px-2 rounded-md bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 border border-gray-300 dark:border-gray-600 transition-colors text-sm font-medium"
+                    >
+                      +5
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setDurationValue(durationValue + 15)}
+                      className="flex-none py-1 px-2 rounded-md bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 border border-gray-300 dark:border-gray-600 transition-colors text-sm font-medium"
+                    >
+                      +15
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setDurationValue(durationValue + 30)}
+                      className="flex-none py-1 px-2 rounded-md bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 border border-gray-300 dark:border-gray-600 transition-colors text-sm font-medium"
+                    >
+                      +30
+                    </button>
+                  </div>
                 </div>
               )}
-            </div>
-            
-            {/* Save Button */}
-            <div className="flex items-end">
-              <Button
-                variant="primary"
-                onClick={handleSaveDuration}
-                className="w-full"
-              >
-                {t('common.save')} {t('setup.settings')}
-              </Button>
             </div>
           </div>
         </div>
@@ -185,6 +317,8 @@ const GameSettings: React.FC = () => {
                         onClick={() => {
                           setEditingChallenge(challenge);
                           setShowCustomChallengeForm(true);
+                          // Add to recent challenges when edited
+                          updateRecentChallenges(challenge);
                         }}
                         className="text-blue-500 hover:text-blue-600 dark:text-blue-400 dark:hover:text-blue-300 p-1"
                         title={t('common.edit')}
@@ -233,34 +367,48 @@ const GameSettings: React.FC = () => {
           </div>
         </div>
         
-        {/* Reset Game */}
-        <div className="mt-12 pt-4 border-t border-gray-200 dark:border-gray-700">
-          <div className="text-center">
-            <Button
-              variant="danger"
-              size="md"
-              onClick={() => setShowResetConfirm(true)}
-            >
-              {t('settings.resetGame')}
-            </Button>
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-              {t('settings.resetGameWarning')}
-            </p>
+        {/* Recent Custom Challenges */}
+        {recentChallenges.length > 0 && (
+          <div className="mb-8">
+            <h3 className="text-lg font-medium mb-4 text-gray-700 dark:text-gray-300">
+              {t('challenges.recentCustomChallenges')}
+            </h3>
+            
+            <div className="space-y-3">
+              {recentChallenges.map((challenge) => (
+                <motion.div
+                  key={challenge.id}
+                  className="bg-gray-50 dark:bg-gray-700/50 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg p-3 border border-gray-200 dark:border-gray-600 cursor-pointer transition-colors"
+                  whileHover={{ scale: 1.01 }}
+                  whileTap={{ scale: 0.99 }}
+                  onClick={() => handleAddRecentChallenge(challenge)}
+                >
+                  <div>
+                    <h4 className="font-medium text-gray-800 dark:text-white">
+                      {challenge.title}
+                    </h4>
+                    <p className="text-sm text-gray-600 dark:text-gray-300 mt-1 line-clamp-1">
+                      {challenge.description}
+                    </p>
+                    <div className="flex gap-2 mt-2">
+                      <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-game-secondary/10 text-game-secondary">
+                        {challenge.type === 'individual' 
+                          ? t('game.challengeTypes.individual')
+                          : challenge.type === 'oneOnOne'
+                            ? t('game.challengeTypes.oneOnOne')
+                            : t('game.challengeTypes.team')}
+                      </span>
+                      <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-game-primary/10 text-game-primary">
+                        {Array(challenge.difficulty).fill('⭐').join('')}
+                      </span>
+                    </div>
+                  </div>
+                </motion.div>
+              ))}
+            </div>
           </div>
-        </div>
+        )}
       </div>
-      
-      {/* Reset Confirmation Modal */}
-      <ConfirmModal
-        isOpen={showResetConfirm}
-        onClose={() => setShowResetConfirm(false)}
-        onConfirm={handleResetGame}
-        title={t('settings.resetGame')}
-        message={t('settings.resetConfirm')}
-        confirmText={t('settings.reset')}
-        cancelText={t('common.cancel')}
-        confirmVariant="danger"
-      />
 
       {/* Custom Challenge Form Modal */}
       <CustomChallengeForm
@@ -268,6 +416,7 @@ const GameSettings: React.FC = () => {
         onClose={() => {
           setShowCustomChallengeForm(false);
           setEditingChallenge(undefined);
+          setRecentChallenges(getRecentChallenges());
         }}
         editChallenge={editingChallenge}
       />

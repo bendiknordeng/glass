@@ -90,6 +90,7 @@ export const useGameState = () => {
    * Selects the next challenge
    */
   const selectNextChallenge = useCallback(() => {
+    console.log("selectNextChallenge called - starting next turn");
     // Ensure we have challenges to select from
     if (state.challenges.length === 0) {
       console.error('No challenges available');
@@ -98,6 +99,7 @@ export const useGameState = () => {
 
     // Advance to next player's turn
     dispatch({ type: 'NEXT_TURN' });
+    console.log("After NEXT_TURN dispatch, current turn index:", state.currentTurnIndex);
 
     const challenge = getNextChallenge(
       state.challenges, 
@@ -106,37 +108,33 @@ export const useGameState = () => {
       state.customChallenges
     );
     
+    console.log("Selected challenge:", challenge?.title, "Type:", challenge?.type);
+    
     if (challenge) {
       // First select the challenge internally
       dispatch({ type: 'SELECT_CHALLENGE', payload: challenge });
+      console.log("After SELECT_CHALLENGE dispatch, participants:", state.currentChallengeParticipants);
       
-      // First show player selection
+      // Start player selection animation
+      // The Game component will handle all the animation flow from here
+      console.log("Setting isSelectingPlayer to true");
       setIsSelectingPlayer(true);
-      
-      // After player selection completes, show challenge reveal
-      setTimeout(() => {
-        setIsSelectingPlayer(false);
-        setIsRevealingChallenge(true);
-        
-        // After challenge reveal completes, show the main game
-        setTimeout(() => {
-          setIsRevealingChallenge(false);
-        }, 6000); // Match ChallengeReveal duration
-      }, 6000); // Match PlayerSelection duration
     } else {
       // No more challenges available, end the game
       console.log('No more challenges available, ending game');
       dispatch({ type: 'END_GAME' });
     }
-  }, [state.challenges, state.usedChallenges, state.gameMode, state.customChallenges, dispatch]);
+  }, [state.challenges, state.usedChallenges, state.gameMode, state.currentTurnIndex, state.currentChallengeParticipants, state.customChallenges, dispatch]);
 
   /**
    * Starts a new game
    */
   const startGame = useCallback(() => {
+    console.log("startGame called - initializing new game");
     dispatch({ type: 'START_GAME' });
+    console.log("After START_GAME dispatch, game started:", state.gameStarted);
     selectNextChallenge();
-  }, [dispatch, selectNextChallenge]);
+  }, [dispatch, selectNextChallenge, state.gameStarted]);
 
   /**
    * Completes the current challenge
@@ -168,7 +166,9 @@ export const useGameState = () => {
     getChallengeParticipants,
     startGame,
     selectNextChallenge,
-    completeChallenge
+    completeChallenge,
+    setIsSelectingPlayer,
+    setIsRevealingChallenge
   };
 };
 

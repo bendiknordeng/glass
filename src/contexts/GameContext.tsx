@@ -225,20 +225,28 @@ const gameReducer = (state: GameState, action: GameAction): GameState => {
       };
 
     case 'NEXT_TURN': {
-      let nextTurnIndex = state.currentTurnIndex + 1;
+      // The current challenge determines whose turn is next
+      const prevChallenge = state.currentChallenge;
+      let nextTurnIndex = state.currentTurnIndex;
       let nextRound = state.currentRound;
       
-      // If using teams, cycle through teams
-      if (state.gameMode === GameMode.TEAMS) {
-        if (nextTurnIndex >= state.teams.length) {
-          nextTurnIndex = 0;
-          nextRound += 1;
-        }
-      } else {
-        // If free-for-all, cycle through players
-        if (nextTurnIndex >= state.players.length) {
-          nextTurnIndex = 0;
-          nextRound += 1;
+      // Only advance the turn if it was an individual challenge
+      // For team and one-on-one challenges, keep the same team's turn
+      if (!prevChallenge || prevChallenge.type === 'individual') {
+        nextTurnIndex = state.currentTurnIndex + 1;
+        
+        // If using teams, cycle through teams
+        if (state.gameMode === GameMode.TEAMS) {
+          if (nextTurnIndex >= state.teams.length) {
+            nextTurnIndex = 0;
+            nextRound += 1;
+          }
+        } else {
+          // If free-for-all, cycle through players
+          if (nextTurnIndex >= state.players.length) {
+            nextTurnIndex = 0;
+            nextRound += 1;
+          }
         }
       }
       
@@ -249,6 +257,15 @@ const gameReducer = (state: GameState, action: GameAction): GameState => {
         (state.gameDuration.type === 'time' && 
          /* Time check will be handled by a separate timer component */
          false);
+      
+      console.log("NEXT_TURN:", {
+        prevTurnIndex: state.currentTurnIndex,
+        nextTurnIndex,
+        prevRound: state.currentRound,
+        nextRound,
+        prevChallengeType: prevChallenge?.type,
+        wasAdvanced: nextTurnIndex !== state.currentTurnIndex
+      });
       
       return {
         ...state,
@@ -262,20 +279,41 @@ const gameReducer = (state: GameState, action: GameAction): GameState => {
       const challenge = action.payload;
       let participants: string[] = [];
       
+      console.log("SELECT_CHALLENGE called", {
+        challengeType: challenge.type,
+        gameMode: state.gameMode,
+        currentTurnIndex: state.currentTurnIndex
+      });
+      
       // Determine participants based on challenge type
       if (challenge.type === 'individual') {
         // Current player/team only
         participants = [getCurrentParticipantId(state)];
+        console.log("Individual challenge: Current participant ID:", participants[0]);
       } else if (challenge.type === 'oneOnOne') {
-        // Current player/team plus one random opponent
-        const currentId = getCurrentParticipantId(state);
-        const otherIds = getAllParticipantIds(state).filter(id => id !== currentId);
-        const randomOpponentId = otherIds[Math.floor(Math.random() * otherIds.length)];
-        participants = [currentId, randomOpponentId];
+        if (state.gameMode === GameMode.TEAMS) {
+          // In team mode, one-on-one is between all teams - each team selects a player
+          participants = state.teams.map(team => team.id);
+          console.log("One-on-one challenge in team mode: All teams participating");
+        } else {
+          // In free-for-all, select the current player plus one random opponent
+          const currentId = getCurrentParticipantId(state);
+          const otherIds = getAllParticipantIds(state).filter(id => id !== currentId);
+          
+          if (otherIds.length > 0) {
+            const randomOpponentId = otherIds[Math.floor(Math.random() * otherIds.length)];
+            participants = [currentId, randomOpponentId];
+          } else {
+            // Fallback if there are no other players
+            participants = [currentId];
+          }
+          console.log("One-on-one challenge in free-for-all: Participants", participants);
+        }
       } else if (challenge.type === 'team') {
-        // All teams (in team mode) or random grouping of players (in free-for-all)
+        // All teams participate in team challenges
         if (state.gameMode === GameMode.TEAMS) {
           participants = state.teams.map(team => team.id);
+          console.log("Team challenge in team mode: All teams participating");
         } else {
           // In free-for-all, create two random groups
           const playerIds = shuffleArray([...state.players.map(player => player.id)]);
@@ -284,6 +322,7 @@ const gameReducer = (state: GameState, action: GameAction): GameState => {
             'group1:' + playerIds.slice(0, midpoint).join(','),
             'group2:' + playerIds.slice(midpoint).join(',')
           ];
+          console.log("Team challenge in free-for-all: Created two groups");
         }
       }
       
@@ -427,8 +466,42 @@ const getTeamColor = (index: number): string => {
 
 const getCurrentParticipantId = (state: GameState): string => {
   if (state.gameMode === GameMode.TEAMS) {
-    return state.teams[state.currentTurnIndex]?.id || '';
+    // Check if teams exist
+    if (state.teams.length === 0) {
+      console.error('No teams found in team mode');
+      return '';
+    }
+    
+    // Check if currentTurnIndex is valid
+    if (state.currentTurnIndex >= state.teams.length) {
+      console.error(`Invalid currentTurnIndex (${state.currentTurnIndex}) for teams length (${state.teams.length})`);
+      // Fallback to the first team
+      return state.teams[0]?.id || '';
+    }
+    
+    // Get the team ID
+    const teamId = state.teams[state.currentTurnIndex]?.id;
+    if (!teamId) {
+      console.error(`No team found at index ${state.currentTurnIndex}`);
+      return state.teams[0]?.id || '';
+    }
+    
+    return teamId;
   }
+  
+  // Free-for-all mode
+  if (state.players.length === 0) {
+    console.error('No players found in free-for-all mode');
+    return '';
+  }
+  
+  // Check if currentTurnIndex is valid
+  if (state.currentTurnIndex >= state.players.length) {
+    console.error(`Invalid currentTurnIndex (${state.currentTurnIndex}) for players length (${state.players.length})`);
+    // Fallback to the first player
+    return state.players[0]?.id || '';
+  }
+  
   return state.players[state.currentTurnIndex]?.id || '';
 };
 

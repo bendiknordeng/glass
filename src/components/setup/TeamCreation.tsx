@@ -92,7 +92,10 @@ const TeamCreation: React.FC = () => {
   const { state, dispatch } = useGame();
   const [numTeams, setNumTeams] = useState(2);
   const [teamsCreated, setTeamsCreated] = useState(false);
-  const [teamNames, setTeamNames] = useState<string[]>(['Team 1', 'Team 2']);
+  const [teamNames, setTeamNames] = useState<string[]>(() => {
+    // Initialize with default names for the default number of teams (2)
+    return ['Team 1', 'Team 2'];
+  });
   const [unassignedPlayers, setUnassignedPlayers] = useState<string[]>([]);
   const [activeId, setActiveId] = useState<UniqueIdentifier | null>(null);
   const [editingTeamNames, setEditingTeamNames] = useState(false);
@@ -324,7 +327,9 @@ const TeamCreation: React.FC = () => {
   useEffect(() => {
     if (state.teams.length > 0) {
       setNumTeams(state.teams.length);
-      setTeamNames(state.teams.map(team => team.name));
+      // Make sure we have valid names for all teams
+      const savedTeamNames = state.teams.map(team => team.name || `Team ${team.id.slice(0, 3)}`);
+      setTeamNames(savedTeamNames);
       setTeamsCreated(true);
     }
   }, []);
@@ -423,7 +428,7 @@ const TeamCreation: React.FC = () => {
                   <div key={index} className="flex items-center gap-2">
                     <input
                       type="text"
-                      value={teamNames[index]}
+                      value={teamNames[index] || `Team ${index + 1}`}
                       onChange={(e) => handleTeamNameChange(index, e.target.value)}
                       placeholder={`Team ${index + 1}`}
                       className="w-full px-3 py-2 border rounded-md text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-game-primary"

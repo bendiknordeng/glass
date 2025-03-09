@@ -25,6 +25,7 @@
     "delete": "Slett",
     "player": "Spiller",
     "team": "Lag",
+    "teamMembers": "Lagmedlemmer",
     "points": "Poeng",
     "point": "poeng",
     "home": "Hjem"
@@ -76,20 +77,27 @@
     "unassignedPlayers": "Ikke fordelte spillere",
     "saveTeams": "Lagre lag",
     "moveAllHere": "Flytt alle hit",
-    "recentPlayers": "Nylig brukte spillere"
+    "recentPlayers": "Nylig brukte spillere",
+    "teamSetup": "Lagoppsett"
   },
   "game": {
     "round": "Runde {{round}}",
     "playerTurn": "{{player}} sin tur",
     "teamTurn": "Lag {{team}} sin tur",
+    "teamTurnAnnouncement": "{{team}} sin tur!",
+    "teamTurnBanner": "Lag {{team}}",
+    "showdown": "Duell!",
+    "areYouReady": "Er du klar?",
     "currentTurn": "{{name}} sin tur",
+    "teamMember": "Lagmedlem fra {{team}}",
+    "performingChallenge": "Utfører utfordringen",
     "challengeTypes": {
       "individual": "Individuell utfordring",
       "oneOnOne": "En mot en utfordring",
       "team": "Lagutfordring"
     },
     "challengeReveal": "Din utfordring er...",
-    "challengeQuestion": "Fullførte du utfordringen?",
+    "challengeQuestion": "Ble utfordringen fullført?",
     "challengeResult": "Utfordringsresultat",
     "completed": "Fullført",
     "failed": "Mislykket",
@@ -99,6 +107,7 @@
     "nextPlayer": "Neste spiller",
     "gameOver": "Spillet er over!",
     "loadingChallenge": "Laster utfordring...",
+    "selectWinner": "Vennligst velg en vinner",
     "selectWinnerInstruction": "Velg vinner",
     "participants": "Deltakere",
     "newChallenge": "Ny utfordring",
@@ -148,7 +157,8 @@
     "challenges": "utfordringer",
     "categoryPlaceholder": "Eksempel: Drikke, Quiz, Musikk",
     "titlePlaceholder": "Eksempel: Vann eller Vodka",
-    "descriptionPlaceholder": "Eksempel: Drikk en shot av vann eller vodka. La gruppen gjette hva du drakk."
+    "descriptionPlaceholder": "Eksempel: Drikk en shot av vann eller vodka. La gruppen gjette hva du drakk.",
+    "recentCustomChallenges": "Nylig brukte egendefinerte utfordringer"
   },
   "settings": {
     "title": "Innstillinger",

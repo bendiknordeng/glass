@@ -18,39 +18,50 @@ const ChallengeReveal: React.FC<ChallengeRevealProps> = ({
 
   // Animation sequence
   useEffect(() => {
+    console.log("ChallengeReveal animation sequence started", { challenge: challenge.title });
+    
     // Start by showing the component
     const timer0 = setTimeout(() => {
+      console.log("ChallengeReveal Timer 0: showing component");
       setShow(true);
     }, 500);
 
     const timer1 = setTimeout(() => {
+      console.log("ChallengeReveal Timer 1: showing title");
       // First show the challenge title
       setStage('title');
     }, 1000);
 
     const timer2 = setTimeout(() => {
+      console.log("ChallengeReveal Timer 2: showing details");
       // Then show the challenge details (type, difficulty, points)
       setStage('details');
     }, 2000);
 
     const timer3 = setTimeout(() => {
+      console.log("ChallengeReveal Timer 3: completing reveal");
       // Complete the reveal
       setStage('complete');
     }, 3000);
 
     const timer4 = setTimeout(() => {
+      console.log("ChallengeReveal Timer 4: starting exit animation");
       // Start exit animation
       setShow(false);
     }, 5000);
 
     const timer5 = setTimeout(() => {
+      console.log("ChallengeReveal Timer 5: notifying completion");
       // Notify parent that reveal is complete
       if (onRevealComplete) {
         onRevealComplete();
+      } else {
+        console.log("No onRevealComplete callback provided for ChallengeReveal");
       }
     }, 6000);
 
     return () => {
+      console.log("ChallengeReveal component unmounting, clearing timers");
       clearTimeout(timer0);
       clearTimeout(timer1);
       clearTimeout(timer2);
@@ -58,7 +69,7 @@ const ChallengeReveal: React.FC<ChallengeRevealProps> = ({
       clearTimeout(timer4);
       clearTimeout(timer5);
     };
-  }, [onRevealComplete]);
+  }, [onRevealComplete, challenge.title]);
 
   // Get challenge type text
   const getChallengeTypeText = () => {

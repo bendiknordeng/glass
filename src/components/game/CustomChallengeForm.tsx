@@ -6,6 +6,29 @@ import { useGame } from '@/contexts/GameContext';
 import Button from '@/components/common/Button';
 import Modal from '@/components/common/Modal';
 
+// Maximum number of recent custom challenges to store
+const MAX_RECENT_CHALLENGES = 10;
+const RECENT_CHALLENGES_KEY = 'recentCustomChallenges';
+
+// Helper function to update recent challenges in local storage
+const updateRecentChallenges = (newChallenge: Challenge) => {
+  try {
+    const recentChallenges = JSON.parse(localStorage.getItem(RECENT_CHALLENGES_KEY) || '[]');
+    
+    // Remove any existing challenge with the same title (case insensitive)
+    const filteredChallenges = recentChallenges.filter(
+      (challenge: Challenge) => challenge.title.toLowerCase() !== newChallenge.title.toLowerCase()
+    );
+    
+    // Add new challenge to the beginning
+    const updatedChallenges = [newChallenge, ...filteredChallenges].slice(0, MAX_RECENT_CHALLENGES);
+    
+    localStorage.setItem(RECENT_CHALLENGES_KEY, JSON.stringify(updatedChallenges));
+  } catch (error) {
+    console.error('Error updating recent challenges:', error);
+  }
+};
+
 interface CustomChallengeFormProps {
   isOpen: boolean;
   onClose: () => void;
@@ -49,36 +72,46 @@ const CustomChallengeForm: React.FC<CustomChallengeFormProps> = ({
     setIsSubmitting(true);
     
     try {
+      let challenge: Challenge;
+      
       if (editChallenge) {
         // Update existing challenge
+        challenge = {
+          ...editChallenge,
+          title,
+          description,
+          type,
+          difficulty,
+          points,
+          canReuse,
+          category: category.trim() || undefined
+        };
+        
         dispatch({
           type: 'UPDATE_CUSTOM_CHALLENGE',
-          payload: {
-            id: editChallenge.id,
-            title,
-            description,
-            type,
-            difficulty,
-            points,
-            canReuse,
-            category: category.trim() || undefined
-          }
+          payload: challenge
         });
       } else {
         // Add new challenge
+        challenge = {
+          id: Date.now().toString(), // Generate a new ID
+          title,
+          description,
+          type,
+          difficulty,
+          points,
+          canReuse,
+          category: category.trim() || undefined
+        };
+        
         dispatch({
           type: 'ADD_CUSTOM_CHALLENGE',
-          payload: {
-            title,
-            description,
-            type,
-            difficulty,
-            points,
-            canReuse,
-            category: category.trim() || undefined
-          }
+          payload: challenge
         });
       }
+      
+      // Add to recent challenges in localStorage
+      updateRecentChallenges(challenge);
       
       // Reset form and close modal
       resetForm();

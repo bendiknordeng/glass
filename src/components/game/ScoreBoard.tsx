@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { Player } from '@/types/Player';
 import { Team, GameMode } from '@/types/Team';
 import { calculateStandings } from '@/utils/helpers';
+import PlayerCard from '@/components/common/PlayerCard';
 
 interface ScoreBoardProps {
   players: Player[];
@@ -25,6 +26,13 @@ const ScoreBoard: React.FC<ScoreBoardProps> = ({
   const { t } = useTranslation();
   const standings = calculateStandings(players, teams, gameMode);
   const displayStandings = maxToShow > 0 ? standings.slice(0, maxToShow) : standings;
+  
+  // Get team members
+  const getTeamMembers = (teamId: string): Player[] => {
+    const team = teams.find(t => t.id === teamId);
+    if (!team) return [];
+    return players.filter(player => team.playerIds.includes(player.id));
+  };
   
   // Animation variants
   const container = {
@@ -59,40 +67,59 @@ const ScoreBoard: React.FC<ScoreBoardProps> = ({
         animate="show"
       >
         {displayStandings.map((entry, index) => (
-          <motion.div 
+          <motion.div
             key={entry.id}
-            className={`
-              flex items-center justify-between p-4
-              ${index === 0 ? 'bg-pastel-yellow bg-opacity-30' : ''}
-            `}
             variants={item}
+            className={`${index === 0 ? 'bg-pastel-yellow bg-opacity-30' : ''}`}
           >
-            <div className="flex items-center">
-              <div className={`
-                w-8 h-8 flex items-center justify-center rounded-full mr-3
-                ${index === 0 ? 'bg-game-accent text-gray-800' : 
-                  index === 1 ? 'bg-gray-300 text-gray-800' : 
-                  index === 2 ? 'bg-amber-700 text-white' : 'bg-gray-200 text-gray-500'}
-                font-bold
-              `}>
-                {index + 1}
+            {/* Main entry row */}
+            <div className="flex items-center justify-between p-4">
+              <div className="flex items-center">
+                <div className={`
+                  w-8 h-8 flex items-center justify-center rounded-full mr-3
+                  ${index === 0 ? 'bg-game-accent text-gray-800' : 
+                    index === 1 ? 'bg-gray-300 text-gray-800' : 
+                    index === 2 ? 'bg-amber-700 text-white' : 'bg-gray-200 text-gray-500'}
+                  font-bold
+                `}>
+                  {index + 1}
+                </div>
+                
+                <div>
+                  <span className="font-medium text-gray-800 dark:text-white">
+                    {entry.name}
+                  </span>
+                  <span className="text-xs text-gray-500 dark:text-gray-400 ml-2">
+                    {entry.type === 'team' ? t('common.team') : t('common.player')}
+                  </span>
+                </div>
               </div>
               
-              <div>
-                <span className="font-medium text-gray-800 dark:text-white">
-                  {entry.name}
-                </span>
-                <span className="text-xs text-gray-500 dark:text-gray-400 ml-2">
-                  {entry.type === 'team' ? t('common.team') : t('common.player')}
+              <div className="text-lg font-bold">
+                <span className="bg-game-secondary bg-opacity-20 text-game-secondary px-3 py-1 rounded-full">
+                  {entry.score}
                 </span>
               </div>
             </div>
             
-            <div className="text-lg font-bold">
-              <span className="bg-game-secondary bg-opacity-20 text-game-secondary px-3 py-1 rounded-full">
-                {entry.score}
-              </span>
-            </div>
+            {/* Team Members Section - Always visible for teams */}
+            {entry.type === 'team' && (
+              <div className="bg-gray-50 dark:bg-gray-700 px-4 py-3">
+                <h4 className="text-sm font-medium text-gray-600 dark:text-gray-300 mb-2">
+                  {t('common.teamMembers')}
+                </h4>
+                <div className="flex flex-wrap gap-2">
+                  {getTeamMembers(entry.id).map(player => (
+                    <PlayerCard
+                      key={player.id}
+                      player={player}
+                      size="xs"
+                      showScore={false}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
           </motion.div>
         ))}
         
