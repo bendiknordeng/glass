@@ -83,16 +83,6 @@ const Results: React.FC = () => {
     };
     
     window.addEventListener('resize', handleResize);
-    
-    // Stop confetti after 5 seconds
-    const timer = setTimeout(() => {
-      setShowConfetti(false);
-    }, 5000);
-    
-    return () => {
-      window.removeEventListener('resize', handleResize);
-      clearTimeout(timer);
-    };
   }, []);
   
   // Save players to recent players when game finishes
