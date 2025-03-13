@@ -6,11 +6,25 @@ interface SwitchProps {
   onChange: () => void;
   label?: string;
   ariaLabel?: string;
+  activeIcon?: React.ReactNode;
+  inactiveIcon?: React.ReactNode;
 }
 
-const Switch: React.FC<SwitchProps> = ({ checked, onChange, label, ariaLabel }) => {
+const Switch: React.FC<SwitchProps> = ({
+  checked,
+  onChange,
+  label,
+  ariaLabel,
+  activeIcon,
+  inactiveIcon
+}) => {
+  // Default icons
+  const ActiveIconComponent = activeIcon || <MoonIcon className="h-4 w-4 text-game-primary" />;
+  const InactiveIconComponent = inactiveIcon || <SunIcon className="h-4 w-4 text-yellow-500" />;
+
   return (
     <button
+      type="button"
       role="switch"
       aria-checked={checked}
       aria-label={ariaLabel}
@@ -29,11 +43,7 @@ const Switch: React.FC<SwitchProps> = ({ checked, onChange, label, ariaLabel }) 
           bg-white shadow-lg transition duration-200 ease-in-out
         `}
       >
-        {checked ? (
-          <MoonIcon className="h-4 w-4 text-game-primary" />
-        ) : (
-          <SunIcon className="h-4 w-4 text-yellow-500" />
-        )}
+        {checked ? ActiveIconComponent : InactiveIconComponent}
       </span>
       {label && (
         <span className="ml-3 text-sm text-gray-700 dark:text-gray-300">{label}</span>

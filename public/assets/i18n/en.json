@@ -9,16 +9,7 @@
     "back": "Back",
     "cancel": "Cancel",
     "save": "Save",
-    "add": "Add",
-    "remove": "Remove",
     "edit": "Edit",
-    "start": "Start",
-    "finish": "Finish",
-    "yes": "Yes",
-    "no": "No",
-    "continue": "Continue",
-    "loading": "Loading...",
-    "backToHome": "Back to Home",
     "optional": "optional",
     "selected": "Selected",
     "startGame": "Start Game",
@@ -26,16 +17,14 @@
     "player": "Player",
     "team": "Team",
     "teamMembers": "Team Members",
-    "points": "Points",
+    "points": "points",
     "point": "point",
-    "home": "Home"
+    "home": "Home",
+    "loser": "Loser"
   },
   "home": {
-    "welcomeTitle": "Welcome to Glass!",
-    "welcomeMessage": "Ready to spice up your gathering? Start a new game or continue where you left off.",
     "newGame": "New Game",
     "continueGame": "Continue Game",
-    "settings": "Settings",
     "startNewGame": "Start New Game",
     "startNewGameWarning": "Starting a new game will end your current game",
     "startNew": "Start New",
@@ -60,11 +49,11 @@
     "byChallenges": "Challenge Limit",
     "minutes": "Minutes",
     "challenges": "Challenges",
-    "readyToPlay": "Ready to Play!",
     "clickToChange": "Click to change",
     "noPlayersYet": "No players yet. Add players to start!",
     "addedPlayers": "Added {{count}} players",
     "needMinPlayers": "Need at least {{count}} players to start!",
+    "needToCreateTeams": "Please create teams before continuing",
     "teamMode": "Team Mode",
     "allPlayersIndividual": "All players play against each other",
     "createTeams": "Create {{count}} teams",
@@ -78,7 +67,16 @@
     "moveAllHere": "Move all here",
     "recentPlayers": "Recent Players",
     "teamSetup": "Team Setup",
-    "addAllPlayers": "Add all"
+    "addAllPlayers": "Add all",
+    "setupComplete": "Ready to start!",
+    "notEnoughPlayers": "Add at least 2 players to start",
+    "maxPlayersReached": "Maximum number of players reached",
+    "createTeamsDescription": "Create teams for your players",
+    "teamName": "Team Name",
+    "teamColor": "Team Color",
+    "dragPlayersInstructions": "Drag players to assign them to teams",
+    "teamsRequired": "Please create at least 2 teams",
+    "allPlayersAssigned": "All players must be assigned to a team"
   },
   "game": {
     "round": "Round {{round}}",
@@ -94,7 +92,8 @@
     "challengeTypes": {
       "individual": "Individual Challenge",
       "oneOnOne": "One-on-One Challenge",
-      "team": "Team Challenge"
+      "team": "Team Challenge",
+      "allVsAll": "All vs All"
     },
     "challengeReveal": "Your challenge is...",
     "challengeQuestion": "Was the challenge completed?",
@@ -115,7 +114,17 @@
     "confirmEndGame": "Are you sure you want to end the game?",
     "challengeProgress": "Challenge {{current}} of {{total}}",
     "endGame": "End Game",
-    "noScoresYet": "No scores yet. Play a game to see the results!"
+    "noScoresYet": "No scores yet. Play a game to see the results!",
+    "score": "Score",
+    "yourTurn": "Your Turn",
+    "selectWinnerPrompt": "Select the winner",
+    "failurePunishmentSips": "Drink {{count}} sip(s)!",
+    "failurePunishmentCustom": "Punishment time!",
+    "punishmentSips": "{{target}} must drink {{count}} sip(s)!",
+    "customPunishment": "Time for the punishment!",
+    "allVsAllDescription": "All players compete against each other",
+    "allVsAllWinnerDescription": "Select the player who performed best",
+    "playerFromTeam": "From {{team}}"
   },
   "results": {
     "finalResults": "Final Results",
@@ -137,7 +146,8 @@
     "completedChallenges": "Completed Challenges",
     "totalChallenges": "Total Challenges",
     "finalStandings": "Final Standings",
-    "gameComplete": "Game Completed"
+    "gameComplete": "Game Completed",
+    "finalScores": "Final Scores"
   },
   "challenges": {
     "customChallenges": "Custom Challenges",
@@ -158,7 +168,23 @@
     "categoryPlaceholder": "Example: Drink, Quiz, Music",
     "titlePlaceholder": "Example: Water or Vodka",
     "descriptionPlaceholder": "Example: Drink a shot of water or vodka. Have the group guess what you drank.",
-    "recentCustomChallenges": "Recent Custom Challenges"
+    "recentCustomChallenges": "Recent Custom Challenges",
+    "yourCustomChallenges": "Your Custom Challenges",
+    "recentChallenges": "Recent Custom Challenges",
+    "noChallenges": "No Custom Challenges Yet",
+    "noRecentChallenges": "No Recent Challenges",
+    "recentChallengesDesc": "Challenges you've created before will appear here for easy access.",
+    "addChallenge": "Add Challenge",
+    "deleteConfirmation": "Are you sure you want to delete this challenge?",
+    "includePunishment": "Include punishment for failing",
+    "punishmentType": "Punishment Type",
+    "sips": "Sips",
+    "custom": "Custom",
+    "numberOfSips": "Number of Sips",
+    "customPunishment": "Custom Punishment",
+    "customPunishmentPlaceholder": "Describe the punishment (e.g., 'Do 10 pushups')",
+    "clearAllRecent": "Clear All Recent",
+    "deleteAllRecent": "Delete all recent challenges"
   },
   "settings": {
     "title": "Settings",
@@ -178,6 +204,20 @@
     "toggleTheme": "Toggle Theme",
     "resetGame": "Reset Game",
     "resetGameWarning": "By resetting the game, you will start over",
-    "reset": "Reset"
+    "reset": "Reset",
+    "appSettings": "App Settings",
+    "soundEffects": "Sound Effects",
+    "vibration": "Vibration",
+    "resetData": "Reset App Data",
+    "resetDataConfirmation": "This will delete all app data including custom challenges. This action cannot be undone.",
+    "resetComplete": "App data has been reset"
+  },
+  "about": {
+    "appInfo": "App Information",
+    "version": "Version",
+    "createdBy": "Created By",
+    "privacyPolicy": "Privacy Policy",
+    "termsOfService": "Terms of Service",
+    "acknowledge": "Glass is a fun party game app designed to be used responsibly. Please drink responsibly and ensure all participants are of legal drinking age in your country."
   }
 }

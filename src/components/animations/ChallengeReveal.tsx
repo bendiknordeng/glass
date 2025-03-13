@@ -13,149 +13,215 @@ const ChallengeReveal: React.FC<ChallengeRevealProps> = ({
   onRevealComplete
 }) => {
   const { t } = useTranslation();
-  const [stage, setStage] = useState<'initial' | 'title' | 'details' | 'complete'>('initial');
-  const [show, setShow] = useState(false);
-
+  const [showReveal, setShowReveal] = useState(false);
+  const [showTitle, setShowTitle] = useState(false);
+  const [showDescription, setShowDescription] = useState(false);
+  const [isComplete, setIsComplete] = useState(false);
+  
+  // Get icon based on challenge type
+  const getChallengeTypeIcon = () => {
+    switch (challenge.type) {
+      case ChallengeType.INDIVIDUAL:
+        return (
+          <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+            <circle cx="12" cy="7" r="4"></circle>
+          </svg>
+        );
+      case ChallengeType.TEAM:
+        return (
+          <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+            <circle cx="9" cy="7" r="4"></circle>
+            <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+            <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+          </svg>
+        );
+      case ChallengeType.ONE_ON_ONE:
+        return (
+          <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+            <line x1="12" y1="8" x2="12" y2="16"></line>
+            <line x1="8" y1="12" x2="16" y2="12"></line>
+          </svg>
+        );
+      default:
+        return null;
+    }
+  };
+  
   // Animation sequence
   useEffect(() => {
-    
-    // Start by showing the component
-    const timer0 = setTimeout(() => {
-      setShow(true);
-    }, 500);
-
     const timer1 = setTimeout(() => {
-      // First show the challenge title
-      setStage('title');
-    }, 1000);
-
+      // Start by showing the component
+      setShowReveal(true);
+    }, 300);
+    
     const timer2 = setTimeout(() => {
-      // Then show the challenge details (type, difficulty, points)
-      setStage('details');
-    }, 2000);
-
+      // Show the challenge title
+      setShowTitle(true);
+    }, 1200);
+    
     const timer3 = setTimeout(() => {
-      // Complete the reveal
-      setStage('complete');
-    }, 3000);
-
+      // Show the challenge description
+      setShowDescription(true);
+    }, 2200);
+    
     const timer4 = setTimeout(() => {
-      // Start exit animation
-      setShow(false);
-    }, 5000);
-
+      // Start fade out
+      setIsComplete(true);
+    }, 4500);
+    
     const timer5 = setTimeout(() => {
       // Notify parent that reveal is complete
       if (onRevealComplete) {
         onRevealComplete();
       }
-    }, 6000);
-
+    }, 5000);
+    
     return () => {
-      clearTimeout(timer0);
       clearTimeout(timer1);
       clearTimeout(timer2);
       clearTimeout(timer3);
       clearTimeout(timer4);
       clearTimeout(timer5);
     };
-  }, [onRevealComplete, challenge.title]);
-
-  // Get challenge type text
-  const getChallengeTypeText = () => {
-    switch (challenge.type) {
-      case ChallengeType.INDIVIDUAL:
-        return t('game.challengeTypes.individual');
-      case ChallengeType.ONE_ON_ONE:
-        return t('game.challengeTypes.oneOnOne');
-      case ChallengeType.TEAM:
-        return t('game.challengeTypes.team');
-      default:
-        return '';
-    }
-  };
-
-  // Get color based on challenge type
-  const getChallengeTypeColor = () => {
-    switch (challenge.type) {
-      case ChallengeType.INDIVIDUAL:
-        return 'bg-pastel-blue';
-      case ChallengeType.ONE_ON_ONE:
-        return 'bg-pastel-orange';
-      case ChallengeType.TEAM:
-        return 'bg-pastel-green';
-      default:
-        return 'bg-gray-100';
-    }
-  };
-
+  }, [onRevealComplete]);
+  
   return (
     <AnimatePresence>
-      {show && (
+      {showReveal && (
         <motion.div
-          className="fixed inset-0 flex flex-col items-center justify-center bg-black bg-opacity-80 z-50 p-6"
+          className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-90 z-50 overflow-hidden"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.5 }}
         >
-          {/* Challenge Reveal Container */}
+          {/* Subtle spotlight effect */}
           <motion.div
-            className="w-full max-w-lg rounded-2xl overflow-hidden bg-white dark:bg-game-dark shadow-2xl"
+            className="absolute w-full h-full pointer-events-none"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 0.4 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 1 }}
+          >
+            <div className="w-full h-full bg-[radial-gradient(circle,rgba(255,255,255,0.1)_0%,rgba(0,0,0,0)_70%)]" />
+          </motion.div>
+          
+          {/* Challenge Card */}
+          <motion.div
+            className="bg-white dark:bg-gray-800 rounded-xl overflow-hidden shadow-2xl max-w-md w-full mx-4 relative"
             initial={{ scale: 0.8, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            exit={{ scale: 0.8, opacity: 0 }}
-            transition={{ 
-              type: 'spring',
-              stiffness: 300,
-              damping: 25
+            animate={{ 
+              scale: isComplete ? 0.8 : 1,
+              opacity: isComplete ? 0 : 1,
+              boxShadow: ['0 0 0px rgba(255, 255, 255, 0.3)', '0 0 20px rgba(255, 255, 255, 0.5)', '0 0 0px rgba(255, 255, 255, 0.3)'],
+            }}
+            transition={{
+              scale: { type: 'spring', stiffness: 300, damping: 25 },
+              opacity: { duration: 0.5 },
+              boxShadow: { repeat: Infinity, duration: 3, ease: "easeInOut" }
             }}
           >
-            {/* Challenge Title */}
-            <motion.div
-              className="p-8 text-center"
+            {/* Challenge Type Badge - Improved positioning and styling */}
+            <motion.div 
+              className="absolute top-3 left-0 right-0 flex justify-center"
               initial={{ y: -20, opacity: 0 }}
-              animate={{ 
-                y: stage === 'title' || stage === 'details' || stage === 'complete' ? 0 : -20,
-                opacity: stage === 'title' || stage === 'details' || stage === 'complete' ? 1 : 0
+              animate={{ y: 0, opacity: 1 }}
+              transition={{ 
+                type: 'spring',
+                stiffness: 300,
+                damping: 20,
+                delay: 0.5 
               }}
-              transition={{ duration: 0.6 }}
             >
-              <motion.div
-                className="text-lg text-game-primary font-medium mb-4"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 0.3 }}
-              >
-                {t('game.newChallenge')}
-              </motion.div>
-              <h2 className="text-4xl font-bold text-gray-800 dark:text-white">
-                {challenge.title}
-              </h2>
-            </motion.div>
-
-            {/* Challenge Details */}
-            <motion.div
-              className="p-8 bg-gray-50 dark:bg-gray-800"
-              initial={{ y: 20, opacity: 0 }}
-              animate={{ 
-                y: stage === 'details' || stage === 'complete' ? 0 : 20,
-                opacity: stage === 'details' || stage === 'complete' ? 1 : 0
-              }}
-              transition={{ duration: 0.6 }}
-            >
-              <div className="flex flex-col items-center gap-6">
-                {/* Challenge Type */}
-                <div className={`px-6 py-3 rounded-full ${getChallengeTypeColor()} text-gray-800 font-medium text-lg`}>
-                  {getChallengeTypeText()}
-                </div>
-
-                {/* Points */}
-                <div className="px-6 py-3 bg-pastel-yellow rounded-full text-gray-800 font-bold text-lg">
-                  {challenge.points} {challenge.points === 1 ? t('common.point') : t('common.points')}
-                </div>
+              <div className="inline-flex items-center bg-gradient-to-r from-game-accent/90 to-game-primary/90 px-4 py-1.5 rounded-full shadow-md">
+                <span className="text-white text-sm font-medium mr-1.5">{t(`challenge.type.${challenge.type}`)}</span>
+                {getChallengeTypeIcon()}
               </div>
             </motion.div>
+            
+            {/* Card Content */}
+            <div className="p-6 pt-16">
+              {/* Challenge Title */}
+              <motion.h2
+                className="text-2xl font-bold text-gray-900 dark:text-white mb-4 text-center"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ 
+                  opacity: showTitle ? 1 : 0,
+                  y: showTitle ? 0 : 20,
+                  textShadow: showTitle ? '0 0 8px rgba(0, 0, 0, 0.2)' : '0 0 0px rgba(0, 0, 0, 0)'
+                }}
+                transition={{ 
+                  type: 'spring',
+                  stiffness: 300,
+                  damping: 25
+                }}
+              >
+                {challenge.title}
+              </motion.h2>
+              
+              {/* Animated Divider */}
+              {showTitle && (
+                <motion.div
+                  className="h-1 bg-gradient-to-r from-game-accent to-game-primary mx-auto rounded-full mb-6"
+                  initial={{ width: 0 }}
+                  animate={{ width: '60%' }}
+                  transition={{ 
+                    duration: 0.8,
+                    ease: "easeOut"
+                  }}
+                />
+              )}
+              
+              {/* Challenge Description */}
+              <motion.div
+                className="bg-gray-100 dark:bg-gray-700 p-4 rounded-lg mb-4"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ 
+                  opacity: showDescription ? 1 : 0,
+                  y: showDescription ? 0 : 20,
+                  boxShadow: showDescription ? '0 4px 12px rgba(0, 0, 0, 0.1)' : '0 0 0px rgba(0, 0, 0, 0)'
+                }}
+                transition={{ 
+                  type: 'spring',
+                  stiffness: 300,
+                  damping: 25
+                }}
+              >
+                <p className="text-gray-700 dark:text-gray-300 text-lg">
+                  {challenge.description}
+                </p>
+              </motion.div>
+              
+              {/* Challenge Points */}
+              {showDescription && (
+                <motion.div
+                  className="flex justify-center mt-6"
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: [0.95, 1.03, 1] }}
+                  transition={{ 
+                    opacity: { duration: 0.5 },
+                    scale: { duration: 0.7, times: [0, 0.6, 1] }
+                  }}
+                >
+                  <motion.div 
+                    className="bg-game-primary bg-opacity-20 px-6 py-2 rounded-full"
+                    animate={{
+                      boxShadow: ['0 0 0px rgba(255, 209, 102, 0.2)', '0 0 10px rgba(255, 209, 102, 0.4)', '0 0 0px rgba(255, 209, 102, 0.2)']
+                    }}
+                    transition={{
+                      boxShadow: { repeat: Infinity, duration: 2.5 }
+                    }}
+                  >
+                    <span className="text-game-primary font-bold text-xl">
+                      {t('challenge.points', { points: challenge.points })}
+                    </span>
+                  </motion.div>
+                </motion.div>
+              )}
+            </div>
           </motion.div>
         </motion.div>
       )}

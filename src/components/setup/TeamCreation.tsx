@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, forwardRef, useImperativeHandle } from 'react';
 import { useTranslation } from 'react-i18next';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -87,15 +87,16 @@ const SortablePlayer: React.FC<SortablePlayerProps> = ({ player, id, onPlayerCli
   );
 };
 
-const TeamCreation: React.FC = () => {
+export interface TeamCreationRef {
+  isReady: () => boolean;
+}
+
+const TeamCreation = forwardRef<TeamCreationRef, {}>((props, ref) => {
   const { t } = useTranslation();
   const { state, dispatch } = useGame();
   const [numTeams, setNumTeams] = useState(2);
   const [teamsCreated, setTeamsCreated] = useState(false);
-  const [teamNames, setTeamNames] = useState<string[]>(() => {
-    // Initialize with default names for the default number of teams (2)
-    return ['Team 1', 'Team 2'];
-  });
+  const [teamNames, setTeamNames] = useState<string[]>(new Array(2).fill(''));
   const [unassignedPlayers, setUnassignedPlayers] = useState<string[]>([]);
   const [activeId, setActiveId] = useState<UniqueIdentifier | null>(null);
   const [editingTeamNames, setEditingTeamNames] = useState(false);
@@ -120,17 +121,31 @@ const TeamCreation: React.FC = () => {
   // Reset teams when game mode changes
   useEffect(() => {
     if (state.gameMode !== GameMode.TEAMS) {
+      // When switching away from TEAMS mode
       setTeamsCreated(false);
+      // Reset team names to empty strings
+      setTeamNames(new Array(numTeams).fill(''));
+    } else {
+      // When switching to TEAMS mode
+      // If we have teams in the state, consider them created
+      if (state.teams.length > 0) {
+        setTeamsCreated(true);
+        const savedTeamNames = state.teams.map(team => team.name || '');
+        setTeamNames(savedTeamNames);
+      } else {
+        setTeamsCreated(false);
+        setTeamNames(new Array(numTeams).fill(''));
+      }
     }
-  }, [state.gameMode]);
+  }, [state.gameMode, state.teams, numTeams]);
 
   // Update team names when number of teams changes
   useEffect(() => {
     setTeamNames(prevNames => {
       const newNames = [...prevNames];
-      // Ensure we have names for all teams
+      // Ensure we have empty strings for all team slots
       while (newNames.length < numTeams) {
-        newNames.push(`Team ${newNames.length + 1}`);
+        newNames.push('');
       }
       // Trim excess names if reducing team count
       return newNames.slice(0, numTeams);
@@ -147,12 +162,24 @@ const TeamCreation: React.FC = () => {
   
   // Create or update teams
   const handleCreateOrUpdateTeams = (): void => {
+    // Create default team names for any empty inputs
+    const finalTeamNames = teamNames.map((name, index) => 
+      name.trim() === '' ? `Team ${index + 1}` : name
+    );
+
     dispatch({
       type: 'CREATE_TEAMS',
-      payload: { numTeams, teamNames }
+      payload: { numTeams, teamNames: finalTeamNames }
     });
+    
+    // Important: This sets the local teamsCreated flag to true
+    // When navigating back and forth, this flag might get reset
+    // but the teams still exist in the global state
     setTeamsCreated(true);
     setEditingTeamNames(false);
+    
+    // Update the teamNames state with the final names for display
+    setTeamNames(finalTeamNames);
   };
   
   // Randomize teams
@@ -164,12 +191,13 @@ const TeamCreation: React.FC = () => {
   
   // Handle game mode change
   const handleGameModeChange = (mode: GameMode): void => {
+    // The SET_GAME_MODE action in the reducer already handles clearing teams when switching to FREE_FOR_ALL
     dispatch({
       type: 'SET_GAME_MODE',
       payload: mode
     });
     
-    // Reset teams when switching modes
+    // Reset teams created flag when switching modes
     setTeamsCreated(false);
   };
 
@@ -323,16 +351,33 @@ const TeamCreation: React.FC = () => {
     }
   }, [state.teams, dispatch]);
 
-  // Initialize from saved state
+  // Expose methods to parent component
+  useImperativeHandle(ref, () => ({
+    isReady: () => {
+      // Always ready in FREE_FOR_ALL mode
+      if (state.gameMode === GameMode.FREE_FOR_ALL) {
+        return true;
+      }
+      
+      // In TEAMS mode, check both our local teamsCreated state and the actual teams data
+      // Teams are ready if we have created teams and there are actual teams in the state
+      // This handles edge cases when switching between modes
+      return teamsCreated && state.teams.length > 0;
+    },
+  }));
+
+  // Additional initialization effect to handle initial state
   useEffect(() => {
-    if (state.teams.length > 0) {
-      setNumTeams(state.teams.length);
-      // Make sure we have valid names for all teams
-      const savedTeamNames = state.teams.map(team => team.name || `Team ${team.id.slice(0, 3)}`);
-      setTeamNames(savedTeamNames);
+    // Initialize team creation state based on game mode and teams
+    if (state.gameMode === GameMode.TEAMS && state.teams.length > 0) {
       setTeamsCreated(true);
+      setNumTeams(state.teams.length);
+      const names = state.teams.map(team => team.name || '');
+      setTeamNames(names);
     }
-  }, []);
+  // Run on mount AND when remounting after navigation 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.gameMode, state.teams.length]);
 
   return (
     <div className="max-w-4xl mx-auto">
@@ -428,7 +473,7 @@ const TeamCreation: React.FC = () => {
                   <div key={index} className="flex items-center gap-2">
                     <input
                       type="text"
-                      value={teamNames[index] || `Team ${index + 1}`}
+                      value={teamNames[index]}
                       onChange={(e) => handleTeamNameChange(index, e.target.value)}
                       placeholder={`Team ${index + 1}`}
                       className="w-full px-3 py-2 border rounded-md text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-game-primary"
@@ -580,6 +625,6 @@ const TeamCreation: React.FC = () => {
       )}
     </div>
   );
-};
+});
 
 export default TeamCreation;

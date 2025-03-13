@@ -1,38 +1,28 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { motion } from 'framer-motion';
-import { ChallengeType, Challenge } from '@/types/Challenge';
+import { motion, AnimatePresence } from 'framer-motion';
+import { ChallengeType, Challenge, Punishment } from '@/types/Challenge';
 import { useGame } from '@/contexts/GameContext';
 import Button from '@/components/common/Button';
 import Modal from '@/components/common/Modal';
+import Switch from '@/components/common/Switch';
+import { useLocalStorage } from '@/hooks/useLocalStorage';
+import { SunIcon, MoonIcon, XMarkIcon, CheckIcon } from '@heroicons/react/24/solid';
 
 // Maximum number of recent custom challenges to store
 const MAX_RECENT_CHALLENGES = 10;
 const RECENT_CHALLENGES_KEY = 'recentCustomChallenges';
 
-// Helper function to update recent challenges in local storage
-const updateRecentChallenges = (newChallenge: Challenge) => {
-  try {
-    const recentChallenges = JSON.parse(localStorage.getItem(RECENT_CHALLENGES_KEY) || '[]');
-    
-    // Remove any existing challenge with the same title (case insensitive)
-    const filteredChallenges = recentChallenges.filter(
-      (challenge: Challenge) => challenge.title.toLowerCase() !== newChallenge.title.toLowerCase()
-    );
-    
-    // Add new challenge to the beginning
-    const updatedChallenges = [newChallenge, ...filteredChallenges].slice(0, MAX_RECENT_CHALLENGES);
-    
-    localStorage.setItem(RECENT_CHALLENGES_KEY, JSON.stringify(updatedChallenges));
-  } catch (error) {
-    console.error('Error updating recent challenges:', error);
-  }
-};
-
 interface CustomChallengeFormProps {
   isOpen: boolean;
   onClose: () => void;
   editChallenge?: Challenge; // Challenge to edit, if in edit mode
+}
+
+// Interface for validation errors
+interface ValidationError {
+  id: string;
+  message: string;
 }
 
 const CustomChallengeForm: React.FC<CustomChallengeFormProps> = ({
@@ -42,16 +32,24 @@ const CustomChallengeForm: React.FC<CustomChallengeFormProps> = ({
 }) => {
   const { t } = useTranslation();
   const { dispatch } = useGame();
+  const [recentChallenges, setRecentChallenges] = useLocalStorage<Challenge[]>(RECENT_CHALLENGES_KEY, []);
   
   // Form state
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [type, setType] = useState<ChallengeType>(ChallengeType.INDIVIDUAL);
-  const [difficulty, setDifficulty] = useState<1 | 2 | 3>(1);
   const [points, setPoints] = useState(1);
   const [canReuse, setCanReuse] = useState(true);
-  const [category, setCategory] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  // Punishment state
+  const [hasPunishment, setHasPunishment] = useState(false);
+  const [punishmentType, setPunishmentType] = useState<'sips' | 'custom'>('sips');
+  const [punishmentValue, setPunishmentValue] = useState(1);
+  const [customPunishmentDescription, setCustomPunishmentDescription] = useState('');
+  
+  // Validation errors
+  const [errors, setErrors] = useState<ValidationError[]>([]);
   
   // Load challenge data when editing
   useEffect(() => {
@@ -59,16 +57,82 @@ const CustomChallengeForm: React.FC<CustomChallengeFormProps> = ({
       setTitle(editChallenge.title);
       setDescription(editChallenge.description);
       setType(editChallenge.type);
-      setDifficulty(editChallenge.difficulty);
       setPoints(editChallenge.points);
       setCanReuse(editChallenge.canReuse);
-      setCategory(editChallenge.category || '');
+      
+      // Set punishment data if it exists
+      if (editChallenge.punishment) {
+        setHasPunishment(true);
+        setPunishmentType(editChallenge.punishment.type);
+        setPunishmentValue(editChallenge.punishment.value);
+        setCustomPunishmentDescription(editChallenge.punishment.customDescription || '');
+      } else {
+        setHasPunishment(false);
+      }
     }
   }, [editChallenge]);
+  
+  // Create punishment object if enabled
+  const getPunishment = (): Punishment | undefined => {
+    if (!hasPunishment) return undefined;
+    
+    const punishment: Punishment = {
+      type: punishmentType,
+      value: punishmentValue
+    };
+    
+    if (punishmentType === 'custom' && customPunishmentDescription) {
+      punishment.customDescription = customPunishmentDescription;
+    }
+    
+    return punishment;
+  };
+  
+  // Helper function to update recent challenges
+  const updateRecentChallenges = (challenge: Challenge) => {
+    // Remove existing challenge with the same ID if found
+    const filtered = recentChallenges.filter(c => c.id !== challenge.id);
+    
+    // Add new challenge to front of array
+    const updated = [challenge, ...filtered].slice(0, MAX_RECENT_CHALLENGES);
+    
+    // Update localStorage via the hook
+    setRecentChallenges(updated);
+  };
+  
+  // Validate form
+  const validateForm = (): boolean => {
+    const newErrors: ValidationError[] = [];
+    
+    if (!title.trim()) {
+      newErrors.push({ id: 'title', message: t('validation.titleRequired') });
+    }
+    
+    if (!description.trim()) {
+      newErrors.push({ id: 'description', message: t('validation.descriptionRequired') });
+    }
+    
+    if (hasPunishment && punishmentType === 'custom' && !customPunishmentDescription.trim()) {
+      newErrors.push({ id: 'punishment', message: t('validation.punishmentDescriptionRequired') });
+    }
+    
+    setErrors(newErrors);
+    return newErrors.length === 0;
+  };
+  
+  // Remove a specific error
+  const removeError = (id: string) => {
+    setErrors(prev => prev.filter(error => error.id !== id));
+  };
   
   // Handle form submission
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (!validateForm()) {
+      return;
+    }
+    
     setIsSubmitting(true);
     
     try {
@@ -81,10 +145,9 @@ const CustomChallengeForm: React.FC<CustomChallengeFormProps> = ({
           title,
           description,
           type,
-          difficulty,
           points,
           canReuse,
-          category: category.trim() || undefined
+          punishment: getPunishment()
         };
         
         dispatch({
@@ -98,10 +161,10 @@ const CustomChallengeForm: React.FC<CustomChallengeFormProps> = ({
           title,
           description,
           type,
-          difficulty,
+          difficulty: 1, // Default difficulty (deprecated but still needed for compatibility)
           points,
           canReuse,
-          category: category.trim() || undefined
+          punishment: getPunishment()
         };
         
         dispatch({
@@ -128,16 +191,101 @@ const CustomChallengeForm: React.FC<CustomChallengeFormProps> = ({
     setTitle('');
     setDescription('');
     setType(ChallengeType.INDIVIDUAL);
-    setDifficulty(1);
     setPoints(1);
     setCanReuse(true);
-    setCategory('');
+    setHasPunishment(false);
+    setPunishmentType('sips');
+    setPunishmentValue(1);
+    setCustomPunishmentDescription('');
+    setErrors([]);
   };
   
   // Handle modal close
   const handleClose = () => {
     resetForm();
     onClose();
+  };
+  
+  // Number input with increment/decrement buttons
+  const NumberInput = ({ 
+    value, 
+    onChange, 
+    min = 1, 
+    max = 10,
+    label,
+    id
+  }: { 
+    value: number; 
+    onChange: (value: number) => void; 
+    min?: number; 
+    max?: number;
+    label?: string;
+    id: string;
+  }) => {
+    const decrement = () => {
+      if (value > min) {
+        onChange(value - 1);
+      }
+    };
+    
+    const increment = () => {
+      if (value < max) {
+        onChange(value + 1);
+      }
+    };
+    
+    return (
+      <div className="flex items-center">
+        <button
+          type="button"
+          onClick={decrement}
+          disabled={value <= min}
+          className={`
+            flex items-center justify-center w-10 h-10 rounded-l-md
+            ${value <= min 
+              ? 'bg-gray-200 dark:bg-gray-600 text-gray-400 dark:text-gray-500 cursor-not-allowed' 
+              : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+            }
+            transition-colors
+          `}
+        >
+          <span className="text-lg font-bold">−</span>
+        </button>
+        
+        <div className="relative flex-1">
+          <input
+            id={id}
+            type="number"
+            min={min}
+            max={max}
+            value={value}
+            onChange={(e) => onChange(Math.max(min, Math.min(max, parseInt(e.target.value) || min)))}
+            className="w-full h-10 text-center border-y border-x border-gray-300 dark:border-gray-700 focus:ring-0 focus:outline-none dark:bg-gray-700 dark:text-white [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none rounded-none"
+          />
+          {label && (
+            <span className="absolute right-3 top-1/2 transform -translate-y-1/2 text-sm text-gray-500 dark:text-gray-400 pointer-events-none">
+              {label}
+            </span>
+          )}
+        </div>
+        
+        <button
+          type="button"
+          onClick={increment}
+          disabled={value >= max}
+          className={`
+            flex items-center justify-center w-10 h-10 rounded-r-md
+            ${value >= max 
+              ? 'bg-gray-200 dark:bg-gray-600 text-gray-400 dark:text-gray-500 cursor-not-allowed' 
+              : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+            }
+            transition-colors
+          `}
+        >
+          <span className="text-lg font-bold">+</span>
+        </button>
+      </div>
+    );
   };
   
   return (
@@ -147,6 +295,30 @@ const CustomChallengeForm: React.FC<CustomChallengeFormProps> = ({
       title={editChallenge ? t('challenges.editChallenge') : t('challenges.customChallenge')}
       size="lg"
     >
+      {/* Error notifications */}
+      <div className="fixed top-4 right-4 z-50 space-y-2">
+        <AnimatePresence>
+          {errors.map((error) => (
+            <motion.div
+              key={error.id}
+              initial={{ opacity: 0, y: -20, scale: 0.8 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -20, scale: 0.8 }}
+              transition={{ duration: 0.2 }}
+              className="bg-red-500 text-white px-4 py-2 rounded shadow-lg flex items-center"
+            >
+              <span className="flex-1">{error.message}</span>
+              <button 
+                onClick={() => removeError(error.id)}
+                className="ml-2 text-white hover:text-red-100"
+              >
+                <XMarkIcon className="h-5 w-5" />
+              </button>
+            </motion.div>
+          ))}
+        </AnimatePresence>
+      </div>
+      
       <form onSubmit={handleSubmit}>
         <div className="space-y-6">
           {/* Challenge Title */}
@@ -186,7 +358,7 @@ const CustomChallengeForm: React.FC<CustomChallengeFormProps> = ({
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               {t('challenges.challengeType')} *
             </label>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
               <button
                 type="button"
                 onClick={() => setType(ChallengeType.INDIVIDUAL)}
@@ -225,79 +397,159 @@ const CustomChallengeForm: React.FC<CustomChallengeFormProps> = ({
               >
                 {t('game.challengeTypes.team')}
               </button>
+              
+              <button
+                type="button"
+                onClick={() => setType(ChallengeType.ALL_VS_ALL)}
+                className={`
+                  px-4 py-2 rounded-md text-sm font-medium transition-colors
+                  ${type === ChallengeType.ALL_VS_ALL 
+                    ? 'bg-pastel-purple text-gray-800 border-2 border-pastel-purple' 
+                    : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-2 border-transparent hover:bg-pastel-purple/20'}
+                `}
+              >
+                {t('game.challengeTypes.allVsAll')}
+              </button>
             </div>
           </div>
           
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-            {/* Difficulty */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                {t('challenges.difficulty')} *
-              </label>
-              <div className="flex gap-3">
-                {[1, 2, 3].map((level) => (
-                  <button
-                    key={level}
-                    type="button"
-                    onClick={() => setDifficulty(level as 1 | 2 | 3)}
-                    className={`
-                      flex-1 px-3 py-2 rounded-md text-sm font-medium transition-colors
-                      ${difficulty === level 
-                        ? 'bg-game-primary text-white' 
-                        : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'}
-                    `}
-                  >
-                    {Array(level).fill('⭐').join('')}
-                  </button>
-                ))}
-              </div>
-            </div>
-            
-            {/* Points */}
-            <div>
-              <label htmlFor="challenge-points" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                {t('common.points')} *
-              </label>
-              <select
+          {/* Points - Enhanced with custom number input */}
+          <div>
+            <label htmlFor="challenge-points" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              {t('common.points')} * <span className="text-sm font-normal text-gray-500 dark:text-gray-400">(1-10)</span>
+            </label>
+            <div className="max-w-xs">
+              <NumberInput
                 id="challenge-points"
                 value={points}
-                onChange={(e) => setPoints(parseInt(e.target.value) as 1 | 2 | 3)}
-                className="w-full rounded-md border-gray-300 dark:border-gray-700 shadow-sm focus:border-game-primary focus:ring focus:ring-game-primary focus:ring-opacity-50 dark:bg-gray-700 dark:text-white"
-              >
-                <option value={1}>1 {t('common.point')}</option>
-                <option value={2}>2 {t('common.points')}</option>
-                <option value={3}>3 {t('common.points')}</option>
-              </select>
+                onChange={setPoints}
+                label={points === 1 ? t('common.point') : t('common.points')}
+              />
             </div>
           </div>
           
-          {/* Can Reuse */}
+          {/* Can Reuse - Using common Switch component with custom icons */}
           <div className="flex items-center">
-            <input
-              id="can-reuse"
-              type="checkbox"
+            <Switch
               checked={canReuse}
-              onChange={(e) => setCanReuse(e.target.checked)}
-              className="w-4 h-4 text-game-primary border-gray-300 rounded focus:ring-game-primary"
+              onChange={() => setCanReuse(!canReuse)}
+              ariaLabel={t('challenges.canReuse')}
+              activeIcon={<CheckIcon className="h-4 w-4 text-green-500" />}
+              inactiveIcon={<XMarkIcon className="h-4 w-4 text-red-500" />}
             />
-            <label htmlFor="can-reuse" className="ml-2 text-sm text-gray-700 dark:text-gray-300">
+            <label className="ml-3 text-sm text-gray-700 dark:text-gray-300">
               {t('challenges.canReuse')}
             </label>
           </div>
           
-          {/* Category (optional) */}
-          <div>
-            <label htmlFor="challenge-category" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              {t('challenges.category')}
-            </label>
-            <input
-              id="challenge-category"
-              type="text"
-              value={category}
-              onChange={(e) => setCategory(e.target.value)}
-              className="w-full rounded-md border-gray-300 dark:border-gray-700 shadow-sm focus:border-game-primary focus:ring focus:ring-game-primary focus:ring-opacity-50 dark:bg-gray-700 dark:text-white"
-              placeholder={t('challenges.categoryPlaceholder')}
-            />
+          {/* Punishment options */}
+          <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
+            {/* Include Punishment - Using common Switch component with custom icons */}
+            <div className="flex items-center mb-4">
+              <Switch
+                checked={hasPunishment}
+                onChange={() => setHasPunishment(!hasPunishment)}
+                ariaLabel={t('challenges.includePunishment')}
+                activeIcon={<CheckIcon className="h-4 w-4 text-green-500" />}
+                inactiveIcon={<XMarkIcon className="h-4 w-4 text-red-500" />}
+              />
+              <label className="ml-3 text-sm font-medium text-gray-700 dark:text-gray-300">
+                {t('challenges.includePunishment')}
+              </label>
+            </div>
+            
+            {/* Animated punishment section */}
+            <AnimatePresence>
+              {hasPunishment && (
+                <motion.div
+                  initial={{ opacity: 0, y: -20, height: 0 }}
+                  animate={{ opacity: 1, y: 0, height: 'auto' }}
+                  exit={{ opacity: 0, y: -20, height: 0 }}
+                  transition={{ duration: 0.3 }}
+                  className="bg-gray-50 dark:bg-gray-800 rounded-md p-4 space-y-4 overflow-hidden"
+                >
+                  {/* Punishment Type */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      {t('challenges.punishmentType')}
+                    </label>
+                    <div className="flex space-x-4">
+                      <button
+                        type="button"
+                        onClick={() => setPunishmentType('sips')}
+                        className={`
+                          flex-1 px-4 py-2 rounded-md text-sm font-medium transition-colors
+                          ${punishmentType === 'sips' 
+                            ? 'bg-red-400 text-white' 
+                            : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-red-100 dark:hover:bg-red-900/30'}
+                        `}
+                      >
+                        {t('challenges.sips')}
+                      </button>
+                      
+                      <button
+                        type="button"
+                        onClick={() => setPunishmentType('custom')}
+                        className={`
+                          flex-1 px-4 py-2 rounded-md text-sm font-medium transition-colors
+                          ${punishmentType === 'custom' 
+                            ? 'bg-purple-400 text-white' 
+                            : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-purple-100 dark:hover:bg-purple-900/30'}
+                        `}
+                      >
+                        {t('challenges.custom')}
+                      </button>
+                    </div>
+                  </div>
+                  
+                  {/* Animated punishment content based on type */}
+                  <AnimatePresence mode="wait">
+                    {punishmentType === 'sips' ? (
+                      <motion.div
+                        key="sips"
+                        initial={{ opacity: 0, x: -20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, x: 20 }}
+                        transition={{ duration: 0.2 }}
+                      >
+                        <label htmlFor="punishment-value" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                          {t('challenges.numberOfSips')} <span className="text-sm font-normal text-gray-500 dark:text-gray-400">(1-10)</span>
+                        </label>
+                        <div className="max-w-xs">
+                          <NumberInput
+                            id="punishment-value"
+                            value={punishmentValue}
+                            onChange={setPunishmentValue}
+                            label={t('challenges.sips')}
+                          />
+                        </div>
+                      </motion.div>
+                    ) : (
+                      <motion.div
+                        key="custom"
+                        initial={{ opacity: 0, x: -20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, x: 20 }}
+                        transition={{ duration: 0.2 }}
+                      >
+                        <label htmlFor="custom-punishment" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                          {t('challenges.customPunishment')}
+                        </label>
+                        <textarea
+                          id="custom-punishment"
+                          value={customPunishmentDescription}
+                          onChange={(e) => setCustomPunishmentDescription(e.target.value)}
+                          className="w-full rounded-md border-gray-300 dark:border-gray-700 shadow-sm focus:border-game-primary focus:ring focus:ring-game-primary focus:ring-opacity-50 dark:bg-gray-700 dark:text-white"
+                          placeholder={t('challenges.customPunishmentPlaceholder')}
+                          rows={2}
+                          required={punishmentType === 'custom'}
+                        />
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
         </div>
         
@@ -306,6 +558,7 @@ const CustomChallengeForm: React.FC<CustomChallengeFormProps> = ({
             variant="secondary"
             onClick={handleClose}
             disabled={isSubmitting}
+            type="button"
           >
             {t('common.cancel')}
           </Button>
@@ -313,9 +566,8 @@ const CustomChallengeForm: React.FC<CustomChallengeFormProps> = ({
             variant="primary"
             type="submit"
             isLoading={isSubmitting}
-            disabled={!title || !description}
           >
-            {t('challenges.addChallenge')}
+            {editChallenge ? t('common.save') : t('challenges.addChallenge')}
           </Button>
         </div>
       </form>

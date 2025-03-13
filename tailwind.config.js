@@ -24,6 +24,7 @@ export default {
         animation: {
           'bounce-slow': 'bounce 2s infinite',
           'pulse-fast': 'pulse 1s infinite',
+          'pulse-slow': 'pulse 3s ease-in-out infinite',
           'spin-slow': 'spin 3s linear infinite',
           'wiggle': 'wiggle 1s ease-in-out infinite',
         },

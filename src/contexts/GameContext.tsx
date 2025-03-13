@@ -61,7 +61,8 @@ type GameAction =
   | { type: 'REMOVE_PLAYER_FROM_TEAM'; payload: { teamId: string; playerId: string } }
   | { type: 'ADD_PLAYER_TO_TEAM'; payload: { teamId: string; playerId: string } }
   | { type: 'SAVE_TEAMS_STATE'; payload: Team[] }
-  | { type: 'RESTORE_GAME_STATE'; payload: GameState };
+  | { type: 'RESTORE_GAME_STATE'; payload: GameState }
+  | { type: 'UPDATE_CHALLENGE_PARTICIPANTS'; payload: string[] };
 
 // Create reducer function
 const gameReducer = (state: GameState, action: GameAction): GameState => {
@@ -306,55 +307,34 @@ const gameReducer = (state: GameState, action: GameAction): GameState => {
           }
         }
       } else if (challenge.type === 'team') {
-        // All teams participate in team challenges
         if (state.gameMode === GameMode.TEAMS) {
+          // In team mode, all teams participate in team challenges
+          participants = state.teams.map(team => team.id);
+        } else {
+          // In free-for-all, just use the current player (they play for their "team")
+          participants = [currentId];
+        }
+      } else if (challenge.type === 'allVsAll') {
+        if (state.gameMode === GameMode.TEAMS) {
+          // In team mode, all teams participate in all vs all challenges
           participants = state.teams.map(team => team.id);
           
-          // Ensure we have at least one team
-          if (participants.length === 0) {
-            console.error('No teams available for team challenge');
-            return state;
+          // Also include all player IDs to allow individual selection
+          const playerIds = state.teams.flatMap(team => team.playerIds);
+          if (playerIds.length > 0) {
+            participants = [...participants, ...playerIds];
           }
         } else {
-          // In free-for-all, create two random groups
-          const playerIds = shuffleArray([...state.players.map(player => player.id)]);
-          if (playerIds.length < 2) {
-            console.error('Not enough players for team challenge');
-            return state;
-          }
-          
-          const midpoint = Math.ceil(playerIds.length / 2);
-          participants = [
-            'group1:' + playerIds.slice(0, midpoint).join(','),
-            'group2:' + playerIds.slice(midpoint).join(',')
-          ];
+          // In free-for-all, all players participate
+          participants = state.players.map(player => player.id);
         }
-      }
-      
-      // Validate that we have participants
-      if (participants.length === 0) {
-        console.error('No participants selected for challenge');
-        return state;
-      }
-      
-      // Validate each participant exists
-      const validParticipants = participants.every(id => {
-        if (id.startsWith('group')) return true; // Group IDs are valid by construction
-        return getParticipantById(id, state.players, state.teams) !== null;
-      });
-      
-      if (!validParticipants) {
-        console.error('Invalid participants selected');
-        return state;
       }
       
       return {
         ...state,
         currentChallenge: challenge,
         currentChallengeParticipants: participants,
-        usedChallenges: challenge.canReuse 
-          ? state.usedChallenges 
-          : [...state.usedChallenges, challenge.id],
+        usedChallenges: [...state.usedChallenges, challenge.id]
       };
     }
 
@@ -479,6 +459,12 @@ const gameReducer = (state: GameState, action: GameAction): GameState => {
         currentChallengeParticipants,
       };
     }
+
+    case 'UPDATE_CHALLENGE_PARTICIPANTS':
+      return {
+        ...state,
+        currentChallengeParticipants: action.payload
+      };
 
     default:
       return state;

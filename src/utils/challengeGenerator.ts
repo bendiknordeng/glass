@@ -1,4 +1,4 @@
-import { Challenge, ChallengeType } from '@/types/Challenge';
+import { Challenge, ChallengeType, Punishment } from '@/types/Challenge';
 import { GameMode } from '@/types/Team';
 
 /**
@@ -30,6 +30,12 @@ export const getNextChallenge = (
       return false;
     }
     
+    // In TEAMS mode, exclude all vs all if not enough players
+    if (gameMode === GameMode.TEAMS && challenge.type === ChallengeType.ALL_VS_ALL) {
+      // Allow it for now, player selection will handle it
+      return true;
+    }
+    
     return true;
   });
   
@@ -57,7 +63,11 @@ export const generateDefaultChallenges = (): Challenge[] => {
       type: ChallengeType.INDIVIDUAL,
       canReuse: true,
       difficulty: 2,
-      points: 2
+      points: 2,
+      punishment: {
+        type: 'sips',
+        value: 2
+      }
     },
     {
       id: '2',
@@ -75,7 +85,11 @@ export const generateDefaultChallenges = (): Challenge[] => {
       type: ChallengeType.INDIVIDUAL,
       canReuse: true,
       difficulty: 2,
-      points: 2
+      points: 2,
+      punishment: {
+        type: 'sips',
+        value: 1
+      }
     },
     {
       id: '4',
@@ -84,7 +98,12 @@ export const generateDefaultChallenges = (): Challenge[] => {
       type: ChallengeType.INDIVIDUAL,
       canReuse: false,
       difficulty: 3,
-      points: 3
+      points: 3,
+      punishment: {
+        type: 'custom',
+        value: 1,
+        customDescription: 'Show the last photo in your camera roll to everyone'
+      }
     },
     {
       id: '5',
@@ -104,7 +123,11 @@ export const generateDefaultChallenges = (): Challenge[] => {
       type: ChallengeType.ONE_ON_ONE,
       canReuse: true,
       difficulty: 1,
-      points: 1
+      points: 1,
+      punishment: {
+        type: 'sips',
+        value: 1
+      }
     },
     {
       id: '7',
@@ -122,7 +145,11 @@ export const generateDefaultChallenges = (): Challenge[] => {
       type: ChallengeType.ONE_ON_ONE,
       canReuse: true,
       difficulty: 2,
-      points: 2
+      points: 2,
+      punishment: {
+        type: 'sips',
+        value: 2
+      }
     },
     {
       id: '9',
@@ -152,7 +179,11 @@ export const generateDefaultChallenges = (): Challenge[] => {
       canReuse: false,
       difficulty: 2,
       points: 3,
-      category: 'quiz'
+      category: 'quiz',
+      punishment: {
+        type: 'sips',
+        value: 3
+      }
     },
     {
       id: '12',
@@ -214,7 +245,11 @@ export const generateDefaultChallenges = (): Challenge[] => {
       canReuse: true,
       difficulty: 2,
       points: 2,
-      category: 'knowledge'
+      category: 'knowledge',
+      punishment: {
+        type: 'sips',
+        value: 2
+      }
     },
     {
       id: '18',
@@ -245,6 +280,71 @@ export const generateDefaultChallenges = (): Challenge[] => {
       difficulty: 2,
       points: 2,
       category: 'drinking'
+    },
+    
+    // All vs All challenges
+    {
+      id: '21',
+      title: 'Trivia Royale',
+      description: 'Everyone competes in a rapid-fire trivia battle. First player to 3 correct answers wins!',
+      type: ChallengeType.ALL_VS_ALL,
+      canReuse: true,
+      difficulty: 2,
+      points: 3,
+      category: 'knowledge',
+      punishment: {
+        type: 'sips',
+        value: 2
+      }
+    },
+    {
+      id: '22',
+      title: 'Word Association Sprint',
+      description: 'Start with a word. Go around quickly with each player saying a related word. If you hesitate more than 3 seconds or repeat a word, you\'re out. Last player standing wins!',
+      type: ChallengeType.ALL_VS_ALL,
+      canReuse: true,
+      difficulty: 2,
+      points: 2,
+      category: 'language',
+      punishment: {
+        type: 'sips',
+        value: 1
+      }
+    },
+    {
+      id: '23',
+      title: 'Bottle Flip Championship',
+      description: 'Each player gets 3 attempts to flip a water bottle and make it land upright. Player with most successful flips wins!',
+      type: ChallengeType.ALL_VS_ALL,
+      canReuse: true,
+      difficulty: 1,
+      points: 2,
+      category: 'skill'
+    },
+    {
+      id: '24',
+      title: 'Dance Off',
+      description: 'Each player performs a 15-second dance. Everyone votes for the best dancer (can\'t vote for yourself). Most votes wins!',
+      type: ChallengeType.ALL_VS_ALL,
+      canReuse: false,
+      difficulty: 3,
+      points: 3,
+      category: 'performance',
+      punishment: {
+        type: 'custom',
+        value: 1,
+        customDescription: 'Loser must dance again, but twice as long this time!'
+      }
+    },
+    {
+      id: '25',
+      title: 'Draw & Guess Battle',
+      description: 'Everyone gets a word to draw. After 30 seconds, all drawings are revealed and players guess each other\'s drawings. Most correct guesses wins!',
+      type: ChallengeType.ALL_VS_ALL,
+      canReuse: true,
+      difficulty: 2,
+      points: 2,
+      category: 'creativity'
     }
   ];
 };

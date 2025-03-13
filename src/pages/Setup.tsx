@@ -6,8 +6,9 @@ import { useGame } from '@/contexts/GameContext';
 import { generateDefaultChallenges } from '@/utils/challengeGenerator';
 import Button from '@/components/common/Button';
 import PlayerRegistration from '@/components/setup/PlayerRegistration';
-import TeamCreation from '@/components/setup/TeamCreation';
+import TeamCreation, { TeamCreationRef } from '@/components/setup/TeamCreation';
 import GameSettings from '@/components/setup/GameSettings';
+import { GameMode } from '@/types/Team';
 
 const Setup: React.FC = () => {
   const { t } = useTranslation();
@@ -16,6 +17,7 @@ const Setup: React.FC = () => {
   const [currentStep, setCurrentStep] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
   const stateRef = useRef(state);
+  const teamCreationRef = useRef<TeamCreationRef>(null);
   
   // Keep ref updated with latest state
   useEffect(() => {
@@ -24,6 +26,23 @@ const Setup: React.FC = () => {
   
   // Steps for setup process
   const MIN_PLAYERS = 2;
+
+  // Function to check if the teams step can continue
+  const canContinueFromTeamsStep = () => {
+    // If in free-for-all mode, can continue
+    if (state.gameMode === GameMode.FREE_FOR_ALL) {
+      return true;
+    }
+    
+    // In TEAMS mode, check if teams have been created
+    // First check via the ref (which is more reliable when component is mounted)
+    const teamsReadyViaRef = teamCreationRef.current?.isReady() || false;
+    
+    // Fallback check directly on state (works even if component is not fully initialized)
+    const teamsExistInState = state.gameMode === GameMode.TEAMS && state.teams.length > 0;
+    
+    return teamsReadyViaRef || teamsExistInState;
+  };
 
   const steps = [
     {
@@ -35,8 +54,8 @@ const Setup: React.FC = () => {
     {
       id: 'teams',
       title: t('setup.teamCreation'),
-      component: <TeamCreation />,
-      canContinue: true // Always allow continuing from teams step
+      component: <TeamCreation ref={teamCreationRef} />,
+      canContinue: canContinueFromTeamsStep()
     },
     {
       id: 'settings',
@@ -117,11 +136,42 @@ const Setup: React.FC = () => {
     }
   };
   
-  // Get current step content
-  const currentStepData = steps[currentStep];
+  // Get current step content with latest canContinue value
+  const getCurrentStepData = () => {
+    const step = steps[currentStep];
+    
+    // Recalculate canContinue for current step
+    if (step.id === 'players') {
+      return {
+        ...step,
+        canContinue: state.players.length >= MIN_PLAYERS
+      };
+    } else if (step.id === 'teams') {
+      // Directly call canContinueFromTeamsStep to get the latest validation
+      // This ensures we're getting the real-time status from the teamCreationRef
+      const canContinue = canContinueFromTeamsStep();
+      return {
+        ...step,
+        canContinue
+      };
+    }
+    
+    return step;
+  };
+  
+  // Force re-validation when game mode or teams change
+  const [forceUpdate, setForceUpdate] = useState(false);
+  
+  useEffect(() => {
+    // When game mode or teams change, trigger a re-render to update validation
+    // This ensures the canContinue logic is reevaluated after navigation
+    setForceUpdate(prev => !prev);
+  }, [state.gameMode, state.teams.length, currentStep]);
+  
+  const currentStepData = getCurrentStepData();
   
   return (
-    <div className="min-h-screen py-8 px-4">
+    <div className="min-h-screen py-8 px-4 relative">
       <div className="max-w-4xl mx-auto">
         {/* Header */}
         <motion.div
@@ -188,8 +238,51 @@ const Setup: React.FC = () => {
           {currentStepData.component}
         </motion.div>
         
-        {/* Navigation buttons */}
-        <div className="flex justify-between mt-10">
+        {/* Side navigation arrows for larger screens */}
+        <div className="hidden xl:block">
+          {/* Left (back) arrow */}
+          <button
+            className={`fixed left-6 top-1/2 transform -translate-y-1/2 bg-white dark:bg-gray-800 rounded-full shadow-xl p-4 hover:bg-gray-100 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-game-primary transition-all ${currentStep === 0 ? 'opacity-50 cursor-not-allowed' : 'hover:scale-110'}`}
+            onClick={handlePreviousStep}
+            disabled={currentStep === 0}
+            aria-label={currentStep === 0 ? t('common.home') : t('common.back')}
+          >
+            <svg className="w-8 h-8 text-gray-700 dark:text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7" />
+            </svg>
+          </button>
+          
+          {/* Right (next) arrow */}
+          <button 
+            className={`fixed right-6 top-1/2 transform -translate-y-1/2 ${!currentStepData.canContinue ? 'bg-gray-100 dark:bg-gray-800 opacity-50 cursor-not-allowed' : currentStep < steps.length - 1 ? 'bg-game-primary hover:bg-game-primary-dark hover:scale-110' : 'bg-pastel-green hover:bg-pastel-green/90 hover:scale-110'} ${currentStep === steps.length - 1 ? 'flex items-center px-6 animate-pulse-glow' : ''} rounded-full shadow-xl p-4 focus:outline-none focus:ring-2 focus:ring-game-primary transition-all`}
+            onClick={handleNextStep}
+            disabled={!currentStepData.canContinue || isLoading}
+            aria-label={currentStep < steps.length - 1 ? t('common.next') : t('common.startGame')}
+          >
+            {isLoading ? (
+              <div className="w-8 h-8 border-4 border-gray-200 border-t-white rounded-full animate-spin" />
+            ) : (
+              <>
+                <svg className={`${currentStep === steps.length - 1 ? 'w-6 h-6 mr-2' : 'w-8 h-8'} text-white`} fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                  {currentStep < steps.length - 1 ? (
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
+                  ) : (
+                    <>
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </>
+                  )}
+                </svg>
+                {currentStep === steps.length - 1 && (
+                  <span className="font-bold text-gray-800 whitespace-nowrap">{t('common.startGame')}</span>
+                )}
+              </>
+            )}
+          </button>
+        </div>
+        
+        {/* Bottom navigation buttons (mobile/smaller screens) */}
+        <div className="flex justify-between mt-10 xl:hidden">
           <Button
             variant="secondary"
             onClick={handlePreviousStep}
@@ -203,10 +296,11 @@ const Setup: React.FC = () => {
           </Button>
           
           <Button
-            variant="primary"
+            variant={currentStep < steps.length - 1 ? "primary" : "success"}
             onClick={handleNextStep}
             isLoading={isLoading}
             isDisabled={!currentStepData.canContinue}
+            className={currentStep === steps.length - 1 ? "animate-pulse-glow" : ""}
             rightIcon={
               currentStep < steps.length - 1 ? (
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
@@ -220,15 +314,31 @@ const Setup: React.FC = () => {
               )
             }
           >
-            {currentStep < steps.length - 1 ? t('common.next') : t('common.startGame')}
+            {currentStep < steps.length - 1 ? t('common.next') : (
+              <div className="flex items-center">
+                <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                </svg>
+                {t('common.startGame')}
+              </div>
+            )}
           </Button>
         </div>
         
-        {!currentStepData.canContinue && currentStep === 0 && (
-          <p className="text-center text-amber-600 dark:text-amber-400 text-sm mt-4">
-            {t('setup.needMinPlayers', { count: MIN_PLAYERS })}
-          </p>
-        )}
+        {/* Error messages */}
+        <div className="mt-4 md:mb-20 pb-8">
+          {!currentStepData.canContinue && currentStep === 0 && (
+            <p className="text-center text-amber-600 dark:text-amber-400 text-sm mt-4">
+              {t('setup.needMinPlayers', { count: MIN_PLAYERS })}
+            </p>
+          )}
+
+          {!currentStepData.canContinue && currentStep === 1 && state.gameMode === GameMode.TEAMS && (
+            <p className="text-center text-amber-600 dark:text-amber-400 text-sm mt-4">
+              {t('setup.needToCreateTeams')}
+            </p>
+          )}
+        </div>
       </div>
     </div>
   );

@@ -3,7 +3,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { Player } from '@/types/Player';
 import { getPlayerImage } from '@/utils/helpers';
-import confetti from 'canvas-confetti';
 
 interface PlayerRevealProps {
   player: Player;
@@ -29,24 +28,17 @@ const PlayerReveal: React.FC<PlayerRevealProps> = ({
     const timer1 = setTimeout(() => {
       // Start by showing the component
       setShowReveal(true);
-    }, 500);
+    }, 300);
     
     const timer2 = setTimeout(() => {
       // Show the player name
       setShowText(true);
-    }, 1500);
+    }, 1200);
     
     const timer3 = setTimeout(() => {
       // Show "Are you ready?"
       setShowReady(true);
-      
-      // Trigger celebration effect
-      confetti({
-        particleCount: 50,
-        spread: 60,
-        origin: { y: 0.6, x: 0.5 }
-      });
-    }, 2500);
+    }, 2200);
     
     const timer4 = setTimeout(() => {
       // Start fade out
@@ -73,16 +65,27 @@ const PlayerReveal: React.FC<PlayerRevealProps> = ({
     <AnimatePresence>
       {showReveal && (
         <motion.div
-          className="fixed inset-0 flex flex-col items-center justify-center bg-black bg-opacity-80 z-50"
+          className="fixed inset-0 flex flex-col items-center justify-center bg-black bg-opacity-90 z-50 overflow-hidden"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.5 }}
         >
+          {/* Subtle spotlight effect */}
+          <motion.div
+            className="absolute w-full h-full pointer-events-none"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 0.4 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.5 }}
+          >
+            <div className="w-full h-full bg-[radial-gradient(circle,rgba(255,255,255,0.1)_0%,rgba(0,0,0,0)_70%)]" />
+          </motion.div>
+
           {/* Team Context (if in team mode) */}
-          {isTeamMode && teamName && (
+          {/* {isTeamMode && teamName && (
             <motion.div
-              className="absolute top-1/4 text-center"
+              className="mb-2 text-center"
               initial={{ opacity: 0, y: -20 }}
               animate={{ 
                 opacity: showText ? (isComplete ? 0 : 1) : 0,
@@ -90,15 +93,25 @@ const PlayerReveal: React.FC<PlayerRevealProps> = ({
               }}
               transition={{ duration: 0.5 }}
             >
-              <h3 className="text-3xl font-bold text-game-primary mb-1">
-                {t('game.teamTurnBanner', { team: teamName })}
-              </h3>
+              <motion.div 
+                className="inline-block bg-game-primary px-4 py-1 rounded-full"
+                animate={{
+                  boxShadow: ['0 0 0px rgba(255, 255, 255, 0)', '0 0 5px rgba(255, 255, 255, 0.3)', '0 0 0px rgba(255, 255, 255, 0)']
+                }}
+                transition={{
+                  boxShadow: { repeat: Infinity, duration: 2.5 }
+                }}
+              >
+                <h3 className="text-xl font-semibold text-white">
+                  {t('game.teamTurnBanner', { team: teamName })}
+                </h3>
+              </motion.div>
             </motion.div>
-          )}
+          )} */}
           
           {/* Player Photo and Name */}
           <motion.div
-            className="flex flex-col items-center"
+            className="flex flex-col items-center relative z-10"
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ 
               opacity: isComplete ? 0 : 1,
@@ -109,71 +122,56 @@ const PlayerReveal: React.FC<PlayerRevealProps> = ({
               opacity: { duration: 0.3 }
             }}
           >
-            {/* Player Photo with Animated Border */}
+            {/* Player Photo with Subtle Border */}
             <motion.div
               className="relative mb-4"
               initial={{ y: 20 }}
-              animate={{ y: 0 }}
+              animate={{ 
+                y: 0,
+                scale: [1, 1.02, 1]
+              }}
               transition={{ 
-                type: 'spring',
-                stiffness: 300,
-                damping: 20
+                y: {
+                  type: 'spring',
+                  stiffness: 300,
+                  damping: 20
+                },
+                scale: {
+                  repeat: Infinity,
+                  duration: 3,
+                  ease: "easeInOut"
+                }
               }}
             >
-              {/* Spinning rings */}
+              {/* Simple spinning ring */}
               <motion.div
-                className="absolute -inset-4 rounded-full border-4 border-t-transparent border-b-transparent border-game-primary"
+                className="absolute -inset-4 rounded-full border-2 border-game-primary opacity-60"
                 animate={{ 
                   rotate: 360,
-                  scale: [1, 1.05, 0.95, 1],
+                  boxShadow: ['0 0 0px rgba(255, 255, 255, 0)', '0 0 10px rgba(255, 255, 255, 0.2)', '0 0 0px rgba(255, 255, 255, 0)']
                 }}
                 transition={{ 
                   rotate: {
-                    duration: 4,
+                    duration: 10,
                     repeat: Infinity,
                     ease: "linear"
                   },
-                  scale: {
-                    duration: 2,
+                  boxShadow: {
+                    duration: 2.5,
                     repeat: Infinity,
                     ease: "easeInOut"
                   }
                 }}
               />
               
+              {/* Player image container with subtle pulse */}
               <motion.div
-                className="absolute -inset-2 rounded-full border-4 border-l-transparent border-r-transparent border-game-accent"
-                animate={{ 
-                  rotate: -720,
-                  scale: [1, 0.95, 1.05, 1],
-                }}
-                transition={{ 
-                  rotate: {
-                    duration: 5,
-                    repeat: Infinity,
-                    ease: "linear"
-                  },
-                  scale: {
-                    duration: 1.5,
-                    repeat: Infinity,
-                    ease: "easeInOut"
-                  }
-                }}
-              />
-              
-              {/* Player image container with pulsing effect */}
-              <motion.div
-                className="relative w-48 h-48 rounded-full overflow-hidden border-4 border-white"
+                className="relative w-40 h-40 rounded-full overflow-hidden border-4 border-white z-10"
                 animate={showText ? {
-                  boxShadow: [
-                    '0 0 0 rgba(255, 255, 255, 0.1)',
-                    '0 0 20px rgba(255, 255, 255, 0.5)',
-                    '0 0 0 rgba(255, 255, 255, 0.1)'
-                  ],
+                  boxShadow: '0 0 15px rgba(255, 255, 255, 0.4)'
                 } : {}}
                 transition={{ 
-                  repeat: Infinity,
-                  duration: 2
+                  duration: 1
                 }}
               >
                 <img
@@ -184,72 +182,64 @@ const PlayerReveal: React.FC<PlayerRevealProps> = ({
               </motion.div>
             </motion.div>
             
-            {/* Player Name */}
+            {/* Player Name with clean animation */}
             <motion.h2
               className="text-4xl font-bold text-white mb-2"
               initial={{ opacity: 0, y: 10 }}
               animate={{ 
                 opacity: showText ? 1 : 0,
-                y: showText ? 0 : 10 
+                y: showText ? 0 : 10
               }}
-              transition={{ duration: 0.5 }}
+              transition={{ 
+                type: 'spring',
+                stiffness: 300,
+                damping: 20
+              }}
             >
               {player.name}
             </motion.h2>
             
-            {/* "Are you ready?" Text */}
+            {/* "Are you ready?" Text with simple animation */}
             <motion.div
-              className="mt-4"
-              initial={{ opacity: 0, scale: 0.9 }}
+              className="mt-6"
+              initial={{ opacity: 0, y: 20 }}
               animate={{ 
                 opacity: showReady ? 1 : 0,
-                scale: showReady ? 1 : 0.9,
+                y: showReady ? 0 : 20
               }}
               transition={{ 
                 type: 'spring',
-                stiffness: 400,
-                damping: 15
+                stiffness: 300,
+                damping: 25
               }}
             >
-              <div className="bg-game-accent text-gray-900 px-8 py-4 rounded-full">
+              <motion.div
+                className="bg-gradient-to-r from-game-accent to-game-primary text-white px-8 py-4 rounded-full"
+                animate={{
+                  scale: [1, 1.03, 1],
+                  boxShadow: [
+                    '0 0 0px rgba(255, 209, 102, 0.4)',
+                    '0 0 10px rgba(255, 209, 102, 0.6)',
+                    '0 0 0px rgba(255, 209, 102, 0.4)'
+                  ]
+                }}
+                transition={{
+                  scale: {
+                    repeat: Infinity,
+                    duration: 2
+                  },
+                  boxShadow: {
+                    repeat: Infinity,
+                    duration: 2
+                  }
+                }}
+              >
                 <span className="text-2xl font-bold">
                   {t('game.areYouReady')}
                 </span>
-              </div>
+              </motion.div>
             </motion.div>
           </motion.div>
-          
-          {/* Animated particles */}
-          {showReady && !isComplete && (
-            <>
-              {[...Array(15)].map((_, i) => (
-                <motion.div
-                  key={i}
-                  className="absolute w-3 h-3 rounded-full"
-                  style={{
-                    backgroundColor: [
-                      '#FF6B6B', '#4ECDC4', '#FFD166', 
-                      '#A6D0DD', '#FFB6C1', '#B5EAD7'
-                    ][i % 6],
-                    top: '50%',
-                    left: '50%'
-                  }}
-                  initial={{ x: 0, y: 0 }}
-                  animate={{
-                    x: (Math.random() - 0.5) * 500,
-                    y: (Math.random() - 0.5) * 500,
-                    opacity: [1, 0.8, 0],
-                    scale: [0, 1, 0.5]
-                  }}
-                  transition={{
-                    duration: 2,
-                    ease: 'easeOut',
-                    delay: Math.random() * 0.3
-                  }}
-                />
-              ))}
-            </>
-          )}
         </motion.div>
       )}
     </AnimatePresence>

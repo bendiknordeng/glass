@@ -39,6 +39,31 @@ const Modal: React.FC<ModalProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, onClose, closeOnEsc]);
   
+  // Handle body scrolling - prevent scrolling when modal is open
+  useEffect(() => {
+    if (isOpen) {
+      // Save the current scroll position
+      const scrollY = window.scrollY;
+      
+      // Add styles to prevent scrolling on the body
+      document.body.style.position = 'fixed';
+      document.body.style.top = `-${scrollY}px`;
+      document.body.style.width = '100%';
+      document.body.style.overflowY = 'scroll';
+      
+      // Cleanup function to restore scrolling when modal is closed
+      return () => {
+        document.body.style.position = '';
+        document.body.style.top = '';
+        document.body.style.width = '';
+        document.body.style.overflowY = '';
+        
+        // Restore scroll position
+        window.scrollTo(0, scrollY);
+      };
+    }
+  }, [isOpen]);
+  
   // Handle outside click
   const handleOutsideClick = (e: React.MouseEvent) => {
     if (closeOnOutsideClick && modalRef.current && !modalRef.current.contains(e.target as Node)) {
@@ -95,7 +120,7 @@ const Modal: React.FC<ModalProps> = ({
             )}
             
             {/* Modal Body */}
-            <div className="p-6 overflow-y-auto">
+            <div className="p-6 max-h-[calc(85vh-120px)] overflow-y-auto">
               {children}
             </div>
             
