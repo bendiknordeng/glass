@@ -1,0 +1,38 @@
+{
+  "prebuilt": {
+    "prebuiltChallenges": "Prebuilt Challenges",
+    "spotifyMusicQuiz": {
+      "title": "Spotify Music Quiz",
+      "description": "Guess songs from a Spotify playlist",
+      "details": "Listen to short clips from a Spotify playlist and guess the song title and artist.",
+      "playlistUrl": "Spotify Playlist URL",
+      "playlistUrlHelp": "Enter the URL of a Spotify playlist",
+      "invalidPlaylistUrl": "Please enter a valid Spotify playlist URL",
+      "numberOfSongs": "Number of Songs",
+      "playDuration": "Play Duration (seconds)",
+      "pointsPerSong": "Points Per Song",
+      "loadingSongs": "Loading Songs",
+      "pleaseWait": "Please wait while we fetch songs from Spotify...",
+      "play": "Play",
+      "playAgain": "Play Again",
+      "pause": "Pause",
+      "restart": "Restart",
+      "reveal": "Reveal",
+      "nextSong": "Next Song",
+      "finish": "Finish",
+      "noSongs": "No songs available",
+      "noSongsMessage": "We couldn't load any songs from this playlist. Please try again or use a different playlist.",
+      "songCounter": "Song {{current}} of {{total}}",
+      "connectToSpotify": "Connect to Spotify",
+      "disconnectFromSpotify": "Disconnect from Spotify",
+      "yourPlaylists": "Your Playlists",
+      "spotifyLoginRequired": "To access your playlists, please connect to Spotify",
+      "noPlaylistsFound": "No playlists found for your account",
+      "loadingPlaylists": "Loading your playlists...",
+      "playlistTab": "Playlist URL",
+      "myPlaylistsTab": "My Playlists",
+      "awardPointsTo": "Award points to:",
+      "pointsAwarded": "{{points}} points will be awarded"
+    }
+  }
+} 

@@ -62,7 +62,9 @@ type GameAction =
   | { type: 'ADD_PLAYER_TO_TEAM'; payload: { teamId: string; playerId: string } }
   | { type: 'SAVE_TEAMS_STATE'; payload: Team[] }
   | { type: 'RESTORE_GAME_STATE'; payload: GameState }
-  | { type: 'UPDATE_CHALLENGE_PARTICIPANTS'; payload: string[] };
+  | { type: 'UPDATE_CHALLENGE_PARTICIPANTS'; payload: { challengeId: string; participantIds: string[] } }
+  | { type: 'UPDATE_PLAYER_SCORE'; payload: { playerId: string; points: number } }
+  | { type: 'UPDATE_TEAM_SCORE'; payload: { teamId: string; points: number } };
 
 // Create reducer function
 const gameReducer = (state: GameState, action: GameAction): GameState => {
@@ -463,7 +465,31 @@ const gameReducer = (state: GameState, action: GameAction): GameState => {
     case 'UPDATE_CHALLENGE_PARTICIPANTS':
       return {
         ...state,
-        currentChallengeParticipants: action.payload
+        customChallenges: state.customChallenges.map(c => 
+          c.id === action.payload.challengeId 
+            ? { ...c, participantIds: action.payload.participantIds } 
+            : c
+        )
+      };
+      
+    case 'UPDATE_PLAYER_SCORE':
+      return {
+        ...state,
+        players: state.players.map(player => 
+          player.id === action.payload.playerId 
+            ? { ...player, score: player.score + action.payload.points } 
+            : player
+        )
+      };
+      
+    case 'UPDATE_TEAM_SCORE':
+      return {
+        ...state,
+        teams: state.teams.map(team => 
+          team.id === action.payload.teamId 
+            ? { ...team, score: team.score + action.payload.points } 
+            : team
+        )
       };
 
     default:

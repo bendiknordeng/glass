@@ -9,6 +9,10 @@ import {
 import { useGame } from '@/contexts/GameContext';
 import spotifyService from '@/services/SpotifyService';
 import Button from '@/components/common/Button';
+import { Player } from '@/types/Player';
+import { Team, GameMode } from '@/types/Team';
+import PlayerCard from '@/components/common/PlayerCard';
+import TeamCard from '@/components/common/TeamCard';
 import { 
   PlayCircleIcon, 
   PauseCircleIcon, 
@@ -16,7 +20,10 @@ import {
   QuestionMarkCircleIcon,
   EyeIcon,
   MusicalNoteIcon,
-  ArrowPathIcon
+  ArrowPathIcon,
+  UserIcon,
+  UserGroupIcon,
+  TrophyIcon
 } from '@heroicons/react/24/solid';
 
 interface SpotifyMusicQuizPlayerProps {
@@ -43,6 +50,10 @@ const SpotifyMusicQuizPlayer: React.FC<SpotifyMusicQuizPlayerProps> = ({
   const [isRevealed, setIsRevealed] = useState(false);
   const [playTimerProgress, setPlayTimerProgress] = useState(0);
   const [hasStarted, setHasStarted] = useState(false);
+  
+  // Track scoring
+  const [selectedWinnerId, setSelectedWinnerId] = useState<string | null>(null);
+  const [songPoints, setSongPoints] = useState<Record<string, string>>({});
   
   // Audio player ref
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -126,6 +137,11 @@ const SpotifyMusicQuizPlayer: React.FC<SpotifyMusicQuizPlayerProps> = ({
         // Check if we already have songs from a previous state
         if (settings.selectedSongs && settings.selectedSongs.length > 0) {
           setSongs(settings.selectedSongs);
+          
+          // If we have stored song points, restore them
+          if (settings.songPoints) {
+            setSongPoints(settings.songPoints);
+          }
         } else {
           try {
             // Fetch new songs from the playlist
@@ -238,12 +254,13 @@ const SpotifyMusicQuizPlayer: React.FC<SpotifyMusicQuizPlayerProps> = ({
           ...challenge,
           prebuiltSettings: {
             ...settings,
-            currentSongIndex
+            currentSongIndex,
+            songPoints
           }
         }
       });
     }
-  }, [currentSongIndex, songs, challenge, settings, dispatch]);
+  }, [currentSongIndex, songs, challenge, settings, dispatch, songPoints]);
   
   // Play the current song for the specified duration
   const playSong = () => {
@@ -403,10 +420,12 @@ const SpotifyMusicQuizPlayer: React.FC<SpotifyMusicQuizPlayerProps> = ({
     // Clear timers
     if (timerRef.current) {
       clearTimeout(timerRef.current);
+      timerRef.current = null;
     }
     
     if (progressIntervalRef.current) {
       clearInterval(progressIntervalRef.current);
+      progressIntervalRef.current = null;
     }
   };
   
@@ -429,14 +448,74 @@ const SpotifyMusicQuizPlayer: React.FC<SpotifyMusicQuizPlayerProps> = ({
   const nextSong = () => {
     pauseSong(); // Pause the current song
     
+    // Save current song points if a winner was selected
+    if (selectedWinnerId) {
+      const currentSongId = songs[currentSongIndex].id;
+      setSongPoints(prev => ({
+        ...prev,
+        [currentSongId]: selectedWinnerId
+      }));
+    }
+    
     if (currentSongIndex < songs.length - 1) {
       setCurrentSongIndex(prevIndex => prevIndex + 1);
       setIsRevealed(false);
       setPlayTimerProgress(0);
+      setHasStarted(false); // Reset hasStarted for the next song
+      setSelectedWinnerId(null); // Reset selected winner
     } else {
+      // Calculate final score based on song points
+      calculateFinalScore();
+      
       // No more songs, complete the challenge
       onComplete(true);
     }
+  };
+  
+  // Calculate and award points based on song winners
+  const calculateFinalScore = () => {
+    // If no points were awarded, just return
+    if (Object.keys(songPoints).length === 0) return;
+    
+    // Count points per player/team
+    const pointsCount: Record<string, number> = {};
+    
+    // Add up points for each winner
+    Object.values(songPoints).forEach(winnerId => {
+      if (!winnerId) return;
+      
+      if (!pointsCount[winnerId]) {
+        pointsCount[winnerId] = 0;
+      }
+      pointsCount[winnerId] += challenge.points;
+    });
+    
+    // Award points to players/teams
+    Object.entries(pointsCount).forEach(([winnerId, points]) => {
+      if (state.gameMode === GameMode.TEAMS) {
+        // Find the team and update its score
+        const team = state.teams.find(t => t.id === winnerId);
+        if (team) {
+          // Update team score
+          dispatch({
+            type: 'UPDATE_TEAM_SCORE',
+            payload: {
+              teamId: winnerId,
+              points
+            }
+          });
+        }
+      } else {
+        // Award points to individual player
+        dispatch({
+          type: 'UPDATE_PLAYER_SCORE',
+          payload: {
+            playerId: winnerId,
+            points
+          }
+        });
+      }
+    });
   };
   
   // Reset the current song (play again from start)
@@ -449,6 +528,28 @@ const SpotifyMusicQuizPlayer: React.FC<SpotifyMusicQuizPlayerProps> = ({
     
     setPlayTimerProgress(0);
     playSong();
+  };
+  
+  // Get lists of players/teams for winner selection
+  const getPlayerOptions = () => {
+    return state.players.map(player => ({
+      id: player.id,
+      name: player.name,
+      teamId: player.teamId
+    }));
+  };
+  
+  const getTeamOptions = () => {
+    return state.teams.map(team => ({
+      id: team.id,
+      name: team.name,
+      players: state.players.filter(p => p.teamId === team.id)
+    }));
+  };
+  
+  // Handle winner selection
+  const handleSelectWinner = (id: string) => {
+    setSelectedWinnerId(id);
   };
   
   // Get the current song
@@ -626,9 +727,95 @@ const SpotifyMusicQuizPlayer: React.FC<SpotifyMusicQuizPlayerProps> = ({
             <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-1">
               {currentSong.name}
             </h3>
-            <p className="text-lg text-gray-700 dark:text-gray-300">
+            <p className="text-lg text-gray-700 dark:text-gray-300 mb-4">
               {currentSong.artist}
             </p>
+            
+            {/* Play button after reveal */}
+            <div className="flex justify-center mb-4">
+              {isPlaying ? (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  leftIcon={<PauseCircleIcon className="h-5 w-5" />}
+                  onClick={pauseSong}
+                >
+                  {t('prebuilt.spotifyMusicQuiz.pause')}
+                </Button>
+              ) : (
+                <Button
+                  variant="primary"
+                  size="sm"
+                  leftIcon={<PlayCircleIcon className="h-5 w-5" />}
+                  onClick={playSong}
+                >
+                  {t('prebuilt.spotifyMusicQuiz.play')}
+                </Button>
+              )}
+            </div>
+            
+            {/* Player/Team selection for awarding points */}
+            <div>
+              <h4 className="font-medium text-gray-800 dark:text-gray-200 mb-2 flex items-center justify-center">
+                <TrophyIcon className="w-4 h-4 mr-1" />
+                {t('prebuilt.spotifyMusicQuiz.awardPointsTo')}
+              </h4>
+              
+              {state.gameMode === GameMode.TEAMS ? (
+                <div className="flex flex-wrap justify-center gap-3 mb-4">
+                  {getTeamOptions().map(team => (
+                    <div 
+                      key={team.id}
+                      onClick={() => handleSelectWinner(team.id)}
+                      className={`cursor-pointer border-2 ${selectedWinnerId === team.id ? 'border-pastel-green' : 'border-transparent'} rounded-lg`}
+                    >
+                      <TeamCard
+                        team={{
+                          id: team.id,
+                          name: team.name,
+                          playerIds: team.players.map(p => p.id),
+                          score: 0,
+                          color: 'pastel-blue'
+                        }}
+                        players={team.players}
+                        size="sm"
+                        showScore={false}
+                        isSelected={selectedWinnerId === team.id}
+                      />
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="flex flex-wrap justify-center gap-3 mb-4 max-w-3xl">
+                  {getPlayerOptions().map(player => (
+                    <div 
+                      key={player.id}
+                      onClick={() => handleSelectWinner(player.id)}
+                      className={`cursor-pointer border-2 ${selectedWinnerId === player.id ? 'border-pastel-green' : 'border-transparent'} rounded-lg`}
+                    >
+                      <PlayerCard
+                        player={{
+                          id: player.id,
+                          name: player.name,
+                          score: 0,
+                          teamId: player.teamId,
+                          image: ''
+                        }}
+                        size="sm"
+                        showScore={false}
+                        isSelected={selectedWinnerId === player.id}
+                      />
+                    </div>
+                  ))}
+                </div>
+              )}
+              
+              {selectedWinnerId && (
+                <p className="text-sm text-pastel-green font-medium mb-3">
+                  {t('prebuilt.spotifyMusicQuiz.pointsAwarded', { points: challenge.points })}
+                </p>
+              )}
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
@@ -677,7 +864,7 @@ const SpotifyMusicQuizPlayer: React.FC<SpotifyMusicQuizPlayerProps> = ({
           </Button>
         )}
         
-        {(isRevealed || currentSongIndex === songs.length - 1) && (
+        {isRevealed && (
           <Button
             variant={currentSongIndex === songs.length - 1 ? "success" : "primary"}
             leftIcon={<ForwardIcon className="h-5 w-5" />}

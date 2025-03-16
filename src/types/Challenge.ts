@@ -80,11 +80,14 @@ export enum ChallengeType {
    */
   export interface SpotifyMusicQuizSettings {
     playlistUrl: string;       // Spotify playlist URL
+    playlistName?: string;     // Name of the Spotify playlist
+    playlistCoverUrl?: string;
+    playlistDescription?: string;
     numberOfSongs: number;     // Number of songs to select from playlist
     playDurationSeconds: number; // Duration to play each song in seconds
-    selectedSongs?: SpotifySong[]; // Selected songs for the quiz
     currentSongIndex?: number; // Current song being played
-    playlistName?: string;     // Name of the Spotify playlist
+    selectedSongs?: SpotifySong[]; // Selected songs for the quiz
+    songPoints?: Record<string, string>; // Maps song ID to player/team ID that won points
   }
 
   /**
