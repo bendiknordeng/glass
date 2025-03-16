@@ -15,11 +15,36 @@ export const getNextChallenge = (
   gameMode: GameMode,
   customChallenges: Challenge[] = []
 ): Challenge | null => {
-  // Combine default and custom challenges
-  const allChallenges = [...challenges, ...customChallenges];
+  // First filter custom challenges (give them priority)
+  const availableCustomChallenges = customChallenges.filter(challenge => {
+    // Exclude challenges that can't be reused and have been used
+    if (!challenge.canReuse && usedChallenges.includes(challenge.id)) {
+      return false;
+    }
+    
+    // In FREE_FOR_ALL mode, exclude team challenges
+    if (gameMode === GameMode.FREE_FOR_ALL && challenge.type === ChallengeType.TEAM) {
+      return false;
+    }
+    
+    // In TEAMS mode, exclude all vs all if not enough players
+    if (gameMode === GameMode.TEAMS && challenge.type === ChallengeType.ALL_VS_ALL) {
+      // Allow it for now, player selection will handle it
+      return true;
+    }
+    
+    return true;
+  });
   
-  // Filter challenges
-  const availableChallenges = allChallenges.filter(challenge => {
+  // If we have custom challenges available, prioritize them
+  if (availableCustomChallenges.length > 0) {
+    // Pick a random custom challenge
+    const randomIndex = Math.floor(Math.random() * availableCustomChallenges.length);
+    return availableCustomChallenges[randomIndex];
+  }
+  
+  // Otherwise, fall back to default challenges
+  const availableDefaultChallenges = challenges.filter(challenge => {
     // Exclude challenges that can't be reused and have been used
     if (!challenge.canReuse && usedChallenges.includes(challenge.id)) {
       return false;
@@ -40,13 +65,13 @@ export const getNextChallenge = (
   });
   
   // If no challenges available, return null
-  if (availableChallenges.length === 0) {
+  if (availableDefaultChallenges.length === 0) {
     return null;
   }
   
-  // Pick a random challenge
-  const randomIndex = Math.floor(Math.random() * availableChallenges.length);
-  return availableChallenges[randomIndex];
+  // Pick a random default challenge
+  const randomIndex = Math.floor(Math.random() * availableDefaultChallenges.length);
+  return availableDefaultChallenges[randomIndex];
 };
 
 /**

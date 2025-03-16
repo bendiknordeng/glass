@@ -3,10 +3,13 @@ import { useTranslation } from "react-i18next";
 import { motion, AnimatePresence } from "framer-motion";
 import { useGame } from "@/contexts/GameContext";
 import { GameMode } from "@/types/Team";
-import { Challenge } from "@/types/Challenge";
+import { Challenge, ChallengeType, PrebuiltChallengeType } from "@/types/Challenge";
 import Button from "@/components/common/Button";
 import { ConfirmModal } from "@/components/common/Modal";
 import CustomChallengeForm from "@/components/game/CustomChallengeForm";
+import { useLocalStorage } from "@/hooks/useLocalStorage";
+import PrebuiltChallengeMenu from "@/components/prebuilt/PrebuiltChallengeMenu";
+import SpotifyMusicQuizForm from "../prebuilt/SpotifyMusicQuizForm";
 
 // Maximum number of recent custom challenges to store
 const MAX_RECENT_CHALLENGES = 10;
@@ -46,6 +49,7 @@ const GameSettings: React.FC = () => {
   const [durationType, setDurationType] = useState(state.gameDuration.type);
   const [durationValue, setDurationValue] = useState(state.gameDuration.value);
   const [showCustomChallengeForm, setShowCustomChallengeForm] = useState(false);
+  const [showSpotifyMusicQuizForm, setShowSpotifyMusicQuizForm] = useState(false);
   const [editingChallenge, setEditingChallenge] = useState<
     Challenge | undefined
   >(undefined);
@@ -129,6 +133,42 @@ const GameSettings: React.FC = () => {
     } catch (error) {
       console.error("Error deleting all recent challenges:", error);
     }
+  };
+
+  // Helper to open the appropriate edit form based on challenge type
+  const openEditForm = (challenge: Challenge) => {
+    setEditingChallenge(challenge);
+    
+    // Check if the challenge is a prebuilt challenge
+    if (challenge.isPrebuilt && challenge.prebuiltType) {
+      switch (challenge.prebuiltType) {
+        case PrebuiltChallengeType.SPOTIFY_MUSIC_QUIZ:
+          setShowSpotifyMusicQuizForm(true);
+          break;
+        default:
+          // Fallback to custom challenge form for unknown prebuilt types
+          setShowCustomChallengeForm(true);
+      }
+    } else {
+      // Regular custom challenge
+      setShowCustomChallengeForm(true);
+    }
+    
+    // Add to recent challenges when edited
+    updateRecentChallenges(challenge);
+  };
+
+  // Handle challenge updated from prebuilt forms
+  const handleChallengeUpdated = (updatedChallenge: Challenge) => {
+    dispatch({
+      type: "UPDATE_CUSTOM_CHALLENGE",
+      payload: updatedChallenge
+    });
+    // Close all forms
+    setShowCustomChallengeForm(false);
+    setShowSpotifyMusicQuizForm(false);
+    setEditingChallenge(undefined);
+    setRecentChallenges(getRecentChallenges());
   };
 
   return (
@@ -377,6 +417,26 @@ const GameSettings: React.FC = () => {
           </div>
         </div>
 
+        {/* Prebuilt Challenges Section */}
+        <div className="mb-8 bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 border border-gray-100 dark:border-gray-700">
+          <div className="border-b border-gray-200 dark:border-gray-700 pb-4 mb-6">
+            <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-200">
+              {t("prebuilt.prebuiltChallenges")}
+            </h3>
+          </div>
+          
+          <PrebuiltChallengeMenu
+            onChallengeCreated={(challenge) => {
+              dispatch({
+                type: "ADD_CUSTOM_CHALLENGE",
+                payload: challenge
+              });
+              // Also add to recent challenges
+              updateRecentChallenges(challenge);
+            }}
+          />
+        </div>
+
         {/* Custom Challenges Section */}
         <div className="mb-8 bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 border border-gray-100 dark:border-gray-700">
           <div className="border-b border-gray-200 dark:border-gray-700 pb-4 mb-6">
@@ -425,12 +485,7 @@ const GameSettings: React.FC = () => {
                       </div>
                       <div className="flex gap-2">
                         <button
-                          onClick={() => {
-                            setEditingChallenge(challenge);
-                            setShowCustomChallengeForm(true);
-                            // Add to recent challenges when edited
-                            updateRecentChallenges(challenge);
-                          }}
+                          onClick={() => openEditForm(challenge)}
                           className="text-blue-500 hover:text-blue-600 dark:text-blue-400 dark:hover:text-blue-300 p-1"
                           title={t("common.edit")}
                         >
@@ -665,6 +720,19 @@ const GameSettings: React.FC = () => {
         }}
         editChallenge={editingChallenge}
       />
+
+      {/* Spotify Music Quiz Form Modal */}
+      {showSpotifyMusicQuizForm && (
+        <SpotifyMusicQuizForm
+          isOpen={showSpotifyMusicQuizForm}
+          onClose={() => {
+            setShowSpotifyMusicQuizForm(false);
+            setEditingChallenge(undefined);
+            setRecentChallenges(getRecentChallenges());
+          }}
+          onChallengeCreated={handleChallengeUpdated}
+        />
+      )}
     </div>
   );
 };

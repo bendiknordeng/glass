@@ -31,6 +31,9 @@ export enum ChallengeType {
     category?: string;         // Optional category for grouping challenges
     customPrompt?: string;     // Optional custom prompt for dynamic challenges
     punishment?: Punishment;   // Optional punishment for failing the challenge
+    isPrebuilt?: boolean;      // Indicates if this is a prebuilt challenge
+    prebuiltType?: PrebuiltChallengeType; // Type of prebuilt challenge
+    prebuiltSettings?: PrebuiltChallengeSettings; // Settings for prebuilt challenge
   }
   
   /**
@@ -57,4 +60,42 @@ export enum ChallengeType {
     points: number;
     category?: string;
     punishment?: Punishment;
+  }
+
+  /**
+   * Type of prebuilt challenge
+   */
+  export enum PrebuiltChallengeType {
+    SPOTIFY_MUSIC_QUIZ = 'spotifyMusicQuiz',
+    // Add more prebuilt challenge types here as they are developed
+  }
+
+  /**
+   * Settings for prebuilt challenges
+   */
+  export type PrebuiltChallengeSettings = SpotifyMusicQuizSettings | Record<string, unknown>;
+
+  /**
+   * Settings for Spotify Music Quiz challenge
+   */
+  export interface SpotifyMusicQuizSettings {
+    playlistUrl: string;       // Spotify playlist URL
+    numberOfSongs: number;     // Number of songs to select from playlist
+    playDurationSeconds: number; // Duration to play each song in seconds
+    selectedSongs?: SpotifySong[]; // Selected songs for the quiz
+    currentSongIndex?: number; // Current song being played
+    playlistName?: string;     // Name of the Spotify playlist
+  }
+
+  /**
+   * Spotify song information
+   */
+  export interface SpotifySong {
+    id: string;                // Spotify track ID
+    name: string;              // Song name
+    artist: string;            // Artist name
+    previewUrl: string;        // 30-second preview URL
+    albumArt: string;          // Album art URL
+    isRevealed?: boolean;      // Whether the song has been revealed
+    isPlaying?: boolean;       // Whether the song is currently playing
   }

@@ -20,7 +20,11 @@
     "points": "points",
     "point": "point",
     "home": "Home",
-    "loser": "Loser"
+    "loser": "Loser",
+    "connect": "Connect",
+    "disconnect": "Disconnect",
+    "login": "Log In",
+    "logout": "Log Out"
   },
   "home": {
     "newGame": "New Game",
@@ -100,6 +104,8 @@
     "challengeResult": "Challenge Result",
     "completed": "Completed",
     "failed": "Failed",
+    "completeChallenge": "Complete Challenge",
+    "failChallenge": "Fail Challenge",
     "versus": "VS",
     "winner": "Winner",
     "timeRemaining": "Time Remaining: {{time}}",
@@ -219,5 +225,80 @@
     "privacyPolicy": "Privacy Policy",
     "termsOfService": "Terms of Service",
     "acknowledge": "Glass is a fun party game app designed to be used responsibly. Please drink responsibly and ensure all participants are of legal drinking age in your country."
+  },
+  "prebuilt": {
+    "title": "Prebuilt Challenges",
+    "prebuiltChallenges": "Prebuilt Challenges",
+    "description": "Choose from our collection of ready-to-play challenge types. Just configure and go!",
+    "createChallenge": "Create Challenge",
+    "comingSoon": "More Challenges Coming Soon",
+    "moreChallengesComingSoon": "We're working on more exciting prebuilt challenges. Stay tuned!",
+    
+    "spotifyMusicQuiz": {
+      "title": "Spotify Music Quiz",
+      "formTitle": "Create Spotify Music Quiz",
+      "shortDescription": "Host a music quiz using songs from a Spotify playlist. Perfect for testing your friends' music knowledge!",
+      "description": "A music quiz with {{numberOfSongs}} songs played for {{playDurationSeconds}} seconds each. Guess the song and artist!",
+      "playlistUrl": "Spotify Playlist URL",
+      "playlistUrlHelp": "Paste a link to any public Spotify playlist. You can find this by clicking 'Share' on any playlist in Spotify.",
+      "spotifyLoginRequired": "Spotify login required to browse your playlists",
+      "spotifyLoginHelp": "Connect your Spotify account to access your playlists or use public playlist URLs.",
+      "connectSpotify": "Connect Spotify",
+      "disconnectSpotify": "Disconnect Spotify",
+      "loginToUseYourPlaylists": "Log in to use your playlists",
+      "yourPlaylists": "Your Playlists",
+      "publicPlaylist": "Public Playlist",
+      "enterPlaylistUrl": "Enter Playlist URL",
+      "useYourPlaylists": "Use Your Playlists",
+      "usePublicPlaylist": "Use Public Playlist",
+      "noPlaylists": "No playlists found",
+      "noPlaylistsMessage": "We couldn't find any playlists in your Spotify account. Try creating a playlist first.",
+      "searchPlaylists": "Search your playlists",
+      "playlistOwner": "By {{owner}}",
+      "tracks": "{{count}} tracks",
+      "selectPlaylist": "Select this playlist",
+      "numberOfSongs": "Number of Songs",
+      "numberOfSongsHelp": "How many songs to randomly select from the playlist (max 20).",
+      "playDuration": "Play Duration (seconds)",
+      "challengeTypeHelp": "Choose how players will compete in the music quiz.",
+      "validating": "Validating playlist...",
+      "createChallenge": "Create Music Quiz",
+      "loadingSongs": "Loading songs from Spotify",
+      "pleaseWait": "This may take a few moments...",
+      "noSongs": "No songs available",
+      "noSongsMessage": "We couldn't fetch any songs from the provided playlist. Please try again with a different playlist.",
+      "play": "Play Song",
+      "playAgain": "Play Again",
+      "pause": "Pause",
+      "restart": "Restart",
+      "reveal": "Reveal Song",
+      "nextSong": "Next Song",
+      "finish": "Finish Quiz",
+      "songCounter": "Song {{current}} of {{total}}"
+    }
+  },
+  "validation": {
+    "required": "{{field}} is required",
+    "titleRequired": "Title is required",
+    "descriptionRequired": "Description is required",
+    "punishmentDescriptionRequired": "Punishment description is required",
+    "invalidSpotifyUrl": "Please enter a valid Spotify playlist URL",
+    "minValue": "Value must be at least {{min}}",
+    "maxValue": "Value must be no more than {{max}}"
+  },
+  "error": {
+    "title": "Error",
+    "general": "Something went wrong. Please try again."
+  },
+  "auth": {
+    "spotifyConnecting": "Connecting to Spotify",
+    "spotifyProcessing": "Processing your authentication...",
+    "spotifyConnected": "Successfully Connected!",
+    "spotifyRedirecting": "Redirecting you back to the app...",
+    "spotifyError": "Authentication Error",
+    "spotifyLoginInfo": "Connect your Spotify account to access your playlists",
+    "spotifyLoginHelp": "This will allow Glass to browse your Spotify playlists and use them for music quizzes.",
+    "spotifyLoggedInAs": "Logged in as",
+    "spotifyUserProfile": "Spotify User Profile"
   }
 }

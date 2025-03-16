@@ -6,6 +6,7 @@ import Home from './pages/Home';
 import Setup from './pages/Setup';
 import Game from './pages/Game';
 import Results from './pages/Results';
+import SpotifyCallback from './components/auth/SpotifyCallback';
 import { loadTranslations } from './i18n';
 import AppLayout from '@/components/layout/AppLayout';
 import { GameProvider } from '@/contexts/GameContext';
@@ -44,14 +45,16 @@ const App: React.FC = () => {
     <ThemeProvider>
       <LanguageProvider>
         <GameProvider>
-          <AppLayout>
-            <Routes>
-              <Route path="/" element={<Home />} />
-              <Route path="/setup" element={<Setup />} />
-              <Route path="/game" element={<Game />} />
-              <Route path="/results" element={<Results />} />
-            </Routes>
-          </AppLayout>
+          <Routes>
+            {/* Spotify callback route should not use AppLayout */}
+            <Route path="/auth/spotify/callback" element={<SpotifyCallback />} />
+            
+            {/* Main app routes with AppLayout */}
+            <Route path="/" element={<AppLayout><Home /></AppLayout>} />
+            <Route path="/setup" element={<AppLayout><Setup /></AppLayout>} />
+            <Route path="/game" element={<AppLayout><Game /></AppLayout>} />
+            <Route path="/results" element={<AppLayout><Results /></AppLayout>} />
+          </Routes>
         </GameProvider>
       </LanguageProvider>
     </ThemeProvider>

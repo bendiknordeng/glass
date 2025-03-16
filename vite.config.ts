@@ -17,5 +17,13 @@ export default defineConfig({
       '@utils': path.resolve(__dirname, './src/utils'),
       '@assets': path.resolve(__dirname, './public/assets')
     }
-  }
+  },
+  optimizeDeps: {
+    include: ['spotify-preview-finder', 'dotenv'],
+  },
+  build: {
+    commonjsOptions: {
+      include: [/spotify-preview-finder/, /dotenv/, /node_modules/],
+    },
+  },
 })
