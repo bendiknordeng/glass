@@ -455,6 +455,31 @@ const SpotifyMusicQuizPlayer: React.FC<SpotifyMusicQuizPlayerProps> = ({
         ...prev,
         [currentSongId]: selectedWinnerId
       }));
+      
+      // Award points immediately to the selected winner
+      if (state.gameMode === GameMode.TEAMS) {
+        // Find the team and update its score
+        const team = state.teams.find(t => t.id === selectedWinnerId);
+        if (team) {
+          // Update team score
+          dispatch({
+            type: 'UPDATE_TEAM_SCORE',
+            payload: {
+              teamId: selectedWinnerId,
+              points: challenge.points
+            }
+          });
+        }
+      } else {
+        // Award points to individual player
+        dispatch({
+          type: 'UPDATE_PLAYER_SCORE',
+          payload: {
+            playerId: selectedWinnerId,
+            points: challenge.points
+          }
+        });
+      }
     }
     
     if (currentSongIndex < songs.length - 1) {
@@ -464,10 +489,7 @@ const SpotifyMusicQuizPlayer: React.FC<SpotifyMusicQuizPlayerProps> = ({
       setHasStarted(false); // Reset hasStarted for the next song
       setSelectedWinnerId(null); // Reset selected winner
     } else {
-      // Calculate final score based on song points
-      calculateFinalScore();
-      
-      // No more songs, complete the challenge
+      // Complete the challenge
       onComplete(true);
     }
   };
@@ -477,45 +499,9 @@ const SpotifyMusicQuizPlayer: React.FC<SpotifyMusicQuizPlayerProps> = ({
     // If no points were awarded, just return
     if (Object.keys(songPoints).length === 0) return;
     
-    // Count points per player/team
-    const pointsCount: Record<string, number> = {};
-    
-    // Add up points for each winner
-    Object.values(songPoints).forEach(winnerId => {
-      if (!winnerId) return;
-      
-      if (!pointsCount[winnerId]) {
-        pointsCount[winnerId] = 0;
-      }
-      pointsCount[winnerId] += challenge.points;
-    });
-    
-    // Award points to players/teams
-    Object.entries(pointsCount).forEach(([winnerId, points]) => {
-      if (state.gameMode === GameMode.TEAMS) {
-        // Find the team and update its score
-        const team = state.teams.find(t => t.id === winnerId);
-        if (team) {
-          // Update team score
-          dispatch({
-            type: 'UPDATE_TEAM_SCORE',
-            payload: {
-              teamId: winnerId,
-              points
-            }
-          });
-        }
-      } else {
-        // Award points to individual player
-        dispatch({
-          type: 'UPDATE_PLAYER_SCORE',
-          payload: {
-            playerId: winnerId,
-            points
-          }
-        });
-      }
-    });
+    // Since points are now awarded immediately after each song,
+    // this function is no longer needed for awarding points.
+    // It's kept for backward compatibility or future use.
   };
   
   // Reset the current song (play again from start)
