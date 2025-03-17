@@ -4,7 +4,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Challenge, 
   SpotifyMusicQuizSettings,
-  SpotifySong 
+  SpotifySong,
+  ChallengeType
 } from '@/types/Challenge';
 import { useGame } from '@/contexts/GameContext';
 import spotifyService, { SpotifyTrack } from '@/services/SpotifyService';
@@ -819,12 +820,26 @@ const SpotifyMusicQuizPlayer: React.FC<SpotifyMusicQuizPlayerProps> = ({
         </div>
       )}
       
-      {/* Playlist Name */}
+      {/* Playlist Name - Enhanced visuals */}
       {settings.playlistName && (
-        <div className="w-full mb-4 text-center">
-          <h3 className="text-lg font-medium text-gray-700 dark:text-gray-300">
-            {settings.playlistName}
-          </h3>
+        <div className="w-full mb-2 text-center">
+          <div className="bg-gradient-to-r from-pastel-blue via-pastel-purple to-pastel-pink p-0.5 rounded-lg inline-block shadow-md">
+            <div className="bg-white dark:bg-gray-800 rounded-md px-6 py-2">
+              <h3 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-pastel-blue to-pastel-purple">
+                <MusicalNoteIcon className="text-gray-800 dark:text-white inline-block h-5 w-5 mr-3 mb-1" />
+                {settings.playlistName}
+              </h3>
+            </div>
+          </div>
+          
+          {/* Guess prompt - Positioned directly under playlist title */}
+          {!isRevealed && (
+            <div className="mt-4 mb-4 mx-auto max-w-sm text-center bg-gray-100 dark:bg-gray-800 py-2 rounded-md shadow-inner">
+              <p className="text-gray-800 dark:text-gray-200 font-medium">
+                {t('prebuilt.spotifyMusicQuiz.guessPrompt')}
+              </p>
+            </div>
+          )}
         </div>
       )}
       
@@ -1001,7 +1016,54 @@ const SpotifyMusicQuizPlayer: React.FC<SpotifyMusicQuizPlayerProps> = ({
                     </div>
                   ))}
                 </div>
+              ) : challenge.type === ChallengeType.INDIVIDUAL ? (
+                // For individual challenges, show correct/incorrect option
+                <div className="flex justify-center gap-4 mb-4">
+                  <Button
+                    variant="success"
+                    onClick={() => handleSelectWinner(state.players[state.currentTurnIndex]?.id || '')}
+                    className={`px-6 py-2 ${selectedWinnerId ? 'bg-pastel-green text-white' : ''}`}
+                  >
+                    <span className="flex items-center">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                      </svg>
+                      {t('prebuilt.spotifyMusicQuiz.correct', 'Correct')}
+                    </span>
+                  </Button>
+                  <Button
+                    variant="danger"
+                    onClick={() => setSelectedWinnerId(null)}
+                    className={`px-6 py-2 ${selectedWinnerId === null ? 'bg-red-500 text-white' : ''}`}
+                  >
+                    <span className="flex items-center">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                      </svg>
+                      {t('prebuilt.spotifyMusicQuiz.incorrect', 'Incorrect')}
+                    </span>
+                  </Button>
+                </div>
+              ) : challenge.type === ChallengeType.ONE_ON_ONE ? (
+                // For one-on-one (head to head), only show current player
+                <div className="flex justify-center mb-4">
+                  {/* Get the current player based on the turn index */}
+                  {state.players[state.currentTurnIndex] && (
+                    <div 
+                      onClick={() => handleSelectWinner(state.players[state.currentTurnIndex].id)}
+                      className={`cursor-pointer border-2 ${selectedWinnerId === state.players[state.currentTurnIndex].id ? 'border-pastel-green' : 'border-transparent'} rounded-lg`}
+                    >
+                      <PlayerCard
+                        player={state.players[state.currentTurnIndex]}
+                        size="sm"
+                        showScore={false}
+                        isSelected={selectedWinnerId === state.players[state.currentTurnIndex].id}
+                      />
+                    </div>
+                  )}
+                </div>
               ) : (
+                // For all vs all, show all players (existing behavior)
                 <div className="flex flex-wrap justify-center gap-3 mb-4 max-w-3xl">
                   {getPlayerOptions().map(player => (
                     <div 

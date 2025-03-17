@@ -233,7 +233,6 @@
     "createChallenge": "Create Challenge",
     "comingSoon": "More Challenges Coming Soon",
     "moreChallengesComingSoon": "We're working on more exciting prebuilt challenges. Stay tuned!",
-    
     "spotifyMusicQuiz": {
       "title": "Spotify Music Quiz",
       "formTitle": "Create Spotify Music Quiz",
@@ -274,7 +273,8 @@
       "reveal": "Reveal Song",
       "nextSong": "Next Song",
       "finish": "Finish Quiz",
-      "songCounter": "Song {{current}} of {{total}}"
+      "songCounter": "Song {{current}} of {{total}}",
+      "guessPrompt": "Which song and artist is this?"
     }
   },
   "validation": {
