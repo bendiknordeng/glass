@@ -80,6 +80,9 @@ const SpotifyMusicQuizForm: React.FC<SpotifyMusicQuizFormProps> = ({
       setPoints(editChallenge.points || 3);
       setCanReuse(editChallenge.canReuse !== undefined ? editChallenge.canReuse : true);
       
+      // When editing, always default to the URL tab
+      setActiveTab('url');
+      
       // Set punishment values if available
       if (editChallenge.punishment) {
         setHasPunishment(true);
@@ -95,6 +98,9 @@ const SpotifyMusicQuizForm: React.FC<SpotifyMusicQuizFormProps> = ({
         const id = extractPlaylistId(settings.playlistUrl);
         if (id) {
           setPlaylistId(id);
+          
+          // If we have a playlist ID, try to fetch the playlist details for the image
+          fetchPlaylistDetails(settings.playlistUrl, id);
         }
       }
     }
@@ -106,8 +112,8 @@ const SpotifyMusicQuizForm: React.FC<SpotifyMusicQuizFormProps> = ({
       const matchingPlaylist = playlists.find(p => p.id === playlistId);
       if (matchingPlaylist) {
         setSelectedPlaylist(matchingPlaylist);
-        // Switch to playlists tab if a matching playlist is found
-        setActiveTab('playlists');
+        // Don't switch to playlists tab on edit - we want to stay on URL tab
+        // setActiveTab('playlists');
       }
     }
   }, [playlists, editChallenge, playlistId]);
@@ -186,9 +192,38 @@ const SpotifyMusicQuizForm: React.FC<SpotifyMusicQuizFormProps> = ({
     setPlaylistUrl(playlist.external_urls.spotify);
   };
 
+  // Fetch playlist details specifically for editing
+  const fetchPlaylistDetails = async (url: string, id: string) => {
+    if (!url || !id) return;
+    
+    setIsExtractingPlaylistDetails(true);
+    try {
+      const playlist = await spotifyService.getPlaylistById(id);
+      if (playlist) {
+        // Store the retrieved playlist info including image for display
+        setSelectedPlaylist({
+          id: playlist.id,
+          name: playlist.name,
+          description: playlist.description,
+          images: playlist.images,
+          external_urls: { spotify: url },
+          trackCount: playlist.trackCount,
+          owner: {
+            id: playlist.owner.id,
+            displayName: playlist.owner.displayName
+          }
+        });
+      }
+    } catch (error) {
+      console.error('Error fetching playlist details:', error);
+    } finally {
+      setIsExtractingPlaylistDetails(false);
+    }
+  };
+
   // Fetch playlist details when URL changes
   useEffect(() => {
-    const fetchPlaylistDetails = async () => {
+    const fetchPlaylistDetailsFromUrl = async () => {
       // Skip if we already have details from selected playlist
       if (selectedPlaylist && selectedPlaylist.external_urls.spotify === playlistUrl) {
         return;
@@ -213,6 +248,20 @@ const SpotifyMusicQuizForm: React.FC<SpotifyMusicQuizFormProps> = ({
         if (playlist) {
           setPlaylistName(playlist.name);
           setPlaylistId(extractedId);
+          
+          // Store the full playlist object to access the image
+          setSelectedPlaylist({
+            id: playlist.id,
+            name: playlist.name,
+            description: playlist.description,
+            images: playlist.images,
+            external_urls: { spotify: playlistUrl },
+            trackCount: playlist.trackCount,
+            owner: {
+              id: playlist.owner.id,
+              displayName: playlist.owner.displayName
+            }
+          });
         } else {
           // If we can't get playlist details, use a generic name
           setPlaylistName(`Spotify Playlist (${extractedId.slice(0, 6)}...)`);
@@ -228,7 +277,7 @@ const SpotifyMusicQuizForm: React.FC<SpotifyMusicQuizFormProps> = ({
     };
 
     if (playlistUrl && activeTab === 'url') {
-      fetchPlaylistDetails();
+      fetchPlaylistDetailsFromUrl();
     }
   }, [playlistUrl, activeTab, selectedPlaylist]);
   
@@ -662,12 +711,18 @@ const SpotifyMusicQuizForm: React.FC<SpotifyMusicQuizFormProps> = ({
               <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                 {t('prebuilt.spotifyMusicQuiz.playlistUrlHelp')}
               </p>
-              {playlistName && activeTab === 'url' && (
-                <div className="mt-3 border rounded-lg p-3 bg-white dark:bg-gray-800 shadow-sm">
+              {selectedPlaylist && activeTab === 'url' && (
+                <div className="mt-3 border rounded-lg p-2 bg-white dark:bg-gray-800 shadow-sm">
                   <div className="flex items-center">
-                    <div className="w-16 h-16 mr-3 flex-shrink-0 overflow-hidden rounded-md bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
+                    <div className="w-16 h-16 mr-4 ml-2 flex-shrink-0 overflow-hidden rounded-md bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
                       {isExtractingPlaylistDetails ? (
                         <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-game-primary"></div>
+                      ) : selectedPlaylist.images && selectedPlaylist.images.length > 0 ? (
+                        <img 
+                          src={selectedPlaylist.images[0].url} 
+                          alt={selectedPlaylist.name}
+                          className="w-full h-full object-cover"
+                        />
                       ) : (
                         <MusicalNoteIcon className="h-8 w-8 text-gray-400" />
                       )}
@@ -677,11 +732,18 @@ const SpotifyMusicQuizForm: React.FC<SpotifyMusicQuizFormProps> = ({
                         {t('common.selected')}
                       </div>
                       <h4 className="text-sm font-medium text-gray-900 dark:text-white truncate">
-                        {playlistName}
+                        {selectedPlaylist.name}
                       </h4>
-                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                        {t('prebuilt.spotifyMusicQuiz.playlistUrl')}
-                      </p>
+                      {selectedPlaylist.owner && (
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                          {t('prebuilt.spotifyMusicQuiz.playlistOwner', { owner: selectedPlaylist.owner.displayName })}
+                        </p>
+                      )}
+                      {selectedPlaylist.trackCount && (
+                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                          {t('prebuilt.spotifyMusicQuiz.tracks', { count: selectedPlaylist.trackCount })}
+                        </p>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -732,7 +794,7 @@ const SpotifyMusicQuizForm: React.FC<SpotifyMusicQuizFormProps> = ({
         {/* Play Duration */}
         <div>
           <label htmlFor="play-duration" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-            {t('prebuilt.spotifyMusicQuiz.playDuration')} * <span className="font-normal text-gray-500">({playDurationSeconds}s)</span>
+            {t('prebuilt.spotifyMusicQuiz.playDuration')} * <span className="font-normal text-gray-500 dark:text-gray-400">({playDurationSeconds}s)</span>
           </label>
           <input
             id="play-duration"
