@@ -1,6 +1,33 @@
 // src/setupTests.ts
 // This file is automatically run before Jest tests
 import '@testing-library/jest-dom';
+import { config } from 'dotenv';
+import path from 'path';
+
+// Load environment variables from .env file
+config(); // Let dotenv find the .env file automatically
+
+// Make environment variables available via import.meta.env for test environment
+(global as any).import = {
+  meta: {
+    env: {
+      // Spotify credentials
+      VITE_SPOTIFY_CLIENT_ID: process.env.VITE_SPOTIFY_CLIENT_ID || 'test-client-id',
+      VITE_SPOTIFY_CLIENT_SECRET: process.env.VITE_SPOTIFY_CLIENT_SECRET || 'test-client-secret',
+      VITE_SPOTIFY_REDIRECT_URI: process.env.VITE_SPOTIFY_REDIRECT_URI || 'http://localhost:3000/auth/spotify/callback',
+      // Other environment variables
+      VITE_APP_ENV: process.env.VITE_APP_ENV || 'test'
+    }
+  }
+};
+
+// Mock location
+Object.defineProperty(window, 'location', {
+  value: {
+    origin: 'http://localhost:3000'
+  },
+  writable: true
+});
 
 // Mock browser APIs
 class LocalStorageMock {

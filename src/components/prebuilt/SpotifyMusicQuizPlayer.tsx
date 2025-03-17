@@ -8,7 +8,7 @@ import {
   ChallengeType
 } from '@/types/Challenge';
 import { useGame } from '@/contexts/GameContext';
-import spotifyService, { SpotifyTrack } from '@/services/SpotifyService';
+import spotifyService, { SpotifyTrack, GetPlaylistTracksOptions } from '@/services/SpotifyService';
 import Button from '@/components/common/Button';
 import { Player } from '@/types/Player';
 import { Team, GameMode } from '@/types/Team';
@@ -31,12 +31,14 @@ interface SpotifyMusicQuizPlayerProps {
   challenge: Challenge;
   onComplete: (completed: boolean, winnerId?: string) => void;
   selectedParticipantPlayers?: Player[];
+  forceRefreshSongs?: boolean;
 }
 
 const SpotifyMusicQuizPlayer: React.FC<SpotifyMusicQuizPlayerProps> = ({
   challenge,
   onComplete,
-  selectedParticipantPlayers
+  selectedParticipantPlayers,
+  forceRefreshSongs = false
 }) => {
   const { t } = useTranslation();
   const { state, dispatch } = useGame();
@@ -77,7 +79,7 @@ const SpotifyMusicQuizPlayer: React.FC<SpotifyMusicQuizPlayerProps> = ({
     return match ? match[1] : null;
   };
   
-  // Fetch songs from Spotify playlist
+  // Fetch songs from Spotify playlist - optimize to fetch only what we need
   const fetchSongsFromPlaylist = async (playlistUrl: string, count: number): Promise<SpotifySong[]> => {
     try {
       // Validate playlist URL
@@ -100,8 +102,14 @@ const SpotifyMusicQuizPlayer: React.FC<SpotifyMusicQuizPlayerProps> = ({
         setTimeout(() => reject(new Error('Spotify API request timed out')), 10000);
       });
       
-      // Get tracks using Spotify service with timeout
-      const spotifyTracksPromise = spotifyService.getPlaylistTracks(playlistId, Math.max(50, count * 2));
+      // Get tracks using Spotify service with timeout and explicit randomization
+      // Request slightly more tracks than needed to account for those without preview URLs
+      const options: GetPlaylistTracksOptions = {
+        limit: Math.min(100, count * 3), // Request at most 3x needed tracks, capped at 100
+        randomize: true // Always randomize when fetching 
+      };
+      
+      const spotifyTracksPromise = spotifyService.getPlaylistTracks(playlistId, options);
       
       // Race the promises to handle timeouts
       const spotifyTracks = await Promise.race([
@@ -141,9 +149,9 @@ const SpotifyMusicQuizPlayer: React.FC<SpotifyMusicQuizPlayerProps> = ({
         console.warn(`Not enough tracks with previews (${tracksWithPreviews.length}) for requested count (${count})`);
       }
       
-      // Shuffle and take requested number
-      const shuffled = [...tracksWithPreviews].sort(() => 0.5 - Math.random());
-      const selectedTracks = shuffled.slice(0, Math.min(count, shuffled.length));
+      // Use the tracks as returned by SpotifyService, which already properly randomizes them
+      // No need for a second shuffle that could undermine the Fisher-Yates algorithm
+      const selectedTracks = tracksWithPreviews.slice(0, Math.min(count, tracksWithPreviews.length));
       
       console.log(`Selected ${selectedTracks.length} tracks for the quiz`);
       
@@ -263,9 +271,13 @@ const SpotifyMusicQuizPlayer: React.FC<SpotifyMusicQuizPlayerProps> = ({
         setLoading(true);
         setError(null);
         
-        // If we have songs previously stored in the challenge, use those
-        if (settings.selectedSongs && settings.selectedSongs.length > 0) {
-          console.log('Using previously stored songs:', settings.selectedSongs.length);
+        // Check if we should use the stored songs or fetch fresh ones
+        const shouldFetchFresh = forceRefreshSongs || !settings.selectedSongs || 
+          !settings.selectedSongs.length || !settings.lastFetchTimestamp || 
+          (Date.now() - settings.lastFetchTimestamp > 3600000); // Refresh if older than 1 hour
+        
+        if (settings.selectedSongs && settings.selectedSongs.length > 0 && !shouldFetchFresh) {
+          console.log('Using recently cached songs:', settings.selectedSongs.length);
           setSongs(settings.selectedSongs);
           
           // If we have stored song points, restore them
@@ -321,7 +333,8 @@ const SpotifyMusicQuizPlayer: React.FC<SpotifyMusicQuizPlayerProps> = ({
                   ...challenge,
                   prebuiltSettings: {
                     ...settings,
-                    selectedSongs: fetchedSongs
+                    selectedSongs: fetchedSongs,
+                    lastFetchTimestamp: Date.now() // Store when we fetched these songs
                   }
                 }
               });
@@ -395,7 +408,7 @@ const SpotifyMusicQuizPlayer: React.FC<SpotifyMusicQuizPlayerProps> = ({
         clearInterval(progressIntervalRef.current);
       }
     };
-  }, [challenge, settings, dispatch, onComplete]);
+  }, [challenge, settings, dispatch, onComplete, forceRefreshSongs]);
   
   // Helper function to check if a URL is from an alternative source
   const isAlternativeSource = (url: string | null | undefined): boolean => {
@@ -783,14 +796,16 @@ const SpotifyMusicQuizPlayer: React.FC<SpotifyMusicQuizPlayerProps> = ({
       return selectedParticipantPlayers.map(player => ({
         id: player.id,
         name: player.name,
-        teamId: player.teamId
+        teamId: player.teamId,
+        image: player.image
       }));
     }
     
     return state.players.map(player => ({
       id: player.id,
       name: player.name,
-      teamId: player.teamId
+      teamId: player.teamId,
+      image: player.image
     }));
   };
   
@@ -976,7 +991,7 @@ const SpotifyMusicQuizPlayer: React.FC<SpotifyMusicQuizPlayerProps> = ({
                     name: player.name,
                     score: 0,
                     teamId: player.teamId,
-                    image: ''
+                    image: player.image || `https://example.com/default-${player.name}.jpg`
                   }}
                   size="sm"
                   showScore={false}
@@ -1266,7 +1281,7 @@ const SpotifyMusicQuizPlayer: React.FC<SpotifyMusicQuizPlayerProps> = ({
                           name: player.name,
                           score: 0,
                           teamId: player.teamId,
-                          image: ''
+                          image: player.image || `https://example.com/default-${player.name}.jpg`
                         }}
                         size="sm"
                         showScore={false}

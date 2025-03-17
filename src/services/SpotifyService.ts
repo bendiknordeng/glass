@@ -78,6 +78,14 @@ export interface SpotifyTrack {
 }
 
 /**
+ * Options for playlist track retrieval
+ */
+export interface GetPlaylistTracksOptions {
+  randomize?: boolean; // Whether to randomize the track order
+  limit?: number;      // Maximum number of tracks to return
+}
+
+/**
  * Spotify auth config
  */
 interface SpotifyConfig {
@@ -324,18 +332,33 @@ export class SpotifyService {
   /**
    * Get playlist tracks
    */
-  async getPlaylistTracks(playlistId: string, limit = 50): Promise<SpotifyTrack[]> {
+  async getPlaylistTracks(playlistId: string, limitOrOptions: number | GetPlaylistTracksOptions = 50): Promise<SpotifyTrack[]> {
     if (!this.isAuthenticated() && !this.config.clientId) {
       return [];
+    }
+
+    // Process the options
+    let limit = 50;
+    let randomize = true; // Default to randomizing
+
+    if (typeof limitOrOptions === 'number') {
+      limit = limitOrOptions;
+    } else if (limitOrOptions) {
+      limit = limitOrOptions.limit ?? 50;
+      randomize = limitOrOptions.randomize ?? true;
     }
 
     try {
       await this.ensureTokenIsValid();
       
+      // Calculate how many tracks to request from the API
+      // We need to request more tracks than the limit since some won't have preview URLs
+      const apiLimit = Math.min(100, Math.max(limit * 2, 20)); // At least 20, at most 100
+      
       // Get tracks from playlist (without market parameter)
       const response = await axios.get(`${SPOTIFY_API_BASE_URL}/playlists/${playlistId}/tracks`, {
         params: {
-          limit,
+          limit: apiLimit,
           fields: 'items(track(id,name,preview_url,duration_ms,album(name,images),artists(name)))',
         },
         headers: {
@@ -355,33 +378,40 @@ export class SpotifyService {
           previewUrl: item.track.preview_url,
           duration: item.track.duration_ms,
         }));
-        
-      // Filter tracks that have preview URLs
+      
+      // Filter tracks that have preview URLs immediately
       const tracksWithPreviews = tracks.filter((track: SpotifyTrack) => track.previewUrl);
       
-      // If we have enough tracks with previews, return them directly
+      // If we have enough tracks with previews, randomize and return exactly what we need
       if (tracksWithPreviews.length >= limit) {
-        // Shuffle and return the requested number of tracks
-        return [...tracksWithPreviews]
-          .sort(() => 0.5 - Math.random())
-          .slice(0, limit);
+        // Apply Fisher-Yates shuffle if randomization is requested
+        if (randomize) {
+          this.shuffleArray(tracksWithPreviews);
+        }
+        
+        // Return exactly the number of tracks requested
+        return tracksWithPreviews.slice(0, limit);
       }
       
       // If we don't have enough tracks with previews, look for alternative previews
+      console.log(`Only found ${tracksWithPreviews.length} tracks with previews, need ${limit}. Trying to find alternatives...`);
       
-      // Shuffle all tracks
-      const shuffledTracks = [...tracks].sort(() => 0.5 - Math.random());
+      // Randomize all tracks if requested
+      const tracksToProcess = [...tracks];
+      if (randomize) {
+        this.shuffleArray(tracksToProcess);
+      }
       
-      // Take the first 'limit' tracks
-      const selectedTracks = shuffledTracks.slice(0, Math.min(limit, shuffledTracks.length));
-      
-      // Find tracks in our selection that are missing preview URLs
-      const tracksWithoutPreviews = selectedTracks.filter((track: SpotifyTrack) => !track.previewUrl);
+      // Select a subset of tracks to process
+      // We prioritize tracks without previews but limit the total to avoid excessive API calls
+      const tracksWithoutPreviews = tracksToProcess
+        .filter((track: SpotifyTrack) => !track.previewUrl)
+        .slice(0, limit - tracksWithPreviews.length);
       
       if (tracksWithoutPreviews.length > 0) {
-        console.log(`Finding alternative preview URLs for ${tracksWithoutPreviews.length} selected tracks...`);
+        console.log(`Finding alternative preview URLs for ${tracksWithoutPreviews.length} tracks...`);
         
-        // Process each track without a preview URL in parallel
+        // Process each track without a preview URL in parallel, but limit the number of parallel requests
         const previewSearchPromises = tracksWithoutPreviews.map(async (track: SpotifyTrack) => {
           try {
             // Extract the primary artist from comma-separated list if needed
@@ -452,10 +482,10 @@ export class SpotifyService {
           previewResults.forEach(result => {
             if (result.status === 'fulfilled' && result.value.success && result.value.previewUrl) {
               // Find the track in our selected tracks array
-              const trackIndex = selectedTracks.findIndex(t => t.id === result.value.id);
+              const trackIndex = tracksWithoutPreviews.findIndex(t => t.id === result.value.id);
               if (trackIndex !== -1) {
                 // Update with the found preview URL
-                selectedTracks[trackIndex].previewUrl = result.value.previewUrl;
+                tracksWithoutPreviews[trackIndex].previewUrl = result.value.previewUrl;
                 foundCount++;
               }
             }
@@ -468,8 +498,11 @@ export class SpotifyService {
         }
       }
       
-      // Return only tracks that have preview URLs
-      const finalTracks = selectedTracks.filter((track: SpotifyTrack) => track.previewUrl);
+      // Return only tracks with preview URLs, limited to exactly what was requested
+      const finalTracks = [...tracksWithPreviews, 
+        ...tracksWithoutPreviews.filter((track: SpotifyTrack) => track.previewUrl)]
+        .slice(0, limit);
+      
       console.log(`Returning ${finalTracks.length} tracks with preview URLs`);
       return finalTracks;
     } catch (error) {
@@ -619,6 +652,18 @@ export class SpotifyService {
     }
     
     return false;
+  }
+
+  /**
+   * Fisher-Yates shuffle algorithm
+   * This provides a more random distribution than the simple sort method
+   */
+  private shuffleArray<T>(array: T[]): void {
+    // Fisher-Yates (Knuth) shuffle algorithm
+    for (let i = array.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [array[i], array[j]] = [array[j], array[i]];
+    }
   }
 }
 

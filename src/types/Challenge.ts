@@ -87,6 +87,7 @@ export enum ChallengeType {
     currentSongIndex?: number; // Current song being played
     selectedSongs?: SpotifySong[]; // Selected songs for the quiz
     songPoints?: Record<string, string>; // Maps song ID to player/team ID that won points
+    lastFetchTimestamp?: number; // Timestamp of when songs were last fetched
   }
 
   /**

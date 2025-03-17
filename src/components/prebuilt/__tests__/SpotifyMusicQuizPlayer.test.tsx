@@ -4,7 +4,15 @@ import '@testing-library/jest-dom';
 import SpotifyMusicQuizPlayer from '../SpotifyMusicQuizPlayer';
 import { Challenge, ChallengeType, PrebuiltChallengeType } from '@/types/Challenge';
 import { GameProvider } from '@/contexts/GameContext';
-import spotifyService from '@/services/SpotifyService';
+import spotifyService, { SpotifyTrack } from '@/services/SpotifyService';
+
+// Mock process.env
+(global as any).process = {
+  ...(global as any).process,
+  env: {
+    NODE_ENV: 'test'
+  }
+};
 
 // Mock the i18next translation
 jest.mock('react-i18next', () => ({
@@ -20,6 +28,8 @@ jest.mock('react-i18next', () => ({
         if (key === 'prebuilt.spotifyMusicQuiz.nextSong') return 'Next Song';
         if (key === 'prebuilt.spotifyMusicQuiz.finish') return 'Finish';
         if (key === 'prebuilt.spotifyMusicQuiz.songCounter') return `Song ${params?.current} of ${params?.total}`;
+        if (key === 'prebuilt.spotifyMusicQuiz.refreshSongs') return 'Refresh Songs';
+        if (key === 'common.refreshing') return 'Refreshing...';
         return key;
       },
       i18n: {
@@ -35,9 +45,26 @@ jest.mock('@/contexts/GameContext', () => ({
   GameProvider: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   useGame: () => ({
     state: {
-      players: [{ id: 'player1', name: 'Player 1' }],
+      players: [{ 
+        id: 'player1', 
+        name: 'Player 1',
+        image: 'https://example.com/player1.jpg',
+        color: '#FF5733',
+        score: 0
+      }],
+      teams: [
+        {
+          id: 'team1',
+          name: 'Team 1',
+          color: '#3366FF',
+          emoji: '🚀',
+          players: []
+        }
+      ],
       currentRound: 1,
       totalRounds: 5,
+      currentTurnIndex: 0,
+      currentChallengeParticipants: ['player1'],
       challenges: [mockChallenge],
       recentChallenges: [],
       customChallenges: []
@@ -50,36 +77,53 @@ jest.mock('@/contexts/GameContext', () => ({
 jest.mock('@/services/SpotifyService', () => ({
   __esModule: true,
   default: {
-    getPlaylistTracks: jest.fn().mockResolvedValue([
-      {
-        id: 'track-1',
-        name: 'Test Song 1',
-        artist: 'Test Artist 1',
-        album: 'Test Album 1',
-        albumArt: 'https://example.com/album1.jpg',
-        previewUrl: 'https://example.com/preview1.mp3',
-        duration: 180000
-      },
-      {
-        id: 'track-2',
-        name: 'Test Song 2',
-        artist: 'Test Artist 2',
-        album: 'Test Album 2',
-        albumArt: 'https://example.com/album2.jpg',
-        previewUrl: 'https://example.com/preview2.mp3',
-        duration: 210000
-      }
-    ])
+    getPlaylistTracks: jest.fn()
   }
+}));
+
+// Mock getPlayerImage function
+jest.mock('@/utils/helpers', () => ({
+  getPlayerImage: jest.fn((image, name) => image || `https://example.com/default-${name}.jpg`),
+  // Keep any other functions from helpers that might be needed
+  shuffleArray: jest.fn(array => array),
+  formatTime: jest.fn(seconds => `${Math.floor(seconds / 60)}:${(seconds % 60).toString().padStart(2, '0')}`),
+  calculateGameResult: jest.fn(),
+  extractSongArtist: jest.fn(song => song?.artist || ''),
+  extractSongName: jest.fn(song => song?.name || ''),
+  formatChallengeTitle: jest.fn(title => title),
+  formatStringKey: jest.fn(key => key),
+  getRandomColor: jest.fn(() => '#FF5733'),
 }));
 
 // Mock audio element
 window.HTMLMediaElement.prototype.load = jest.fn();
-window.HTMLMediaElement.prototype.play = jest.fn();
+window.HTMLMediaElement.prototype.play = jest.fn(() => Promise.resolve());
 window.HTMLMediaElement.prototype.pause = jest.fn();
 
 // Mock dispatch function
 const mockDispatch = jest.fn();
+
+// Mock SpotifySongs for cached data
+const mockCachedSongs = [
+  {
+    id: 'cached1',
+    name: 'Cached Song 1',
+    artist: 'Cached Artist 1',
+    previewUrl: 'https://example.com/cached-preview1.mp3',
+    albumArt: 'https://example.com/cached-album1.jpg',
+    isRevealed: false,
+    isPlaying: false
+  },
+  {
+    id: 'cached2',
+    name: 'Cached Song 2',
+    artist: 'Cached Artist 2',
+    previewUrl: 'https://example.com/cached-preview2.mp3',
+    albumArt: 'https://example.com/cached-album2.jpg',
+    isRevealed: false,
+    isPlaying: false
+  }
+];
 
 // Mock challenge data
 const mockChallenge: Challenge = {
@@ -103,6 +147,35 @@ const mockChallenge: Challenge = {
 describe('SpotifyMusicQuizPlayer', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    
+    // Reset the mock implementations
+    jest.spyOn(window.HTMLMediaElement.prototype, 'play').mockImplementation(() => Promise.resolve());
+    jest.spyOn(window.HTMLMediaElement.prototype, 'pause').mockImplementation(() => {});
+    jest.spyOn(window.HTMLMediaElement.prototype, 'load').mockImplementation(() => {});
+    
+    // Mock the Spotify service for each test
+    (spotifyService.getPlaylistTracks as jest.Mock).mockImplementation((playlistId, options) => {
+      return Promise.resolve([
+        {
+          id: 'track1',
+          name: 'Test Song 1',
+          artist: 'Test Artist 1',
+          album: 'Test Album 1',
+          albumArt: 'https://example.com/album1.jpg',
+          previewUrl: 'https://example.com/preview1.mp3',
+          duration: 30000
+        },
+        {
+          id: 'track2',
+          name: 'Test Song 2',
+          artist: 'Test Artist 2',
+          album: 'Test Album 2',
+          albumArt: 'https://example.com/album2.jpg',
+          previewUrl: 'https://example.com/preview2.mp3',
+          duration: 30000
+        }
+      ] as SpotifyTrack[]);
+    });
   });
 
   it('renders loading state initially', () => {
@@ -128,7 +201,10 @@ describe('SpotifyMusicQuizPlayer', () => {
     await waitFor(() => {
       expect(spotifyService.getPlaylistTracks).toHaveBeenCalledWith(
         '37i9dQZF1DXcBWIGoYBM5M',
-        expect.any(Number)
+        expect.objectContaining({
+          limit: expect.any(Number),
+          randomize: true
+        })
       );
     });
 
@@ -152,15 +228,26 @@ describe('SpotifyMusicQuizPlayer', () => {
       expect(screen.queryByText('Loading songs...')).not.toBeInTheDocument();
     });
 
+    // Make sure audio element is set up
+    const audioElement = document.querySelector('audio');
+    expect(audioElement).not.toBeNull();
+
     // Play button should be visible
     const playButton = screen.getByText('Play');
     expect(playButton).toBeInTheDocument();
 
     // Click play
     fireEvent.click(playButton);
+    
+    // Trigger canplay event to simulate the audio being ready
+    if (audioElement) {
+      fireEvent.canPlay(audioElement);
+    }
 
     // HTMLMediaElement.play should have been called
-    expect(window.HTMLMediaElement.prototype.play).toHaveBeenCalled();
+    await waitFor(() => {
+      expect(window.HTMLMediaElement.prototype.play).toHaveBeenCalled();
+    });
 
     // Pause button should now be visible
     await waitFor(() => {
@@ -299,5 +386,114 @@ describe('SpotifyMusicQuizPlayer', () => {
 
     // onComplete should have been called
     expect(onCompleteMock).toHaveBeenCalledWith(true);
+  });
+
+  it('refreshes songs when forceRefreshSongs prop is true, even if there are stored songs', async () => {
+    // First render to set songs in localStorage
+    const { unmount } = render(
+      <SpotifyMusicQuizPlayer 
+        challenge={mockChallenge} 
+        onComplete={jest.fn()} 
+      />
+    );
+
+    // Wait for songs to load
+    await waitFor(() => {
+      expect(screen.queryByText('Loading songs...')).not.toBeInTheDocument();
+    });
+
+    // Check that the player is displayed with the first set of tracks
+    expect(screen.getByText('Test Playlist')).toBeInTheDocument();
+    
+    // Unmount first instance
+    unmount();
+
+    // Mock second response for refresh
+    (spotifyService.getPlaylistTracks as jest.Mock).mockImplementationOnce((playlistId, options) => {
+      return Promise.resolve([
+        {
+          id: 'track3',
+          name: 'New Test Song 1',
+          artist: 'New Test Artist 1',
+          album: 'New Test Album 1',
+          albumArt: 'https://example.com/new-album1.jpg',
+          previewUrl: 'https://example.com/new-preview1.mp3',
+          duration: 30000
+        },
+        {
+          id: 'track4',
+          name: 'New Test Song 2',
+          artist: 'New Test Artist 2',
+          album: 'New Test Album 2',
+          albumArt: 'https://example.com/new-album2.jpg',
+          previewUrl: 'https://example.com/new-preview2.mp3',
+          duration: 30000
+        }
+      ] as SpotifyTrack[]);
+    });
+
+    // Render again with forceRefreshSongs=true
+    render(
+      <SpotifyMusicQuizPlayer 
+        challenge={mockChallenge} 
+        onComplete={jest.fn()}
+        forceRefreshSongs={true}
+      />
+    );
+
+    // Wait for songs to load again (this should be forced even though we already have songs)
+    await waitFor(() => {
+      // Wait for loading to complete
+      expect(screen.queryByText('Loading songs...')).not.toBeInTheDocument();
+    });
+
+    // Verify that getPlaylistTracks was called twice (once in first render, once in second)
+    expect(spotifyService.getPlaylistTracks).toHaveBeenCalledTimes(2);
+
+    // The test can pass without having to find and click play button
+  });
+
+  it('refreshes songs when cached songs are older than 1 hour', async () => {
+    // Calculate timestamp for more than 1 hour ago
+    const oneHourAndOneMinuteAgo = Date.now() - (61 * 60 * 1000);
+    
+    // Set up the component with a challenge that has old cached songs
+    const challengeWithOldSongs = {
+      ...mockChallenge,
+      prebuiltSettings: {
+        ...mockChallenge.prebuiltSettings,
+        selectedSongs: mockCachedSongs,
+        lastFetchTimestamp: oneHourAndOneMinuteAgo // Timestamp more than 1 hour ago
+      }
+    };
+
+    render(
+      <SpotifyMusicQuizPlayer 
+        challenge={challengeWithOldSongs} 
+        onComplete={jest.fn()} 
+      />
+    );
+
+    // Wait for songs to be refreshed
+    await waitFor(() => {
+      expect(spotifyService.getPlaylistTracks).toHaveBeenCalledWith(
+        '37i9dQZF1DXcBWIGoYBM5M',
+        expect.objectContaining({
+          limit: expect.any(Number),
+          randomize: true
+        })
+      );
+    });
+
+    // Verify that fresh songs were fetched
+    expect(mockDispatch).toHaveBeenCalledWith(expect.objectContaining({
+      type: 'UPDATE_CUSTOM_CHALLENGE',
+      payload: expect.objectContaining({
+        prebuiltSettings: expect.objectContaining({
+          selectedSongs: expect.any(Array),
+          lastFetchTimestamp: expect.any(Number)
+        })
+      })
+    }));
   });
 }); 
