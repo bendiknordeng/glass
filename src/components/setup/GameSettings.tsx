@@ -468,6 +468,8 @@ const GameSettings: React.FC = () => {
                               ? t("game.challengeTypes.individual")
                               : challenge.type === "oneOnOne"
                               ? t("game.challengeTypes.oneOnOne")
+                              : challenge.type === "allVsAll"
+                              ? t("game.challengeTypes.allVsAll")
                               : t("game.challengeTypes.team")}
                           </span>
                           <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-game-accent/10 text-game-accent">
@@ -646,6 +648,8 @@ const GameSettings: React.FC = () => {
                           ? t("game.challengeTypes.individual")
                           : challenge.type === "oneOnOne"
                           ? t("game.challengeTypes.oneOnOne")
+                          : challenge.type === "allVsAll"
+                          ? t("game.challengeTypes.allVsAll")
                           : t("game.challengeTypes.team")}
                       </span>
                       <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-game-accent/10 text-game-accent">
