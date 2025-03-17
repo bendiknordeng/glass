@@ -300,7 +300,13 @@ const gameReducer = (state: GameState, action: GameAction): GameState => {
           const otherIds = getAllParticipantIds(state).filter(id => id !== currentId);
           
           if (otherIds.length > 0) {
-            const randomOpponentId = otherIds[Math.floor(Math.random() * otherIds.length)];
+            // Use a combination of the current round and timestamp for better randomization
+            const seed = (state.currentRound * 1000) + Date.now() % 1000;
+            const randomValue = Math.abs(Math.sin(seed)) % 1;
+            const randomIndex = Math.floor(randomValue * otherIds.length);
+            const randomOpponentId = otherIds[randomIndex % otherIds.length];
+            
+            console.log(`Selected random opponent (round ${state.currentRound}): ${randomOpponentId}`);
             participants = [currentId, randomOpponentId];
           } else {
             // Fallback if there are no other players

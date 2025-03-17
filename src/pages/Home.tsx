@@ -63,7 +63,7 @@ const Home: React.FC = () => {
           transition={{ duration: 0.6 }}
         >
           <motion.img
-            src="/assets/images/glass.png"
+            src={isDarkMode ? "/assets/images/glass-light.png" : "/assets/images/glass-dark.png"}
             alt={t("app.name")}
             className="mx-auto mb-2 w-40 h-40"
             initial={{ opacity: 0 }}

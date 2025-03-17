@@ -131,12 +131,19 @@ const Game: React.FC = () => {
       // For team mode, find a player from each team
       const teamIds = state.currentChallengeParticipants;
       
-      teamIds.forEach((teamId) => {
+      teamIds.forEach((teamId, index) => {
         const team = state.teams.find(t => t.id === teamId);
         if (team && team.playerIds.length > 0) {
-          // Randomly select a player from the team
-          const randomIndex = Math.floor(Math.random() * team.playerIds.length);
-          const playerId = team.playerIds[randomIndex];
+          // Generate a seeded random value based on the current round, team, and player
+          // This ensures different outcomes in different rounds
+          const seed = (state.currentRound * 1000) + (index * 100) + Date.now() % 1000;
+          const randomValue = Math.abs(Math.sin(seed)) % 1; // Create a value between 0-1
+          const randomIndex = Math.floor(randomValue * team.playerIds.length);
+          
+          // Ensure the random index is within bounds
+          const playerIndex = randomIndex % team.playerIds.length;
+          const playerId = team.playerIds[playerIndex];
+          
           const player = state.players.find(p => p.id === playerId);
           if (player) {
             players.push(player);
@@ -153,6 +160,10 @@ const Game: React.FC = () => {
         }
       });
     }
+    
+    // Log the selected players for debugging
+    console.log(`Selected ${players.length} players for one-on-one challenge:`, 
+      players.map(p => p.name).join(', '));
     
     // Return all players, don't limit to just 2
     return players;
