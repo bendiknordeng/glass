@@ -636,8 +636,16 @@ const SpotifyMusicQuizPlayer: React.FC<SpotifyMusicQuizPlayerProps> = ({
       return;
     }
     
+    // Important: Set isPlaying to false first to prevent re-rendering issues
     setIsPlaying(false);
-    audioRef.current.pause();
+    
+    // Pause the audio element
+    try {
+      audioRef.current.pause();
+      console.log('Audio paused successfully');
+    } catch (error) {
+      console.error('Error pausing audio:', error);
+    }
     
     // Update the song state
     setSongs(prevSongs => 
@@ -1045,21 +1053,50 @@ const SpotifyMusicQuizPlayer: React.FC<SpotifyMusicQuizPlayerProps> = ({
                   </Button>
                 </div>
               ) : challenge.type === ChallengeType.ONE_ON_ONE ? (
-                // For one-on-one (head to head), only show current player
-                <div className="flex justify-center mb-4">
-                  {/* Get the current player based on the turn index */}
-                  {state.players[state.currentTurnIndex] && (
-                    <div 
-                      onClick={() => handleSelectWinner(state.players[state.currentTurnIndex].id)}
-                      className={`cursor-pointer border-2 ${selectedWinnerId === state.players[state.currentTurnIndex].id ? 'border-pastel-green' : 'border-transparent'} rounded-lg`}
-                    >
-                      <PlayerCard
-                        player={state.players[state.currentTurnIndex]}
-                        size="sm"
-                        showScore={false}
-                        isSelected={selectedWinnerId === state.players[state.currentTurnIndex].id}
-                      />
-                    </div>
+                // For one-on-one (head to head), show all participants involved
+                <div className="flex flex-wrap justify-center gap-3 mb-4">
+                  {/* Filter to show only the players who are part of this challenge */}
+                  {state.currentChallengeParticipants && state.currentChallengeParticipants.length > 0 ? (
+                    // If we have specific participants for this challenge
+                    state.players
+                      .filter(player => 
+                        state.currentChallengeParticipants.includes(player.id)
+                      )
+                      .map(player => (
+                        <div 
+                          key={player.id}
+                          onClick={() => handleSelectWinner(player.id)}
+                          className={`cursor-pointer border-2 ${selectedWinnerId === player.id ? 'border-pastel-green' : 'border-transparent'} rounded-lg`}
+                        >
+                          <PlayerCard
+                            player={player}
+                            size="sm"
+                            showScore={false}
+                            isSelected={selectedWinnerId === player.id}
+                          />
+                        </div>
+                      ))
+                  ) : (
+                    // Fallback to showing current player and next player
+                    state.players.slice(
+                      state.currentTurnIndex, 
+                      state.currentTurnIndex + 2 > state.players.length 
+                        ? state.players.length 
+                        : state.currentTurnIndex + 2
+                    ).map(player => (
+                      <div 
+                        key={player.id}
+                        onClick={() => handleSelectWinner(player.id)}
+                        className={`cursor-pointer border-2 ${selectedWinnerId === player.id ? 'border-pastel-green' : 'border-transparent'} rounded-lg`}
+                      >
+                        <PlayerCard
+                          player={player}
+                          size="sm"
+                          showScore={false}
+                          isSelected={selectedWinnerId === player.id}
+                        />
+                      </div>
+                    ))
                   )}
                 </div>
               ) : (
