@@ -349,8 +349,12 @@ export const useGameState = () => {
         const participantsValid = verifyParticipantsAssigned();
         
         if (participantsValid) {
-          console.log("Participants assigned successfully, proceeding to player selection");
+          console.log("Participants assigned successfully, proceeding to reveal sequence");
           // After the challenge and participants are set up, directly proceed to revealing
+          
+          // Let the Game component handle the reveal sequence
+          // The Game component will check the isNewGameStart flag and
+          // determine whether to skip the player reveal for the first challenge
           startRevealSequence();
           isChallengeTransitionInProgressRef.current = false;
         } else {
@@ -434,6 +438,9 @@ export const useGameState = () => {
     
     isChallengeTransitionInProgressRef.current = true;
     
+    // Reset animation flags for next challenge
+    setIsRevealingChallenge(false);
+    
     // Record the result and wait for state update before proceeding
     console.log(`Completing challenge: ${state.currentChallenge.title}, completed: ${completed}, winner: ${winnerId || 'none'}`);
     dispatch({
@@ -449,9 +456,14 @@ export const useGameState = () => {
     // Add a small delay to ensure state update is processed
     setTimeout(() => {
       isChallengeTransitionInProgressRef.current = false;
+      
+      // Ensure any previous animation states are reset
+      window.dispatchEvent(new CustomEvent('reset-game-animations'));
+      
+      // Move to the next challenge, which will trigger the reveal sequence
       selectNextChallenge();
     }, 300); // Increased delay for better state synchronization
-  }, [state.currentChallenge, state.currentChallengeParticipants, dispatch, selectNextChallenge]);
+  }, [state.currentChallenge, state.currentChallengeParticipants, dispatch, selectNextChallenge, setIsRevealingChallenge]);
 
   return {
     gameState: state,

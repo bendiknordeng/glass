@@ -223,6 +223,23 @@ const ChallengeReveal: React.FC<ChallengeRevealProps> = ({
               )}
             </div>
           </motion.div>
+          
+          {/* Skip button in bottom right corner */}
+          <motion.button
+            className="absolute bottom-6 right-6 bg-transparent text-gray-400 hover:text-white border border-gray-500 px-3 py-1.5 text-sm rounded-full shadow-sm hover:bg-gray-800 transition-all"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 0.7, y: 0 }}
+            whileHover={{ opacity: 1 }}
+            transition={{ delay: 0.5 }}
+            onClick={() => {
+              // Skip the rest of the animation and call the completion callback
+              if (onRevealComplete) {
+                onRevealComplete();
+              }
+            }}
+          >
+            {t('common.skip')}
+          </motion.button>
         </motion.div>
       )}
     </AnimatePresence>

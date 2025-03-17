@@ -123,6 +123,9 @@ const Setup: React.FC = () => {
         throw new Error('Failed to load challenges');
       }
       
+      // Mark that this is a new game (this will be used in Game.tsx)
+      localStorage.setItem('isNewGameStart', 'true');
+      
       // Start the game
       dispatch({ type: 'START_GAME' });
       

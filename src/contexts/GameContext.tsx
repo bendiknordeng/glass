@@ -296,17 +296,47 @@ const gameReducer = (state: GameState, action: GameAction): GameState => {
             return state;
           }
         } else {
-          // In free-for-all, select the current player plus one random opponent
+          // In free-for-all, select the current player plus a different opponent each time
           const otherIds = getAllParticipantIds(state).filter(id => id !== currentId);
           
           if (otherIds.length > 0) {
-            // Use a combination of the current round and timestamp for better randomization
-            const seed = (state.currentRound * 1000) + Date.now() % 1000;
-            const randomValue = Math.abs(Math.sin(seed)) % 1;
-            const randomIndex = Math.floor(randomValue * otherIds.length);
-            const randomOpponentId = otherIds[randomIndex % otherIds.length];
+            let randomOpponentId;
             
-            console.log(`Selected random opponent (round ${state.currentRound}): ${randomOpponentId}`);
+            // If we have only one other player, just use them
+            if (otherIds.length === 1) {
+              randomOpponentId = otherIds[0];
+            } 
+            // For multiple players, use a strict rotation to guarantee different opponents
+            else {
+              // Sort the IDs to ensure consistent order
+              const sortedIds = [...otherIds].sort();
+              
+              // Find the index of the last selected opponent, or -1 if no history
+              let lastIndex = -1;
+              
+              // Get the last challenge result where this player was involved
+              const lastOneOnOneResult = [...state.results]
+                .reverse()
+                .find(r => 
+                  r.challengeId && 
+                  state.challenges.find(c => c.id === r.challengeId)?.type === 'oneOnOne' &&
+                  r.participantIds && r.participantIds.includes(currentId)
+                );
+                
+              if (lastOneOnOneResult) {
+                // Find the opponent ID from the last challenge
+                const lastOpponentId = lastOneOnOneResult.participantIds?.find(id => id !== currentId);
+                if (lastOpponentId) {
+                  lastIndex = sortedIds.indexOf(lastOpponentId);
+                }
+              }
+              
+              // Select the next opponent in the rotation
+              const nextIndex = (lastIndex + 1) % sortedIds.length;
+              randomOpponentId = sortedIds[nextIndex];
+            }
+            
+            console.log(`Selected opponent for player ${currentId} in round ${state.currentRound}: ${randomOpponentId}`);
             participants = [currentId, randomOpponentId];
           } else {
             // Fallback if there are no other players
