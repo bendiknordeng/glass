@@ -192,7 +192,10 @@ export const useGameState = () => {
           const playerId = currentTurnTeam.playerIds[playerIndex];
           dispatch({ 
             type: 'UPDATE_CHALLENGE_PARTICIPANTS', 
-            payload: [currentTurnTeam.id, playerId]
+            payload: {
+              challengeId: state.currentChallenge.id,
+              participantIds: [playerId]
+            }
           });
           console.log(`Selected team and player for individual challenge: ${currentTurnTeam.name}, player ID: ${playerId}`);
           return true;
@@ -243,7 +246,10 @@ export const useGameState = () => {
       console.log("Updating challenge participants:", participantIds);
       dispatch({ 
         type: 'UPDATE_CHALLENGE_PARTICIPANTS', 
-        payload: participantIds 
+        payload: {
+          challengeId: state.currentChallenge.id,
+          participantIds
+        }
       });
       return true;
     }

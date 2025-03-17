@@ -575,7 +575,7 @@ const SpotifyMusicQuizPlayer: React.FC<SpotifyMusicQuizPlayerProps> = ({
   }
   
   return (
-    <div className="flex flex-col items-center p-4">
+    <div className="flex flex-col items-center">
       {/* Show error message if any, but don't prevent player from working */}
       {error && (
         <div className="w-full mb-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 text-yellow-700 dark:text-yellow-400 px-6 py-4 rounded-md">

@@ -81,33 +81,6 @@ const PlayerReveal: React.FC<PlayerRevealProps> = ({
           >
             <div className="w-full h-full bg-[radial-gradient(circle,rgba(255,255,255,0.1)_0%,rgba(0,0,0,0)_70%)]" />
           </motion.div>
-
-          {/* Team Context (if in team mode) */}
-          {/* {isTeamMode && teamName && (
-            <motion.div
-              className="mb-2 text-center"
-              initial={{ opacity: 0, y: -20 }}
-              animate={{ 
-                opacity: showText ? (isComplete ? 0 : 1) : 0,
-                y: showText ? 0 : -20 
-              }}
-              transition={{ duration: 0.5 }}
-            >
-              <motion.div 
-                className="inline-block bg-game-primary px-4 py-1 rounded-full"
-                animate={{
-                  boxShadow: ['0 0 0px rgba(255, 255, 255, 0)', '0 0 5px rgba(255, 255, 255, 0.3)', '0 0 0px rgba(255, 255, 255, 0)']
-                }}
-                transition={{
-                  boxShadow: { repeat: Infinity, duration: 2.5 }
-                }}
-              >
-                <h3 className="text-xl font-semibold text-white">
-                  {t('game.teamTurnBanner', { team: teamName })}
-                </h3>
-              </motion.div>
-            </motion.div>
-          )} */}
           
           {/* Player Photo and Name */}
           <motion.div

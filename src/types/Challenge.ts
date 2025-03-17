@@ -26,7 +26,6 @@ export enum ChallengeType {
     description: string;       // Detailed challenge description
     type: ChallengeType;       // Type of challenge
     canReuse: boolean;         // Whether this challenge can be reused in the same game
-    difficulty?: 1 | 2 | 3;    // Difficulty level (deprecated): 1 (easy), 2 (medium), 3 (hard)
     points: number;            // Points awarded for completing the challenge
     category?: string;         // Optional category for grouping challenges
     customPrompt?: string;     // Optional custom prompt for dynamic challenges

@@ -87,7 +87,6 @@ export const generateDefaultChallenges = (): Challenge[] => {
       description: 'Choose truth: Answer a personal question. Choose dare: Perform a challenge.',
       type: ChallengeType.INDIVIDUAL,
       canReuse: true,
-      difficulty: 2,
       points: 2,
       punishment: {
         type: 'sips',
@@ -100,7 +99,6 @@ export const generateDefaultChallenges = (): Challenge[] => {
       description: 'Show your best dance move for 15 seconds.',
       type: ChallengeType.INDIVIDUAL,
       canReuse: true,
-      difficulty: 1,
       points: 1
     },
     {
@@ -109,7 +107,6 @@ export const generateDefaultChallenges = (): Challenge[] => {
       description: 'Say "She sells seashells by the seashore" 3 times fast without messing up.',
       type: ChallengeType.INDIVIDUAL,
       canReuse: true,
-      difficulty: 2,
       points: 2,
       punishment: {
         type: 'sips',
@@ -122,7 +119,6 @@ export const generateDefaultChallenges = (): Challenge[] => {
       description: 'Let another player send a text message from your phone.',
       type: ChallengeType.INDIVIDUAL,
       canReuse: false,
-      difficulty: 3,
       points: 3,
       punishment: {
         type: 'custom',
@@ -136,7 +132,6 @@ export const generateDefaultChallenges = (): Challenge[] => {
       description: 'Do your best impression of a celebrity or character of your choice.',
       type: ChallengeType.INDIVIDUAL,
       canReuse: true,
-      difficulty: 2,
       points: 2
     },
     
@@ -147,7 +142,6 @@ export const generateDefaultChallenges = (): Challenge[] => {
       description: 'Play best of 3 rock, paper, scissors.',
       type: ChallengeType.ONE_ON_ONE,
       canReuse: true,
-      difficulty: 1,
       points: 1,
       punishment: {
         type: 'sips',
@@ -160,7 +154,6 @@ export const generateDefaultChallenges = (): Challenge[] => {
       description: 'Challenge your opponent to an arm wrestling match.',
       type: ChallengeType.ONE_ON_ONE,
       canReuse: true,
-      difficulty: 2,
       points: 2
     },
     {
@@ -169,7 +162,6 @@ export const generateDefaultChallenges = (): Challenge[] => {
       description: 'Have a staring contest with your opponent. First to blink or laugh loses.',
       type: ChallengeType.ONE_ON_ONE,
       canReuse: true,
-      difficulty: 2,
       points: 2,
       punishment: {
         type: 'sips',
@@ -182,7 +174,6 @@ export const generateDefaultChallenges = (): Challenge[] => {
       description: 'Fill 5 shot glasses - 4 with water, 1 with vodka. Your opponent chooses a glass for you to drink, then you choose one for them.',
       type: ChallengeType.ONE_ON_ONE,
       canReuse: true,
-      difficulty: 3,
       points: 3
     },
     {
@@ -191,7 +182,6 @@ export const generateDefaultChallenges = (): Challenge[] => {
       description: 'Take turns giving each other compliments. First person who can\'t think of a unique compliment loses.',
       type: ChallengeType.ONE_ON_ONE,
       canReuse: true,
-      difficulty: 1,
       points: 1
     },
     
@@ -202,7 +192,6 @@ export const generateDefaultChallenges = (): Challenge[] => {
       description: 'Teams take turns answering trivia questions. First team to 5 points wins.',
       type: ChallengeType.TEAM,
       canReuse: false,
-      difficulty: 2,
       points: 3,
       category: 'quiz',
       punishment: {
@@ -216,7 +205,6 @@ export const generateDefaultChallenges = (): Challenge[] => {
       description: 'One team member acts out a word or phrase for their team to guess. Most correct guesses in 1 minute wins.',
       type: ChallengeType.TEAM,
       canReuse: false,
-      difficulty: 2,
       points: 3,
       category: 'acting'
     },
@@ -226,7 +214,6 @@ export const generateDefaultChallenges = (): Challenge[] => {
       description: 'Teams line up. Whisper a phrase from one end to the other. Most accurate transmission wins.',
       type: ChallengeType.TEAM,
       canReuse: false,
-      difficulty: 2,
       points: 2,
       category: 'communication'
     },
@@ -236,7 +223,6 @@ export const generateDefaultChallenges = (): Challenge[] => {
       description: 'Each team member must take a shot (of water or alcohol) in sequence. Fastest team wins.',
       type: ChallengeType.TEAM,
       canReuse: false,
-      difficulty: 1,
       points: 2,
       category: 'drinking'
     },
@@ -246,7 +232,6 @@ export const generateDefaultChallenges = (): Challenge[] => {
       description: 'Teams create a story one word at a time, going around the circle. Most creative and coherent story wins.',
       type: ChallengeType.TEAM,
       canReuse: false,
-      difficulty: 3,
       points: 3,
       category: 'creativity'
     },
@@ -258,7 +243,6 @@ export const generateDefaultChallenges = (): Challenge[] => {
       description: 'Say something you have never done. Anyone who has done it must drink.',
       type: ChallengeType.INDIVIDUAL,
       canReuse: true,
-      difficulty: 1,
       points: 1,
       category: 'drinking'
     },
@@ -268,7 +252,6 @@ export const generateDefaultChallenges = (): Challenge[] => {
       description: 'Name a category (e.g., car brands). Go around the circle naming items in that category. First to hesitate loses.',
       type: ChallengeType.ONE_ON_ONE,
       canReuse: true,
-      difficulty: 2,
       points: 2,
       category: 'knowledge',
       punishment: {
@@ -282,7 +265,6 @@ export const generateDefaultChallenges = (): Challenge[] => {
       description: 'Be the Viking King! Choose someone to drink whenever you drink for the next 3 rounds.',
       type: ChallengeType.INDIVIDUAL,
       canReuse: false,
-      difficulty: 1,
       points: 1,
       category: 'drinking'
     },
@@ -292,7 +274,6 @@ export const generateDefaultChallenges = (): Challenge[] => {
       description: 'Say a word. Go around the circle with each person saying a word that rhymes. First to fail loses.',
       type: ChallengeType.ONE_ON_ONE,
       canReuse: true,
-      difficulty: 2,
       points: 2,
       category: 'language'
     },
@@ -302,7 +283,6 @@ export const generateDefaultChallenges = (): Challenge[] => {
       description: 'You are the Question Master for the next 3 rounds. Anyone who answers your questions must drink.',
       type: ChallengeType.INDIVIDUAL,
       canReuse: false,
-      difficulty: 2,
       points: 2,
       category: 'drinking'
     },
@@ -314,7 +294,6 @@ export const generateDefaultChallenges = (): Challenge[] => {
       description: 'Everyone competes in a rapid-fire trivia battle. First player to 3 correct answers wins!',
       type: ChallengeType.ALL_VS_ALL,
       canReuse: true,
-      difficulty: 2,
       points: 3,
       category: 'knowledge',
       punishment: {
@@ -328,7 +307,6 @@ export const generateDefaultChallenges = (): Challenge[] => {
       description: 'Start with a word. Go around quickly with each player saying a related word. If you hesitate more than 3 seconds or repeat a word, you\'re out. Last player standing wins!',
       type: ChallengeType.ALL_VS_ALL,
       canReuse: true,
-      difficulty: 2,
       points: 2,
       category: 'language',
       punishment: {
@@ -342,7 +320,6 @@ export const generateDefaultChallenges = (): Challenge[] => {
       description: 'Each player gets 3 attempts to flip a water bottle and make it land upright. Player with most successful flips wins!',
       type: ChallengeType.ALL_VS_ALL,
       canReuse: true,
-      difficulty: 1,
       points: 2,
       category: 'skill'
     },
@@ -352,7 +329,6 @@ export const generateDefaultChallenges = (): Challenge[] => {
       description: 'Each player performs a 15-second dance. Everyone votes for the best dancer (can\'t vote for yourself). Most votes wins!',
       type: ChallengeType.ALL_VS_ALL,
       canReuse: false,
-      difficulty: 3,
       points: 3,
       category: 'performance',
       punishment: {
@@ -367,7 +343,6 @@ export const generateDefaultChallenges = (): Challenge[] => {
       description: 'Everyone gets a word to draw. After 30 seconds, all drawings are revealed and players guess each other\'s drawings. Most correct guesses wins!',
       type: ChallengeType.ALL_VS_ALL,
       canReuse: true,
-      difficulty: 2,
       points: 2,
       category: 'creativity'
     }

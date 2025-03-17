@@ -502,7 +502,7 @@ const ChallengeDisplay: React.FC<ChallengeDisplayProps> = ({
   };
 
   return (
-    <div className="challenge-display max-w-3xl mx-auto py-4 px-4 sm:px-6">
+    <div className="challenge-display max-w-3xl sm:px-6">
       <AnimatePresence mode="wait">
         {!showPunishment ? (
           <motion.div

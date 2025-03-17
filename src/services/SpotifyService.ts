@@ -384,16 +384,29 @@ export class SpotifyService {
         // Process each track without a preview URL in parallel
         const previewSearchPromises = tracksWithoutPreviews.map(async (track: SpotifyTrack) => {
           try {
-            const searchQuery = `${track.name} ${track.artist}`;
-            const result = await customPreviewFinder(searchQuery, 1);
+            // Extract the primary artist from comma-separated list if needed
+            const primaryArtist = track.artist.split(',')[0].trim();
+            
+            // Pass song name and artist as separate parameters for more accurate matching
+            // The customPreviewFinder will parse these correctly
+            const result = await customPreviewFinder(`${track.name} - ${primaryArtist}`, 1);
             
             if (result.success && result.results.length > 0 && result.results[0].previewUrls.length > 0) {
-              // Return the track ID and the found preview URL
-              return {
-                id: track.id,
-                previewUrl: result.results[0].previewUrls[0],
-                success: true,
-              };
+              // Verify that the artist matches before accepting the result
+              const matchedTrack = result.results[0];
+              const artistMatches = this.artistsMatch(primaryArtist, matchedTrack.artist || '');
+              
+              if (artistMatches) {
+                console.log(`✓ Found matching preview for "${track.name}" by "${primaryArtist}"`);
+                return {
+                  id: track.id,
+                  previewUrl: matchedTrack.previewUrls[0],
+                  success: true,
+                };
+              } else {
+                console.warn(`✗ Found preview for "${track.name}" but artist "${matchedTrack.artist}" doesn't match "${primaryArtist}"`);
+                return { id: track.id, success: false };
+              }
             }
             return { id: track.id, success: false };
           } catch (error) {
@@ -535,6 +548,42 @@ export class SpotifyService {
     }
     
     return text;
+  }
+
+  /**
+   * Helper method to check if two artist names match
+   * This handles common variations in artist names
+   */
+  private artistsMatch(spotifyArtist: string, foundArtist: string): boolean {
+    if (!spotifyArtist || !foundArtist) return false;
+    
+    // Normalize both strings: lowercase and remove special chars
+    const normalize = (str: string) => str.toLowerCase()
+      .replace(/[^\w\s]/g, '') // Remove special characters
+      .replace(/\s+/g, ' ')    // Replace multiple spaces with single space
+      .trim();
+      
+    const normalizedSpotify = normalize(spotifyArtist);
+    const normalizedFound = normalize(foundArtist);
+    
+    // Exact match
+    if (normalizedSpotify === normalizedFound) return true;
+    
+    // Check if one contains the other
+    if (normalizedSpotify.includes(normalizedFound) || normalizedFound.includes(normalizedSpotify)) return true;
+    
+    // Check for artist name variations (e.g., "The Beatles" vs "Beatles")
+    if (normalizedSpotify.startsWith('the ')) {
+      const withoutThe = normalizedSpotify.substring(4);
+      if (withoutThe === normalizedFound) return true;
+    }
+    
+    if (normalizedFound.startsWith('the ')) {
+      const withoutThe = normalizedFound.substring(4);
+      if (withoutThe === normalizedSpotify) return true;
+    }
+    
+    return false;
   }
 }
 
