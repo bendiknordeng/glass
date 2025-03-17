@@ -9,13 +9,23 @@ interface PlayerRevealProps {
   teamName?: string;
   isTeamMode?: boolean;
   onRevealComplete?: () => void;
+  // New configuration options
+  animationConfig?: {
+    showPlayerImage?: boolean;
+    showPlayerName?: boolean;
+    showReadyText?: boolean;
+    autoAnimate?: boolean;
+    customText?: string;
+    durationMs?: number;
+  };
 }
 
 const PlayerReveal: React.FC<PlayerRevealProps> = ({
   player,
   teamName,
   isTeamMode = false,
-  onRevealComplete
+  onRevealComplete,
+  animationConfig = {}
 }) => {
   const { t } = useTranslation();
   const [showReveal, setShowReveal] = useState(false);
@@ -23,43 +33,81 @@ const PlayerReveal: React.FC<PlayerRevealProps> = ({
   const [showReady, setShowReady] = useState(false);
   const [isComplete, setIsComplete] = useState(false);
   
+  // Default configuration with fallbacks
+  const {
+    showPlayerImage = true, 
+    showPlayerName = true,
+    showReadyText = true,
+    autoAnimate = true,
+    customText,
+    durationMs = 5000,
+  } = animationConfig;
+
+  // Derived timing calculations based on total duration
+  const revealStartDelay = autoAnimate ? 300 : 0;
+  const textStartDelay = autoAnimate ? Math.min(1200, durationMs * 0.24) : 0;
+  const readyTextDelay = autoAnimate ? Math.min(2200, durationMs * 0.44) : 0;
+  const fadeOutDelay = autoAnimate ? Math.min(4500, durationMs * 0.9) : durationMs;
+  const completeDelay = autoAnimate ? durationMs : durationMs;
+  
   // Animation sequence
   useEffect(() => {
+    // If not using auto animation, just show content immediately
+    if (!autoAnimate) {
+      setShowReveal(true);
+      if (showPlayerName) setShowText(true);
+      if (showReadyText) setShowReady(true);
+      return;
+    }
+
+    // Auto animation sequence
     const timer1 = setTimeout(() => {
       // Start by showing the component
       setShowReveal(true);
-    }, 300);
+    }, revealStartDelay);
     
-    const timer2 = setTimeout(() => {
+    // Only set up name reveal timer if we're showing the name
+    const timer2 = showPlayerName ? setTimeout(() => {
       // Show the player name
       setShowText(true);
-    }, 1200);
+    }, textStartDelay) : undefined;
     
-    const timer3 = setTimeout(() => {
+    // Only set up ready text timer if we're showing it
+    const timer3 = showReadyText ? setTimeout(() => {
       // Show "Are you ready?"
       setShowReady(true);
-    }, 2200);
+    }, readyTextDelay) : undefined;
     
     const timer4 = setTimeout(() => {
       // Start fade out
       setIsComplete(true);
-    }, 4500);
+    }, fadeOutDelay);
 
     const timer5 = setTimeout(() => {
       // Notify parent that reveal is complete
       if (onRevealComplete) {
         onRevealComplete();
       }
-    }, 5000);
+    }, completeDelay);
     
     return () => {
       clearTimeout(timer1);
-      clearTimeout(timer2);
-      clearTimeout(timer3);
+      if (timer2) clearTimeout(timer2);
+      if (timer3) clearTimeout(timer3);
       clearTimeout(timer4);
       clearTimeout(timer5);
     };
-  }, [onRevealComplete]);
+  }, [
+    onRevealComplete, 
+    showPlayerName, 
+    showReadyText, 
+    autoAnimate, 
+    revealStartDelay,
+    textStartDelay,
+    readyTextDelay,
+    fadeOutDelay,
+    completeDelay
+  ]);
 
   return (
     <AnimatePresence>
@@ -95,123 +143,149 @@ const PlayerReveal: React.FC<PlayerRevealProps> = ({
               opacity: { duration: 0.3 }
             }}
           >
-            {/* Player Photo with Subtle Border */}
-            <motion.div
-              className="relative mb-4"
-              initial={{ y: 20 }}
-              animate={{ 
-                y: 0,
-                scale: [1, 1.02, 1]
-              }}
-              transition={{ 
-                y: {
-                  type: 'spring',
-                  stiffness: 300,
-                  damping: 20
-                },
-                scale: {
-                  repeat: Infinity,
-                  duration: 3,
-                  ease: "easeInOut"
-                }
-              }}
-            >
-              {/* Simple spinning ring */}
+            {/* Team name if in team mode */}
+            {isTeamMode && teamName && (
               <motion.div
-                className="absolute -inset-4 rounded-full border-2 border-game-primary opacity-60"
+                className="text-xl text-game-accent font-medium mb-2"
+                initial={{ opacity: 0, y: -10 }}
                 animate={{ 
-                  rotate: 360,
-                  boxShadow: ['0 0 0px rgba(255, 255, 255, 0)', '0 0 10px rgba(255, 255, 255, 0.2)', '0 0 0px rgba(255, 255, 255, 0)']
+                  opacity: showText ? 1 : 0,
+                  y: showText ? 0 : -10
                 }}
                 transition={{ 
-                  rotate: {
-                    duration: 10,
-                    repeat: Infinity,
-                    ease: "linear"
+                  type: 'spring',
+                  stiffness: 300,
+                  damping: 20,
+                  delay: 0.1
+                }}
+              >
+                {t('game.teamTurn', { team: teamName })}
+              </motion.div>
+            )}
+            
+            {/* Player Photo with Subtle Border */}
+            {showPlayerImage && (
+              <motion.div
+                className="relative mb-4"
+                initial={{ y: 20 }}
+                animate={{ 
+                  y: 0,
+                  scale: [1, 1.02, 1]
+                }}
+                transition={{ 
+                  y: {
+                    type: 'spring',
+                    stiffness: 300,
+                    damping: 20
                   },
-                  boxShadow: {
-                    duration: 2.5,
+                  scale: {
                     repeat: Infinity,
+                    duration: 3,
                     ease: "easeInOut"
                   }
                 }}
-              />
-              
-              {/* Player image container with subtle pulse */}
-              <motion.div
-                className="relative w-40 h-40 rounded-full overflow-hidden border-4 border-white z-10"
-                animate={showText ? {
-                  boxShadow: '0 0 15px rgba(255, 255, 255, 0.4)'
-                } : {}}
-                transition={{ 
-                  duration: 1
-                }}
               >
-                <img
-                  src={getPlayerImage(player.image, player.name)}
-                  alt={player.name}
-                  className="w-full h-full object-cover"
+                {/* Simple spinning ring */}
+                <motion.div
+                  className="absolute -inset-4 rounded-full border-2 border-game-primary opacity-60"
+                  animate={{ 
+                    rotate: 360,
+                    boxShadow: ['0 0 0px rgba(255, 255, 255, 0)', '0 0 10px rgba(255, 255, 255, 0.2)', '0 0 0px rgba(255, 255, 255, 0)']
+                  }}
+                  transition={{ 
+                    rotate: {
+                      duration: 10,
+                      repeat: Infinity,
+                      ease: "linear"
+                    },
+                    boxShadow: {
+                      duration: 2.5,
+                      repeat: Infinity,
+                      ease: "easeInOut"
+                    }
+                  }}
                 />
+                
+                {/* Player image container with subtle pulse */}
+                <motion.div
+                  className="relative w-40 h-40 rounded-full overflow-hidden border-4 border-white z-10"
+                  animate={showText ? {
+                    boxShadow: '0 0 15px rgba(255, 255, 255, 0.4)'
+                  } : {}}
+                  transition={{ 
+                    duration: 1
+                  }}
+                >
+                  <img
+                    src={getPlayerImage(player.image, player.name)}
+                    alt={player.name}
+                    className="w-full h-full object-cover"
+                  />
+                </motion.div>
               </motion.div>
-            </motion.div>
+            )}
             
             {/* Player Name with clean animation */}
-            <motion.h2
-              className="text-4xl font-bold text-white mb-2"
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ 
-                opacity: showText ? 1 : 0,
-                y: showText ? 0 : 10
-              }}
-              transition={{ 
-                type: 'spring',
-                stiffness: 300,
-                damping: 20
-              }}
-            >
-              {player.name}
-            </motion.h2>
-            
-            {/* "Are you ready?" Text with simple animation */}
-            <motion.div
-              className="mt-6"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ 
-                opacity: showReady ? 1 : 0,
-                y: showReady ? 0 : 20
-              }}
-              transition={{ 
-                type: 'spring',
-                stiffness: 300,
-                damping: 25
-              }}
-            >
-              <motion.div
-                className="bg-gradient-to-r from-game-accent to-game-primary text-white px-8 py-4 rounded-full"
-                animate={{
-                  scale: [1, 1.03, 1],
-                  boxShadow: [
-                    '0 0 0px rgba(255, 209, 102, 0.4)',
-                    '0 0 10px rgba(255, 209, 102, 0.6)',
-                    '0 0 0px rgba(255, 209, 102, 0.4)'
-                  ]
+            {showPlayerName && (
+              <motion.h2
+                className="text-4xl font-bold text-white mb-2"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ 
+                  opacity: showText ? 1 : 0,
+                  y: showText ? 0 : 10
                 }}
-                transition={{
-                  scale: {
-                    repeat: Infinity,
-                    duration: 2
-                  },
-                  boxShadow: {
-                    repeat: Infinity,
-                    duration: 2
-                  }
+                transition={{ 
+                  type: 'spring',
+                  stiffness: 300,
+                  damping: 20
                 }}
               >
-                <span className="text-2xl font-bold">
-                  {t('game.areYouReady')}
-                </span>
+                {player.name}
+              </motion.h2>
+            )}
+            
+            {/* "Are you ready?" Text or custom text with simple animation */}
+            {showReadyText && (
+              <motion.div
+                className="mt-6"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ 
+                  opacity: showReady ? 1 : 0,
+                  y: showReady ? 0 : 20
+                }}
+                transition={{ 
+                  type: 'spring',
+                  stiffness: 300,
+                  damping: 25
+                }}
+              >
+                <motion.div
+                  className="bg-gradient-to-r from-game-accent to-game-primary text-white px-8 py-4 rounded-full"
+                  animate={{
+                    scale: [1, 1.03, 1],
+                    boxShadow: [
+                      '0 0 0px rgba(255, 209, 102, 0.4)',
+                      '0 0 10px rgba(255, 209, 102, 0.6)',
+                      '0 0 0px rgba(255, 209, 102, 0.4)'
+                    ]
+                  }}
+                  transition={{
+                    scale: {
+                      repeat: Infinity,
+                      duration: 2
+                    },
+                    boxShadow: {
+                      repeat: Infinity,
+                      duration: 2
+                    }
+                  }}
+                >
+                  <span className="text-2xl font-bold">
+                    {customText || t('game.areYouReady')}
+                  </span>
+                </motion.div>
               </motion.div>
-            </motion.div>
+            )}
           </motion.div>
         </motion.div>
       )}

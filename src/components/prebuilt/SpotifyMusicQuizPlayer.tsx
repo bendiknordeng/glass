@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
@@ -7,7 +7,7 @@ import {
   SpotifySong 
 } from '@/types/Challenge';
 import { useGame } from '@/contexts/GameContext';
-import spotifyService from '@/services/SpotifyService';
+import spotifyService, { SpotifyTrack } from '@/services/SpotifyService';
 import Button from '@/components/common/Button';
 import { Player } from '@/types/Player';
 import { Team, GameMode } from '@/types/Team';
@@ -50,6 +50,7 @@ const SpotifyMusicQuizPlayer: React.FC<SpotifyMusicQuizPlayerProps> = ({
   const [isRevealed, setIsRevealed] = useState(false);
   const [playTimerProgress, setPlayTimerProgress] = useState(0);
   const [hasStarted, setHasStarted] = useState(false);
+  const [initialized, setInitialized] = useState(false);
   
   // Track scoring
   const [selectedWinnerId, setSelectedWinnerId] = useState<string | null>(null);
@@ -62,6 +63,9 @@ const SpotifyMusicQuizPlayer: React.FC<SpotifyMusicQuizPlayerProps> = ({
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const progressIntervalRef = useRef<NodeJS.Timeout | null>(null);
   
+  // Add a flag to track initialization attempts
+  const initAttemptedRef = useRef(false);
+  
   // Extract playlist ID from URL
   const extractPlaylistId = (url: string): string | null => {
     const regex = /playlist\/([a-zA-Z0-9]+)/;
@@ -72,30 +76,72 @@ const SpotifyMusicQuizPlayer: React.FC<SpotifyMusicQuizPlayerProps> = ({
   // Fetch songs from Spotify playlist
   const fetchSongsFromPlaylist = async (playlistUrl: string, count: number): Promise<SpotifySong[]> => {
     try {
+      // Validate playlist URL
+      if (!playlistUrl || playlistUrl.trim() === '') {
+        console.error('Empty playlist URL provided');
+        throw new Error('Playlist URL is empty or invalid');
+      }
+      
+      console.log(`Attempting to fetch songs from playlist: ${playlistUrl}`);
+      
       // Extract playlist ID from URL
       const playlistId = extractPlaylistId(playlistUrl);
       if (!playlistId) {
-        throw new Error('Invalid playlist URL');
+        console.error('Failed to extract playlist ID from URL:', playlistUrl);
+        throw new Error('Invalid playlist URL format. Please check the URL and try again.');
       }
       
-      // Get tracks using Spotify service
-      const spotifyTracks = await spotifyService.getPlaylistTracks(playlistId, Math.max(50, count * 2));
+      // Add a timeout promise to prevent hanging
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error('Spotify API request timed out')), 10000);
+      });
+      
+      // Get tracks using Spotify service with timeout
+      const spotifyTracksPromise = spotifyService.getPlaylistTracks(playlistId, Math.max(50, count * 2));
+      
+      // Race the promises to handle timeouts
+      const spotifyTracks = await Promise.race([
+        spotifyTracksPromise,
+        timeoutPromise
+      ]) as SpotifyTrack[];
+      
+      console.log(`Received ${spotifyTracks?.length || 0} tracks from Spotify`);
       
       // If we got tracks, check if we have any with preview URLs
-      if (spotifyTracks.length === 0) {
-        throw new Error('No tracks found in this playlist. Please try another playlist.');
+      if (!spotifyTracks || spotifyTracks.length === 0) {
+        console.warn('No tracks found in this playlist');
+        // If in development mode, use mock data to avoid errors during testing
+        if (process.env.NODE_ENV === 'development') {
+          console.warn('No tracks found, using mock data in development mode');
+          return generateMockSongs(count);
+        }
+        throw new Error('No tracks found in this playlist. Please try another playlist with more songs.');
       }
       
       // Filter tracks that have preview URLs
       const tracksWithPreviews = spotifyTracks.filter(track => track.previewUrl);
+      console.log(`Found ${tracksWithPreviews.length} tracks with preview URLs`);
       
       if (tracksWithPreviews.length === 0) {
+        console.warn('No tracks with preview URLs found');
+        // If in development mode, use mock data to avoid errors during testing
+        if (process.env.NODE_ENV === 'development') {
+          console.warn('No tracks with preview URLs found, using mock data in development mode');
+          return generateMockSongs(count);
+        }
         throw new Error('No tracks with playable audio found in this playlist. Please try another playlist.');
+      }
+      
+      // Make sure we have enough tracks
+      if (tracksWithPreviews.length < count) {
+        console.warn(`Not enough tracks with previews (${tracksWithPreviews.length}) for requested count (${count})`);
       }
       
       // Shuffle and take requested number
       const shuffled = [...tracksWithPreviews].sort(() => 0.5 - Math.random());
       const selectedTracks = shuffled.slice(0, Math.min(count, shuffled.length));
+      
+      console.log(`Selected ${selectedTracks.length} tracks for the quiz`);
       
       // Map to our SpotifySong interface
       return selectedTracks.map(track => ({
@@ -109,60 +155,207 @@ const SpotifyMusicQuizPlayer: React.FC<SpotifyMusicQuizPlayerProps> = ({
       }));
     } catch (error) {
       console.error('Error fetching songs from Spotify:', error);
+      
+      // If in development mode, use mock data to avoid errors during testing
+      if (process.env.NODE_ENV === 'development') {
+        console.warn('Falling back to mock data in development mode due to error');
+        return generateMockSongs(count);
+      }
+      
       throw error; // Re-throw to handle in the calling code
     }
   };
   
   // Generate mock songs for fallback or demonstration
   const generateMockSongs = (count: number): SpotifySong[] => {
-    return [
+    // Create an array of mock songs with different artists and names
+    const mockSongs: SpotifySong[] = [
       {
-        id: 'track1',
-        name: 'Spotify Preview Unavailable',
-        artist: 'Please try a different playlist',
-        previewUrl: '',
-        albumArt: 'https://i.scdn.co/image/ab67616d0000b273d7fb5095313b5c82c64c8940',
+        id: 'mock1',
+        name: 'Shape of You',
+        artist: 'Ed Sheeran',
+        previewUrl: 'https://p.scdn.co/mp3-preview/84462d8e1e4d0f9e5ccd06f0da390f65843774a2',
+        albumArt: 'https://i.scdn.co/image/ab67616d0000b273ba5db46f4b838ef6027e6f96',
+        isRevealed: false,
+        isPlaying: false
+      },
+      {
+        id: 'mock2',
+        name: 'Uptown Funk',
+        artist: 'Mark Ronson ft. Bruno Mars',
+        previewUrl: 'https://p.scdn.co/mp3-preview/064c51d0852c62d088c8f455c85fd3d5d33ddae0',
+        albumArt: 'https://i.scdn.co/image/ab67616d0000b2732a9f89db02aca1ba1bd02f29',
+        isRevealed: false,
+        isPlaying: false
+      },
+      {
+        id: 'mock3',
+        name: 'Blinding Lights',
+        artist: 'The Weeknd',
+        previewUrl: 'https://p.scdn.co/mp3-preview/3ebf4544e5a4aff5efa9ab746984d9745a739dd2',
+        albumArt: 'https://i.scdn.co/image/ab67616d0000b2738863bc11d2aa12b54f5aeb36',
+        isRevealed: false,
+        isPlaying: false
+      },
+      {
+        id: 'mock4',
+        name: 'Dance Monkey',
+        artist: 'Tones and I',
+        previewUrl: 'https://p.scdn.co/mp3-preview/eef5e7c5d0dc1b06f5791c93f9c65a5dd6eaf0c2',
+        albumArt: 'https://i.scdn.co/image/ab67616d0000b2736b4e466e8de45a95aed1090a',
+        isRevealed: false,
+        isPlaying: false
+      },
+      {
+        id: 'mock5',
+        name: 'Someone Like You',
+        artist: 'Adele',
+        previewUrl: 'https://p.scdn.co/mp3-preview/4299c7f2ba8134a5f41f6904548a32a65f0d097d',
+        albumArt: 'https://i.scdn.co/image/ab67616d0000b2732118bf9b198b05a95ded6300',
         isRevealed: false,
         isPlaying: false
       }
     ];
+    
+    // If we need more songs than our default array, duplicate and modify
+    if (count > mockSongs.length) {
+      const additional = count - mockSongs.length;
+      for (let i = 0; i < additional; i++) {
+        const baseSong = mockSongs[i % mockSongs.length];
+        mockSongs.push({
+          ...baseSong,
+          id: `${baseSong.id}-${i}`,
+          name: `${baseSong.name} (Remix ${i+1})`,
+          isRevealed: false,
+          isPlaying: false
+        });
+      }
+    }
+    
+    // Return only the requested number of songs
+    return mockSongs.slice(0, count);
   };
   
   // Initialize by fetching songs from the playlist
   useEffect(() => {
     const initialize = async () => {
+      // Skip initialization if already attempted - prevents infinite loops
+      if (initAttemptedRef.current) {
+        console.log('Skipping initialization - already attempted');
+        return;
+      }
+      
+      // Mark as attempted
+      initAttemptedRef.current = true;
+      
+      if (!challenge || !settings) {
+        setError('Invalid challenge configuration');
+        setLoading(false);
+        setInitialized(true); // Mark as initialized even if failed
+        return;
+      }
+      
       try {
         setLoading(true);
+        setError(null);
         
-        // Check if we already have songs from a previous state
+        // If we have songs previously stored in the challenge, use those
         if (settings.selectedSongs && settings.selectedSongs.length > 0) {
+          console.log('Using previously stored songs:', settings.selectedSongs.length);
           setSongs(settings.selectedSongs);
           
           // If we have stored song points, restore them
           if (settings.songPoints) {
             setSongPoints(settings.songPoints);
           }
+          
+          setInitialized(true);
         } else {
           try {
-            // Fetch new songs from the playlist
-            const fetchedSongs = await fetchSongsFromPlaylist(
-              settings.playlistUrl,
-              settings.numberOfSongs
-            );
+            // Maximum number of retry attempts for fetching songs
+            const maxRetries = 1;
+            let retryCount = 0;
+            let success = false;
+            let fetchedSongs: SpotifySong[] = [];
+            let lastError: Error | null = null;
             
-            setSongs(fetchedSongs);
-            
-            // Update the challenge settings with the selected songs
-            dispatch({
-              type: 'UPDATE_CUSTOM_CHALLENGE',
-              payload: {
-                ...challenge,
-                prebuiltSettings: {
-                  ...settings,
-                  selectedSongs: fetchedSongs
+            while (retryCount <= maxRetries && !success) {
+              try {
+                console.log(`Attempting to fetch songs (attempt ${retryCount + 1}/${maxRetries + 1})`);
+                
+                // Fetch new songs from the playlist
+                fetchedSongs = await fetchSongsFromPlaylist(
+                  settings.playlistUrl,
+                  settings.numberOfSongs
+                );
+                
+                if (fetchedSongs.length > 0) {
+                  success = true;
+                  console.log(`Successfully fetched ${fetchedSongs.length} songs`);
+                } else {
+                  throw new Error('No valid songs fetched from playlist');
+                }
+              } catch (err) {
+                lastError = err instanceof Error ? err : new Error('Unknown error fetching songs');
+                console.warn(`Attempt ${retryCount + 1}/${maxRetries + 1} failed: ${lastError.message}`);
+                retryCount++;
+                
+                // Add a small delay between retries
+                if (retryCount <= maxRetries) {
+                  await new Promise(resolve => setTimeout(resolve, 1000));
                 }
               }
-            });
+            }
+            
+            if (success) {
+              setSongs(fetchedSongs);
+              
+              // Update the challenge settings with the selected songs
+              dispatch({
+                type: 'UPDATE_CUSTOM_CHALLENGE',
+                payload: {
+                  ...challenge,
+                  prebuiltSettings: {
+                    ...settings,
+                    selectedSongs: fetchedSongs
+                  }
+                }
+              });
+              
+              setInitialized(true);
+            } else {
+              // All retries failed - use fallback or show error
+              console.error('All song fetch attempts failed');
+              
+              if (process.env.NODE_ENV === 'development') {
+                // In development, use mock data to avoid blocking testing
+                const mockSongs = generateMockSongs(settings.numberOfSongs || 5);
+                console.warn('Using mock songs for development:', mockSongs.length);
+                setSongs(mockSongs);
+                setError('Could not load songs from playlist. Using sample songs for testing.');
+                
+                // Update the challenge with mock songs
+                dispatch({
+                  type: 'UPDATE_CUSTOM_CHALLENGE',
+                  payload: {
+                    ...challenge,
+                    prebuiltSettings: {
+                      ...settings,
+                      selectedSongs: mockSongs
+                    }
+                  }
+                });
+              } else {
+                // In production, show error and clear songs
+                if (lastError) {
+                  throw lastError;
+                } else {
+                  throw new Error('Failed to fetch songs after multiple attempts');
+                }
+              }
+              
+              setInitialized(true);
+            }
           } catch (error) {
             console.error('Error loading songs:', error);
             const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
@@ -170,11 +363,13 @@ const SpotifyMusicQuizPlayer: React.FC<SpotifyMusicQuizPlayerProps> = ({
             
             // If we couldn't fetch songs, show error but don't use mock songs
             setSongs([]);
+            setInitialized(true);
             onComplete(false);
           }
         }
       } catch (err) {
         setError(err instanceof Error ? err.message : 'An unknown error occurred.');
+        setInitialized(true);
       } finally {
         setLoading(false);
       }
@@ -196,7 +391,7 @@ const SpotifyMusicQuizPlayer: React.FC<SpotifyMusicQuizPlayerProps> = ({
         clearInterval(progressIntervalRef.current);
       }
     };
-  }, [challenge, settings, dispatch]);
+  }, [challenge, settings, dispatch, onComplete]);
   
   // Helper function to check if a URL is from an alternative source
   const isAlternativeSource = (url: string | null | undefined): boolean => {
@@ -212,19 +407,54 @@ const SpotifyMusicQuizPlayer: React.FC<SpotifyMusicQuizPlayerProps> = ({
       if (audioRef.current) {
         // Log the preview URL we're attempting to use
         console.log(`Setting audio source to: ${current.previewUrl}`);
-        audioRef.current.src = current.previewUrl;
-        audioRef.current.crossOrigin = "anonymous"; // Handle CORS for alternative sources
         
-        // Add error handler for audio loading
-        const handleAudioError = (e: ErrorEvent) => {
-          console.error('Error loading audio:', current.previewUrl, e);
+        // Skip if the preview URL is empty
+        if (!current.previewUrl || current.previewUrl.trim() === '') {
+          console.warn('Empty preview URL for current song, trying to skip to next song');
           
-          // If we can't load this song's audio, try to skip to the next one
+          // Try to skip to the next song if available
           if (currentSongIndex < songs.length - 1) {
             setCurrentSongIndex(prevIndex => prevIndex + 1);
           } else {
-            setError('Unable to play audio. The preview may not be available.');
+            setError('Unable to play audio. The preview URL is not available.');
           }
+          return;
+        }
+        
+        // Set the audio source
+        audioRef.current.src = current.previewUrl;
+        audioRef.current.crossOrigin = "anonymous"; // Handle CORS for alternative sources
+        
+        // Track error count to prevent infinite loops
+        let errorCount = 0;
+        const maxErrors = 2;
+        
+        // Add error handler for audio loading
+        const handleAudioError = (e: ErrorEvent) => {
+          errorCount++;
+          console.error(`Error loading audio (attempt ${errorCount}/${maxErrors}):`, current.previewUrl, e);
+          
+          // If we've had too many errors, show a message and don't retry
+          if (errorCount >= maxErrors) {
+            console.warn('Too many audio errors, giving up on this track');
+            
+            // If we can't load this song's audio, try to skip to the next one
+            if (currentSongIndex < songs.length - 1) {
+              console.log('Skipping to next song due to audio errors');
+              setCurrentSongIndex(prevIndex => prevIndex + 1);
+            } else {
+              setError('Unable to play audio. The preview may not be available.');
+            }
+            return;
+          }
+          
+          // Otherwise retry loading
+          setTimeout(() => {
+            console.log('Retrying audio load...');
+            if (audioRef.current) {
+              audioRef.current.load();
+            }
+          }, 1000);
         };
         
         const handleCanPlay = () => {

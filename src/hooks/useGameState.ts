@@ -17,7 +17,6 @@ export const useGameState = () => {
   const [timerActive, setTimerActive] = useState(false);
   
   // Animation and transition states
-  const [isSelectingPlayer, setIsSelectingPlayer] = useState(false);
   const [isRevealingChallenge, setIsRevealingChallenge] = useState(false);
   const [isShowingResults, setIsShowingResults] = useState(false);
   
@@ -27,6 +26,14 @@ export const useGameState = () => {
   const startGameCalledRef = useRef(false);
   const participantSelectionAttempts = useRef(0);
   const gameInitialized = useRef(false);
+  
+  // Define startRevealSequence function - moved to the top to fix ordering issues
+  const startRevealSequence = useCallback(() => {
+    // After the challenge and participants are set up, directly proceed to revealing
+    // We'll use a custom event to trigger the startRevealSequence function in Game.tsx
+    const event = new CustomEvent('start-reveal-sequence');
+    window.dispatchEvent(event);
+  }, []);
   
   // Initialize game time if using time-based duration
   useEffect(() => {
@@ -343,8 +350,8 @@ export const useGameState = () => {
         
         if (participantsValid) {
           console.log("Participants assigned successfully, proceeding to player selection");
-          // After the challenge and participants are set up, start player selection process
-          setIsSelectingPlayer(true);
+          // After the challenge and participants are set up, directly proceed to revealing
+          startRevealSequence();
           isChallengeTransitionInProgressRef.current = false;
         } else {
           participantSelectionAttempts.current += 1;
@@ -361,7 +368,7 @@ export const useGameState = () => {
               const retrySuccessful = verifyParticipantsAssigned();
               if (retrySuccessful) {
                 console.log("Participant assignment successful on retry");
-                setIsSelectingPlayer(true);
+                startRevealSequence();
               } else {
                 console.log("Participant assignment failed again, going to challenge reveal");
                 setIsRevealingChallenge(true);
@@ -380,7 +387,8 @@ export const useGameState = () => {
     state.teams,
     state.customChallenges,
     dispatch,
-    verifyParticipantsAssigned
+    verifyParticipantsAssigned,
+    startRevealSequence
   ]);
 
   /**
@@ -448,7 +456,6 @@ export const useGameState = () => {
   return {
     gameState: state,
     timeRemaining,
-    isSelectingPlayer,
     isRevealingChallenge,
     isShowingResults,
     getCurrentParticipant,
@@ -456,7 +463,6 @@ export const useGameState = () => {
     startGame,
     selectNextChallenge,
     completeChallenge,
-    setIsSelectingPlayer,
     setIsRevealingChallenge,
     verifyParticipantsAssigned
   };

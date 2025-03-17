@@ -68,38 +68,46 @@ function artistNamesMatch(artist1: string, artist2: string): boolean {
 
 /**
  * Search iTunes for preview URLs
- * @param songName The name of the song to search for
- * @param artistName The artist of the song (optional but recommended for accuracy)
+ * @param songQuery The search query for iTunes
  * @param limit Maximum number of results to return
  */
 export async function findItunesPreviews(
-  songName: string, 
-  artistName?: string, 
+  songQuery: string, 
   limit = 1
 ): Promise<PreviewFinderResult> {
   try {
-    // Create a search term with both song and artist if available
-    const searchTerm = artistName 
-      ? `${songName} ${artistName}` 
-      : songName;
-    
-    console.log(`Searching iTunes for: "${songName}" by "${artistName || 'unknown artist'}" with limit=${limit}`);
-    
-    // Construct query parameters
-    const queryParams: Record<string, string> = {
-      term: searchTerm,
-      media: 'music',
-      entity: 'song',
-      limit: Math.min(limit * 3, 25).toString() // Get more results for better matching
-    };
-    
-    // If we have the artist name, add specific filters
-    if (artistName) {
-      queryParams.attribute = 'artistTerm,songTerm';
+    // Basic validation to avoid API errors
+    if (!songQuery || songQuery.trim() === '') {
+      return {
+        success: false,
+        results: [],
+        error: 'Empty search query for iTunes'
+      };
     }
     
+    // Simple sanitizing - just trim whitespace
+    const query = songQuery.trim();
+    
+    // Skip the API call if search term is too short (avoid Bad Request errors)
+    if (query.length < 3) {
+      return {
+        success: false,
+        results: [],
+        error: 'Search term too short for iTunes API'
+      };
+    }
+    
+    console.log(`Searching iTunes for: "${query}" with limit=${limit}`);
+    
+    // Use the simple axios approach that worked before
     const response = await axios.get(`https://itunes.apple.com/search`, {
-      params: queryParams
+      params: {
+        term: query,
+        media: 'music',
+        entity: 'song',
+        limit: Math.min(limit, 10)
+      },
+      timeout: 8000 // Keep our timeout
     });
     
     if (!response.data.results || response.data.results.length === 0) {
@@ -110,50 +118,20 @@ export async function findItunesPreviews(
       };
     }
     
-    let results = response.data.results
+    // Map the results directly
+    const results = response.data.results
       .filter((track: any) => track.previewUrl)
       .map((track: any) => ({
         name: track.trackName,
         artist: track.artistName,
-        previewUrl: track.previewUrl
+        previewUrls: [track.previewUrl]
       }));
-     
-    // If we have both song name and artist, prioritize matches
-    if (artistName) {
-      // First try exact matches on both song and artist
-      const exactMatches = results.filter((result: any) => {
-        const songMatches = result.name.toLowerCase() === songName.toLowerCase();
-        const artistMatches = artistNamesMatch(result.artist, artistName);
-        return songMatches && artistMatches;
-      });
-      
-      if (exactMatches.length > 0) {
-        results = exactMatches;
-        console.log(`Found ${exactMatches.length} exact match(es) for "${songName}" by "${artistName}"`);
-      } else {
-        // Try to find partial matches with strong artist matching
-        const partialMatches = results.filter((result: any) => {
-          return artistNamesMatch(result.artist, artistName) &&
-                 (result.name.toLowerCase().includes(songName.toLowerCase()) || 
-                  songName.toLowerCase().includes(result.name.toLowerCase()));
-        });
-        
-        if (partialMatches.length > 0) {
-          results = partialMatches;
-          console.log(`Found ${partialMatches.length} partial match(es) for "${songName}" by "${artistName}"`);
-        }
-      }
-    }
-      
-    console.log(`Found ${results.length} iTunes previews for "${searchTerm}"`);
+    
+    console.log(`Found ${results.length} iTunes previews for "${query}"`);
     
     return {
       success: results.length > 0,
-      results: results.map((result: { name: string; artist: string; previewUrl: string }) => ({
-        name: result.name,
-        artist: result.artist,
-        previewUrls: [result.previewUrl]
-      })).slice(0, limit),
+      results: results.slice(0, limit),
       error: results.length === 0 ? 'No preview URLs found on iTunes' : undefined
     };
   } catch (error) {
@@ -178,26 +156,6 @@ export default async function customPreviewFinder(
   limit = 1, 
   accessToken?: string // Kept for compatibility, but not used
 ): Promise<PreviewFinderResult> {
-  // Parse the query to extract song name and artist if possible
-  // A common format in music queries is "Song Name - Artist Name"
-  const querySeparators = [' - ', ' by ', '—', '–', '-', ' (by) '];
-  let songName = songQuery;
-  let artistName: string | undefined = undefined;
-  
-  // Try to extract artist name from query using common separators
-  for (const separator of querySeparators) {
-    if (songQuery.includes(separator)) {
-      const parts = songQuery.split(separator);
-      if (parts.length >= 2) {
-        songName = parts[0].trim();
-        artistName = parts[1].trim();
-        break;
-      }
-    }
-  }
-  
-  console.log(`Parsed query "${songQuery}" into song: "${songName}", artist: "${artistName || 'unknown'}"`);
-  
-  // Only use iTunes with the separated song name and artist
-  return await findItunesPreviews(songName, artistName, limit);
+  // Only use iTunes with the query as is
+  return await findItunesPreviews(songQuery, limit);
 } 

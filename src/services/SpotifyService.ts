@@ -387,9 +387,32 @@ export class SpotifyService {
             // Extract the primary artist from comma-separated list if needed
             const primaryArtist = track.artist.split(',')[0].trim();
             
+            // Validate inputs before searching
+            if (!track.name || !primaryArtist) {
+              console.warn(`Skipping preview search for track with missing name or artist: "${track.name || 'Unknown'}" by "${primaryArtist || 'Unknown'}"`);
+              return { id: track.id, success: false };
+            }
+            
+            // Sanitize inputs to avoid API errors
+            const sanitizeTerm = (term: string): string => {
+              return term.replace(/[^\w\s]/gi, ' ').replace(/\s+/g, ' ').trim();
+            };
+            
+            const sanitizedName = sanitizeTerm(track.name);
+            const sanitizedArtist = sanitizeTerm(primaryArtist);
+            
+            // Skip if sanitized terms are too short
+            if (sanitizedName.length < 2 || sanitizedArtist.length < 2) {
+              console.warn(`Skipping preview search for track with short name/artist after sanitization: "${sanitizedName}" by "${sanitizedArtist}"`);
+              return { id: track.id, success: false };
+            }
+            
+            // Create a clean search term that won't cause API errors
+            const searchTerm = `${sanitizedName} - ${sanitizedArtist}`;
+            console.log(`Searching for alternative preview: "${searchTerm}"`);
+            
             // Pass song name and artist as separate parameters for more accurate matching
-            // The customPreviewFinder will parse these correctly
-            const result = await customPreviewFinder(`${track.name} - ${primaryArtist}`, 1);
+            const result = await customPreviewFinder(searchTerm, 1);
             
             if (result.success && result.results.length > 0 && result.results[0].previewUrls.length > 0) {
               // Verify that the artist matches before accepting the result
@@ -407,6 +430,10 @@ export class SpotifyService {
                 console.warn(`✗ Found preview for "${track.name}" but artist "${matchedTrack.artist}" doesn't match "${primaryArtist}"`);
                 return { id: track.id, success: false };
               }
+            } else if (result.error) {
+              console.warn(`No preview found for "${track.name}": ${result.error}`);
+            } else {
+              console.warn(`No preview found for "${track.name}" by "${primaryArtist}"`);
             }
             return { id: track.id, success: false };
           } catch (error) {
@@ -415,28 +442,36 @@ export class SpotifyService {
           }
         });
         
-        // Wait for all searches to complete
-        const previewResults = await Promise.all(previewSearchPromises);
-        
-        // Apply the found preview URLs to the tracks
-        let foundCount = 0;
-        previewResults.forEach(result => {
-          if (result.success && result.previewUrl) {
-            // Find the track in our selected tracks array
-            const trackIndex = selectedTracks.findIndex(t => t.id === result.id);
-            if (trackIndex !== -1) {
-              // Update with the found preview URL
-              selectedTracks[trackIndex].previewUrl = result.previewUrl;
-              foundCount++;
+        // Wrap the Promise.all in a try/catch to handle any failures
+        try {
+          // Wait for all searches to complete, but don't fail if some reject
+          const previewResults = await Promise.allSettled(previewSearchPromises);
+          
+          // Apply the found preview URLs to the tracks
+          let foundCount = 0;
+          previewResults.forEach(result => {
+            if (result.status === 'fulfilled' && result.value.success && result.value.previewUrl) {
+              // Find the track in our selected tracks array
+              const trackIndex = selectedTracks.findIndex(t => t.id === result.value.id);
+              if (trackIndex !== -1) {
+                // Update with the found preview URL
+                selectedTracks[trackIndex].previewUrl = result.value.previewUrl;
+                foundCount++;
+              }
             }
-          }
-        });
-        
-        console.log(`Finished finding alternative preview URLs. Found ${foundCount} out of ${tracksWithoutPreviews.length} tracks.`);
+          });
+          
+          console.log(`Found alternative previews for ${foundCount}/${tracksWithoutPreviews.length} tracks`);
+        } catch (error) {
+          console.error('Error processing alternative preview searches:', error);
+          // Continue with what we have even if the alternative preview search failed
+        }
       }
       
-      // Return all tracks from our selection that have preview URLs
-      return selectedTracks.filter((track: SpotifyTrack) => track.previewUrl);
+      // Return only tracks that have preview URLs
+      const finalTracks = selectedTracks.filter((track: SpotifyTrack) => track.previewUrl);
+      console.log(`Returning ${finalTracks.length} tracks with preview URLs`);
+      return finalTracks;
     } catch (error) {
       console.error('Error fetching playlist tracks:', error);
       return [];
