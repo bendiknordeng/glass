@@ -735,6 +735,7 @@ const GameSettings: React.FC = () => {
             setRecentChallenges(getRecentChallenges());
           }}
           onChallengeCreated={handleChallengeUpdated}
+          editChallenge={editingChallenge}
         />
       )}
     </div>

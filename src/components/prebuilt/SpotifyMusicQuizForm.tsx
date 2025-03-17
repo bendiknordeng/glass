@@ -100,6 +100,18 @@ const SpotifyMusicQuizForm: React.FC<SpotifyMusicQuizFormProps> = ({
     }
   }, [editChallenge]);
   
+  // When playlists load and we're in edit mode, try to find the matching playlist
+  useEffect(() => {
+    if (editChallenge && playlists.length > 0 && playlistId) {
+      const matchingPlaylist = playlists.find(p => p.id === playlistId);
+      if (matchingPlaylist) {
+        setSelectedPlaylist(matchingPlaylist);
+        // Switch to playlists tab if a matching playlist is found
+        setActiveTab('playlists');
+      }
+    }
+  }, [playlists, editChallenge, playlistId]);
+  
   // Check Spotify authentication on mount and when the form opens
   useEffect(() => {
     if (isOpen) {
@@ -995,7 +1007,11 @@ const SpotifyMusicQuizForm: React.FC<SpotifyMusicQuizFormProps> = ({
             disabled={isSubmitting || (activeTab === 'playlists' && !selectedPlaylist) || (activeTab === 'url' && !playlistUrl)}
             leftIcon={<PlayCircleIcon className="h-5 w-5" />}
           >
-            {isValidatingPlaylist ? t('prebuilt.spotifyMusicQuiz.validating') : t('prebuilt.spotifyMusicQuiz.createChallenge')}
+            {isValidatingPlaylist 
+              ? t('prebuilt.spotifyMusicQuiz.validating') 
+              : editChallenge 
+                ? t('prebuilt.spotifyMusicQuiz.updateChallenge', 'Update Challenge') 
+                : t('prebuilt.spotifyMusicQuiz.createChallenge')}
           </Button>
         </div>
       </form>
