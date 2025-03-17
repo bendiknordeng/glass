@@ -24,8 +24,9 @@ const ScoreBoard: React.FC<ScoreBoardProps> = ({
   className = ''
 }) => {
   const { t } = useTranslation();
+  // Always show all standings
   const standings = calculateStandings(players, teams, gameMode);
-  const displayStandings = maxToShow > 0 ? standings.slice(0, maxToShow) : standings;
+  const displayStandings = standings;
   
   // Get team members
   const getTeamMembers = (teamId: string): Player[] => {
@@ -61,7 +62,7 @@ const ScoreBoard: React.FC<ScoreBoardProps> = ({
       )}
       
       <motion.div
-        className="divide-y divide-gray-200 dark:divide-gray-700"
+        className="divide-y divide-gray-200 dark:divide-gray-700 overflow-y-auto max-h-[600px]"
         variants={container}
         initial="hidden"
         animate="show"
