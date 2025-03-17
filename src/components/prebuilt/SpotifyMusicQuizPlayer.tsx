@@ -63,6 +63,7 @@ const SpotifyMusicQuizPlayer: React.FC<SpotifyMusicQuizPlayerProps> = ({
   // Timer refs
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const progressIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const canPlayTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   
   // Add a flag to track initialization attempts
   const initAttemptedRef = useRef(false);
@@ -572,20 +573,31 @@ const SpotifyMusicQuizPlayer: React.FC<SpotifyMusicQuizPlayerProps> = ({
         
         audioRef.current.addEventListener('canplay', canPlayHandler);
         
+        // Clear any existing timeout
+        if (canPlayTimeoutRef.current) {
+          clearTimeout(canPlayTimeoutRef.current);
+          canPlayTimeoutRef.current = null;
+        }
+        
         // Set a timeout in case the canplay event doesn't fire
-        setTimeout(() => {
+        canPlayTimeoutRef.current = setTimeout(() => {
           if (audioRef.current) {
-            // If still waiting, try to play anyway
-            console.log('Timeout reached, attempting to play anyway...');
-            if (audioRef.current.readyState > 0) {
-              attemptPlay();
+            // Only attempt to play if we're still supposed to be playing
+            if (isPlaying) {
+              console.log('Timeout reached, attempting to play anyway...');
+              if (audioRef.current.readyState > 0) {
+                attemptPlay();
+              } else {
+                console.error('Audio not ready after timeout');
+                setError('Could not load audio. The preview may not be available.');
+                setIsPlaying(false);
+              }
             } else {
-              console.error('Audio not ready after timeout');
-              setError('Could not load audio. The preview may not be available.');
-              setIsPlaying(false);
+              console.log('Timeout reached but playback was cancelled');
             }
             audioRef.current.removeEventListener('canplay', canPlayHandler);
           }
+          canPlayTimeoutRef.current = null;
         }, 2000);
       }
       
@@ -665,6 +677,13 @@ const SpotifyMusicQuizPlayer: React.FC<SpotifyMusicQuizPlayerProps> = ({
     if (progressIntervalRef.current) {
       clearInterval(progressIntervalRef.current);
       progressIntervalRef.current = null;
+    }
+    
+    // Clear the canPlay timeout if it exists
+    if (canPlayTimeoutRef.current) {
+      clearTimeout(canPlayTimeoutRef.current);
+      canPlayTimeoutRef.current = null;
+      console.log('Cleared canPlay timeout during pause');
     }
   };
   
