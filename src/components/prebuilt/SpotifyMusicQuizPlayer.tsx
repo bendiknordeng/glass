@@ -881,6 +881,112 @@ const SpotifyMusicQuizPlayer: React.FC<SpotifyMusicQuizPlayerProps> = ({
         </div>
       )}
       
+      {/* Display current players/teams */}
+      <div className="w-full mb-6">
+        <div className="flex items-center justify-center mb-3">
+          <div className="px-4 py-1 rounded-full bg-gray-100 dark:bg-gray-800 text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center">
+            {state.gameMode === GameMode.TEAMS ? (
+              <UserGroupIcon className="h-4 w-4 mr-2" />
+            ) : (
+              <UserIcon className="h-4 w-4 mr-2" />
+            )}
+            {t('prebuilt.spotifyMusicQuiz.currentParticipants')}
+          </div>
+        </div>
+        
+        {state.gameMode === GameMode.TEAMS ? (
+          <div className="flex flex-wrap justify-center gap-3 mb-2">
+            {getTeamOptions().map(team => (
+              <div key={team.id} className="border-2 border-transparent rounded-lg">
+                <TeamCard
+                  team={{
+                    id: team.id,
+                    name: team.name,
+                    playerIds: team.players.map(p => p.id),
+                    score: 0,
+                    color: 'pastel-blue'
+                  }}
+                  players={team.players}
+                  size="sm"
+                  showScore={false}
+                />
+              </div>
+            ))}
+          </div>
+        ) : challenge.type === ChallengeType.INDIVIDUAL ? (
+          <div className="flex justify-center mb-2">
+            <div className="border-2 border-transparent rounded-lg">
+              <PlayerCard
+                player={state.players[state.currentTurnIndex]}
+                size="sm"
+                showScore={false}
+              />
+            </div>
+          </div>
+        ) : challenge.type === ChallengeType.ONE_ON_ONE ? (
+          <div className="flex flex-wrap justify-center gap-3 mb-2">
+            {selectedParticipantPlayers && selectedParticipantPlayers.length > 0 ? (
+              selectedParticipantPlayers.map(player => (
+                <div key={player.id} className="border-2 border-transparent rounded-lg">
+                  <PlayerCard
+                    player={player}
+                    size="sm"
+                    showScore={false}
+                  />
+                </div>
+              ))
+            ) : state.currentChallengeParticipants && state.currentChallengeParticipants.length > 0 ? (
+              state.players
+                .filter(player => 
+                  state.currentChallengeParticipants.includes(player.id)
+                )
+                .map(player => (
+                  <div key={player.id} className="border-2 border-transparent rounded-lg">
+                    <PlayerCard
+                      player={player}
+                      size="sm"
+                      showScore={false}
+                    />
+                  </div>
+                ))
+            ) : (
+              state.players.slice(
+                state.currentTurnIndex, 
+                state.currentTurnIndex + 2 > state.players.length 
+                  ? state.players.length 
+                  : state.currentTurnIndex + 2
+              ).map(player => (
+                <div key={player.id} className="border-2 border-transparent rounded-lg">
+                  <PlayerCard
+                    player={player}
+                    size="sm"
+                    showScore={false}
+                  />
+                </div>
+              ))
+            )}
+          </div>
+        ) : (
+          <div className="flex flex-wrap justify-center gap-3 mb-2 max-w-3xl mx-auto">
+            {getPlayerOptions().map(player => (
+              <div key={player.id} className="border-2 border-transparent rounded-lg">
+                <PlayerCard
+                  player={{
+                    id: player.id,
+                    name: player.name,
+                    score: 0,
+                    teamId: player.teamId,
+                    image: ''
+                  }}
+                  size="sm"
+                  showScore={false}
+                />
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+      
       {/* Hidden audio element */}
       <audio ref={audioRef} preload="auto" />
       

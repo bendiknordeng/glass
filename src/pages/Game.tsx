@@ -136,107 +136,298 @@ const Game: React.FC = () => {
       return [];
     }
     
-    let players: Player[] = [];
+    // Array to hold our final selected players
+    let selectedPlayers: Player[] = [];
+    
+    // Get the current challenge ID to track player selections per challenge
+    const currentChallengeId = state.currentChallenge?.id || '';
+    console.log(`Selecting players for one-on-one challenge: ${state.currentChallenge?.title} (ID: ${currentChallengeId})`);
     
     if (state.gameMode === GameMode.TEAMS) {
-      // For team mode, find a player from each team based on rotation through players
+      // For team mode, we need to select one player from each team
       const teamIds = state.currentChallengeParticipants;
       
-      // Keep track of all selected player IDs to ensure we don't select the same player multiple times
-      const selectedPlayerIds: Set<string> = new Set();
+      // Create maps to track:
+      // 1. Overall player selection counts for one-on-one challenges
+      const playerSelectionCounts: Record<string, number> = {};
       
-      teamIds.forEach((teamId) => {
-        const team = state.teams.find(t => t.id === teamId);
-        if (team && team.playerIds.length > 0) {
-          // If there's only one player in the team, always use them
-          if (team.playerIds.length === 1) {
-            const player = state.players.find(p => p.id === team.playerIds[0]);
-            if (player) {
-              players.push(player);
-              selectedPlayerIds.add(player.id);
-            }
-            return; // Skip further processing for this team
-          }
-          
-          // Find players that were RECENTLY selected for this team in one-on-one challenges
-          // Look at last 5 challenges to get more context on recent selections
-          const recentlyUsedPlayerIds: string[] = [];
-          let challengesChecked = 0;
-          
-          for (const result of [...state.results].reverse()) {
-            if (challengesChecked >= 5) break; // Only look at last 5 challenges
-            
-            const challenge = state.challenges.find(c => c.id === result.challengeId);
-            if (challenge?.type === ChallengeType.ONE_ON_ONE && 
-                result.participantIds && 
-                result.participantIds.includes(teamId)) {
+      // 2. Player selection counts specifically for this challenge ID
+      // This helps with reused challenges
+      const playerSelectionsPerChallenge: Record<string, Record<string, number>> = {};
+      
+      // Initialize all players with a count of 0
+      state.players.forEach(player => {
+        playerSelectionCounts[player.id] = 0;
+        
+        // Initialize player counts for this challenge if needed
+        if (!playerSelectionsPerChallenge[currentChallengeId]) {
+          playerSelectionsPerChallenge[currentChallengeId] = {};
+        }
+        playerSelectionsPerChallenge[currentChallengeId][player.id] = 0;
+      });
+      
+      // Analyze past results to count how many times each player has been selected
+      state.results.forEach(result => {
+        const challenge = state.challenges.find(c => c.id === result.challengeId);
+        if (challenge?.type === ChallengeType.ONE_ON_ONE && result.participantIds) {
+          // For overall counts, tally all one-on-one participation
+          state.players.forEach(player => {
+            if (result.participantIds.includes(player.id) || player.id === result.winnerId) {
+              playerSelectionCounts[player.id] = (playerSelectionCounts[player.id] || 0) + 1;
               
-              // Find which player from this team was used
+              // Also track per challenge ID counts
+              if (result.challengeId === currentChallengeId) {
+                if (!playerSelectionsPerChallenge[currentChallengeId]) {
+                  playerSelectionsPerChallenge[currentChallengeId] = {};
+                }
+                playerSelectionsPerChallenge[currentChallengeId][player.id] = 
+                  (playerSelectionsPerChallenge[currentChallengeId][player.id] || 0) + 1;
+              }
+            }
+          });
+        }
+      });
+      
+      // Keep track of player pairs that have already faced each other
+      const playerPairHistory: Set<string> = new Set();
+      
+      // Specifically track pairs for this exact challenge ID
+      const playerPairHistoryForChallenge: Set<string> = new Set();
+      
+      // Fill these from the results
+      state.results.forEach(result => {
+        const challenge = state.challenges.find(c => c.id === result.challengeId);
+        if (challenge?.type === ChallengeType.ONE_ON_ONE && result.participantIds && result.participantIds.length >= 2) {
+          // Get the players who participated in this one-on-one
+          const participantPlayers: Player[] = [];
+          
+          result.participantIds.forEach(id => {
+            // Check if this is a team ID
+            const team = state.teams.find(t => t.id === id);
+            if (team) {
+              // If a team was involved, we need to find which player from that team played
               team.playerIds.forEach(playerId => {
-                // Check if this player was directly in participants or was the winner
-                if (result.participantIds.includes(playerId) || playerId === result.winnerId) {
-                  recentlyUsedPlayerIds.push(playerId);
+                if (result.winnerId === playerId || result.participantIds.includes(playerId)) {
+                  const player = state.players.find(p => p.id === playerId);
+                  if (player) participantPlayers.push(player);
                 }
               });
-              
-              challengesChecked++;
-            }
-          }
-          
-          // Prioritize players who haven't been recently used
-          const unusedPlayers = team.playerIds.filter(id => !recentlyUsedPlayerIds.includes(id));
-          
-          // If we have players who haven't been recently used, prefer them
-          let selectedPlayerId: string;
-          
-          if (unusedPlayers.length > 0) {
-            // Select randomly from unused players
-            const randomIndex = Math.floor(Math.random() * unusedPlayers.length);
-            selectedPlayerId = unusedPlayers[randomIndex];
-            console.log(`Selected unused player ${selectedPlayerId} from team ${team.name}`);
-          } else {
-            // If all players have been used recently, select the least recently used one
-            // (first occurrence in recentlyUsedPlayerIds from end = least recently used)
-            const uniqueRecentlyUsed = [...new Set(recentlyUsedPlayerIds)];
-            
-            // If we have a record of recently used players, use the least recent one
-            if (uniqueRecentlyUsed.length > 0) {
-              // Get the least recently used player (last in the unique list)
-              selectedPlayerId = uniqueRecentlyUsed[uniqueRecentlyUsed.length - 1];
-              console.log(`Selected least recently used player ${selectedPlayerId} from team ${team.name}`);
             } else {
-              // If no record of recently used players, just select randomly
-              const randomIndex = Math.floor(Math.random() * team.playerIds.length);
-              selectedPlayerId = team.playerIds[randomIndex];
-              console.log(`Randomly selected player ${selectedPlayerId} from team ${team.name} (no history)`);
+              // This might be a direct player ID
+              const player = state.players.find(p => p.id === id);
+              if (player) participantPlayers.push(player);
+            }
+          });
+          
+          // If we found players, create a unique pair ID and save it
+          if (participantPlayers.length >= 2) {
+            // Sort player IDs to ensure consistent pair representation regardless of order
+            const pairIds = participantPlayers.map(p => p.id).sort();
+            const pairKey = pairIds.join('_vs_');
+            
+            // Add to general history
+            playerPairHistory.add(pairKey);
+            
+            // Also track specifically for this challenge ID
+            if (result.challengeId === currentChallengeId) {
+              playerPairHistoryForChallenge.add(pairKey);
             }
           }
-          
-          // Find the player object
-          const player = state.players.find(p => p.id === selectedPlayerId);
+        }
+      });
+      
+      console.log(`Challenge ${currentChallengeId} (${state.currentChallenge?.title}) - canReuse: ${state.currentChallenge?.canReuse}`);
+      console.log("Player selection counts for all one-on-one challenges:", playerSelectionCounts);
+      console.log(`Player selection counts for challenge ${currentChallengeId}:`, 
+        playerSelectionsPerChallenge[currentChallengeId] || {});
+      console.log("General player pair history:", Array.from(playerPairHistory));
+      console.log(`Player pair history for challenge ${currentChallengeId}:`, 
+        Array.from(playerPairHistoryForChallenge));
+      
+      // Now we'll select players from each team
+      const selectedPlayerIds: Set<string> = new Set();
+      
+      // Process each team to select a player
+      for (const teamId of teamIds) {
+        const team = state.teams.find(t => t.id === teamId);
+        if (!team || team.playerIds.length === 0) continue;
+        
+        // If there's only one player in the team, we must use them
+        if (team.playerIds.length === 1) {
+          const player = state.players.find(p => p.id === team.playerIds[0]);
           if (player && !selectedPlayerIds.has(player.id)) {
-            console.log(`Selected player ${player.name} from team ${team.name} for one-on-one challenge`);
-            players.push(player);
+            selectedPlayers.push(player);
             selectedPlayerIds.add(player.id);
           }
+          continue;
         }
-      });
+        
+        // Get all eligible players from this team
+        const eligiblePlayers = team.playerIds
+          .map(id => state.players.find(p => p.id === id))
+          .filter((p): p is Player => p !== undefined && !selectedPlayerIds.has(p.id));
+        
+        if (eligiblePlayers.length === 0) continue;
+        
+        // If we already have some selected players, try to avoid previously matched pairs
+        let bestCandidates = eligiblePlayers;
+        
+        if (selectedPlayers.length > 0) {
+          // First prioritize candidates who haven't played against our existing selections
+          // specifically for this challenge (most important for reused challenges)
+          if (state.currentChallenge?.canReuse) {
+            const unseenCandidatesForChallenge = eligiblePlayers.filter(candidate => {
+              return !selectedPlayers.some(selectedPlayer => {
+                const pairKey = [candidate.id, selectedPlayer.id].sort().join('_vs_');
+                return playerPairHistoryForChallenge.has(pairKey);
+              });
+            });
+            
+            if (unseenCandidatesForChallenge.length > 0) {
+              bestCandidates = unseenCandidatesForChallenge;
+              console.log(`Found ${unseenCandidatesForChallenge.length} players who haven't faced the selected players in this specific challenge before`);
+            }
+          } 
+          // For non-reusable challenges or if we couldn't find any unseen candidates for this challenge,
+          // try to find players who haven't faced each other in any challenge
+          else {
+            const unseenCandidates = eligiblePlayers.filter(candidate => {
+              return !selectedPlayers.some(selectedPlayer => {
+                const pairKey = [candidate.id, selectedPlayer.id].sort().join('_vs_');
+                return playerPairHistory.has(pairKey);
+              });
+            });
+            
+            if (unseenCandidates.length > 0) {
+              bestCandidates = unseenCandidates;
+              console.log(`Found ${unseenCandidates.length} players who haven't faced the selected players in any challenge before`);
+            }
+          }
+        }
+        
+        // Now prioritize by selection counts, based on whether the challenge is reusable
+        if (state.currentChallenge?.canReuse) {
+          // For reusable challenges, prioritize players who have been used less often
+          // for THIS SPECIFIC CHALLENGE
+          bestCandidates.sort((a, b) => {
+            const aCount = playerSelectionsPerChallenge[currentChallengeId]?.[a.id] || 0;
+            const bCount = playerSelectionsPerChallenge[currentChallengeId]?.[b.id] || 0;
+            return aCount - bCount;
+          });
+        } else {
+          // For non-reusable challenges, just sort by overall selection count
+          bestCandidates.sort((a, b) => 
+            (playerSelectionCounts[a.id] || 0) - (playerSelectionCounts[b.id] || 0)
+          );
+        }
+        
+        // To add some randomness while still favoring less-used players, 
+        // we'll select randomly from the N least used players
+        const selectionPoolSize = Math.min(Math.max(2, Math.ceil(bestCandidates.length / 2)), bestCandidates.length);
+        const selectionPool = bestCandidates.slice(0, selectionPoolSize);
+        
+        // Random selection from the pool
+        const randomIndex = Math.floor(Math.random() * selectionPool.length);
+        const selectedPlayer = selectionPool[randomIndex];
+        
+        if (state.currentChallenge?.canReuse) {
+          console.log(`Selected player ${selectedPlayer.name} from team ${team.name} ` + 
+            `(overall count: ${playerSelectionCounts[selectedPlayer.id] || 0}, ` +
+            `count for this challenge: ${playerSelectionsPerChallenge[currentChallengeId]?.[selectedPlayer.id] || 0})`);
+        } else {
+          console.log(`Selected player ${selectedPlayer.name} from team ${team.name} ` +
+            `(overall count: ${playerSelectionCounts[selectedPlayer.id] || 0})`);
+        }
+        
+        selectedPlayers.push(selectedPlayer);
+        selectedPlayerIds.add(selectedPlayer.id);
+      }
     } else {
-      // For individual mode, use the player IDs directly
-      const playerIds = state.currentChallengeParticipants;
-      playerIds.forEach(id => {
-        const player = state.players.find(p => p.id === id);
-        if (player) {
-          players.push(player);
+      // For individual mode, select players directly from the participants
+      // We'll still try to ensure diversity in matchups
+      
+      // Create maps to track selection counts
+      const playerSelectionCounts: Record<string, number> = {};
+      const playerSelectionsPerChallenge: Record<string, Record<string, number>> = {};
+      
+      // Initialize all players with a count of 0
+      state.players.forEach(player => {
+        playerSelectionCounts[player.id] = 0;
+        
+        // Initialize player counts for this challenge if needed
+        if (!playerSelectionsPerChallenge[currentChallengeId]) {
+          playerSelectionsPerChallenge[currentChallengeId] = {};
+        }
+        playerSelectionsPerChallenge[currentChallengeId][player.id] = 0;
+      });
+      
+      // Count how many times each player has participated
+      state.results.forEach(result => {
+        const challenge = state.challenges.find(c => c.id === result.challengeId);
+        if (challenge?.type === ChallengeType.ONE_ON_ONE && result.participantIds) {
+          result.participantIds.forEach(id => {
+            if (playerSelectionCounts[id] !== undefined) {
+              // Track overall count
+              playerSelectionCounts[id]++;
+              
+              // Track per-challenge count
+              if (result.challengeId === currentChallengeId) {
+                if (!playerSelectionsPerChallenge[currentChallengeId]) {
+                  playerSelectionsPerChallenge[currentChallengeId] = {};
+                }
+                playerSelectionsPerChallenge[currentChallengeId][id] = 
+                  (playerSelectionsPerChallenge[currentChallengeId][id] || 0) + 1;
+              }
+            }
+          });
         }
       });
+      
+      // Get the direct participant IDs
+      const playerIds = state.currentChallengeParticipants;
+      
+      // Convert to player objects
+      const availablePlayers = playerIds
+        .map(id => state.players.find(p => p.id === id))
+        .filter((p): p is Player => p !== undefined);
+      
+      if (availablePlayers.length > 0) {
+        // Sort by the appropriate selection count
+        if (state.currentChallenge?.canReuse) {
+          // For reusable challenges, prefer players who have been used less for this specific challenge
+          availablePlayers.sort((a, b) => {
+            const aCount = playerSelectionsPerChallenge[currentChallengeId]?.[a.id] || 0;
+            const bCount = playerSelectionsPerChallenge[currentChallengeId]?.[b.id] || 0;
+            return aCount - bCount;
+          });
+        } else {
+          // For non-reusable challenges, sort by overall selection count
+          availablePlayers.sort((a, b) => 
+            (playerSelectionCounts[a.id] || 0) - (playerSelectionCounts[b.id] || 0)
+          );
+        }
+        
+        selectedPlayers = availablePlayers;
+        
+        // Log the selected players
+        selectedPlayers.forEach(player => {
+          if (state.currentChallenge?.canReuse) {
+            console.log(`Selected player ${player.name} for individual one-on-one ` +
+              `(overall count: ${playerSelectionCounts[player.id] || 0}, ` +
+              `count for this challenge: ${playerSelectionsPerChallenge[currentChallengeId]?.[player.id] || 0})`);
+          } else {
+            console.log(`Selected player ${player.name} for individual one-on-one ` +
+              `(overall count: ${playerSelectionCounts[player.id] || 0})`);
+          }
+        });
+      }
     }
     
-    // Log the selected players for debugging
-    console.log(`Selected ${players.length} players for one-on-one challenge:`, 
-      players.map(p => p.name).join(', '));
+    // Log the final selection
+    console.log(`Selected ${selectedPlayers.length} players for one-on-one challenge:`, 
+      selectedPlayers.map(p => p.name).join(', '));
     
-    return players;
+    return selectedPlayers;
   };
   
   // Get selected player for individual reveals

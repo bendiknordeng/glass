@@ -5,13 +5,15 @@ import {
   Challenge, 
   ChallengeType, 
   PrebuiltChallengeType,
-  SpotifyMusicQuizSettings 
+  SpotifyMusicQuizSettings,
+  Punishment
 } from '@/types/Challenge';
 import { useGame } from '@/contexts/GameContext';
 import spotifyService, { SpotifyPlaylist, SpotifyUser } from '@/services/SpotifyService';
 import Button from '@/components/common/Button';
 import Modal from '@/components/common/Modal';
-import { MusicalNoteIcon, PlayCircleIcon, PlusIcon, MinusIcon, MagnifyingGlassIcon } from '@heroicons/react/24/solid';
+import Switch from '@/components/common/Switch';
+import { MusicalNoteIcon, PlayCircleIcon, PlusIcon, MinusIcon, MagnifyingGlassIcon, CheckIcon, XMarkIcon } from '@heroicons/react/24/solid';
 
 interface SpotifyMusicQuizFormProps {
   isOpen: boolean;
@@ -52,10 +54,17 @@ const SpotifyMusicQuizForm: React.FC<SpotifyMusicQuizFormProps> = ({
   const [playDurationSeconds, setPlayDurationSeconds] = useState(10);
   const [type, setType] = useState<ChallengeType>(ChallengeType.ALL_VS_ALL);
   const [points, setPoints] = useState(3);
+  const [canReuse, setCanReuse] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [isValidatingPlaylist, setIsValidatingPlaylist] = useState(false);
   const [isExtractingPlaylistDetails, setIsExtractingPlaylistDetails] = useState(false);
+  
+  // Punishment state
+  const [hasPunishment, setHasPunishment] = useState(false);
+  const [punishmentType, setPunishmentType] = useState<'sips' | 'custom'>('sips');
+  const [punishmentValue, setPunishmentValue] = useState(1);
+  const [customPunishmentDescription, setCustomPunishmentDescription] = useState('');
   
   // Load values from editChallenge if provided
   useEffect(() => {
@@ -69,6 +78,17 @@ const SpotifyMusicQuizForm: React.FC<SpotifyMusicQuizFormProps> = ({
       setPlayDurationSeconds(settings.playDurationSeconds || 10);
       setType(editChallenge.type || ChallengeType.ALL_VS_ALL);
       setPoints(editChallenge.points || 3);
+      setCanReuse(editChallenge.canReuse !== undefined ? editChallenge.canReuse : true);
+      
+      // Set punishment values if available
+      if (editChallenge.punishment) {
+        setHasPunishment(true);
+        setPunishmentType(editChallenge.punishment.type);
+        setPunishmentValue(editChallenge.punishment.value);
+        if (editChallenge.punishment.customDescription) {
+          setCustomPunishmentDescription(editChallenge.punishment.customDescription);
+        }
+      }
       
       // Try to extract playlist ID from URL
       if (settings.playlistUrl) {
@@ -257,7 +277,23 @@ const SpotifyMusicQuizForm: React.FC<SpotifyMusicQuizFormProps> = ({
     return Object.keys(errors).length === 0;
   };
   
-  // Event handlers
+  // Create punishment object if enabled
+  const getPunishment = (): Punishment | undefined => {
+    if (!hasPunishment) return undefined;
+    
+    const punishment: Punishment = {
+      type: punishmentType,
+      value: punishmentValue
+    };
+    
+    if (punishmentType === 'custom' && customPunishmentDescription) {
+      punishment.customDescription = customPunishmentDescription;
+    }
+    
+    return punishment;
+  };
+  
+  // Handle submission
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -297,6 +333,8 @@ const SpotifyMusicQuizForm: React.FC<SpotifyMusicQuizFormProps> = ({
           description: t('prebuilt.spotifyMusicQuiz.description', { numberOfSongs, playDurationSeconds }),
           type,
           points,
+          canReuse,
+          punishment: getPunishment(),
           prebuiltSettings: challengeSettings
         };
         
@@ -309,8 +347,9 @@ const SpotifyMusicQuizForm: React.FC<SpotifyMusicQuizFormProps> = ({
           title: challengeTitle,
           description: t('prebuilt.spotifyMusicQuiz.description', { numberOfSongs, playDurationSeconds }),
           type,
-          canReuse: true,
+          canReuse,
           points,
+          punishment: getPunishment(),
           category: 'Music',
           isPrebuilt: true,
           prebuiltType: PrebuiltChallengeType.SPOTIFY_MUSIC_QUIZ,
@@ -344,10 +383,15 @@ const SpotifyMusicQuizForm: React.FC<SpotifyMusicQuizFormProps> = ({
     setPlayDurationSeconds(10);
     setType(ChallengeType.ALL_VS_ALL);
     setPoints(3);
+    setCanReuse(true);
     setFormErrors({});
     setActiveTab('url');
     setSelectedPlaylist(null);
     setPlaylistSearchQuery('');
+    setHasPunishment(false);
+    setPunishmentType('sips');
+    setPunishmentValue(1);
+    setCustomPunishmentDescription('');
   };
   
   const handleClose = () => {
@@ -793,6 +837,145 @@ const SpotifyMusicQuizForm: React.FC<SpotifyMusicQuizFormProps> = ({
               <PlusIcon className="h-5 w-5" />
             </button>
           </div>
+        </div>
+        
+        {/* Can Reuse challenge - Using common Switch component with custom icons */}
+        <div className="flex items-center">
+          <Switch
+            checked={canReuse}
+            onChange={() => setCanReuse(!canReuse)}
+            ariaLabel={t('challenges.canReuse')}
+            activeIcon={<CheckIcon className="h-4 w-4 text-green-500" />}
+            inactiveIcon={<XMarkIcon className="h-4 w-4 text-red-500" />}
+          />
+          <label className="ml-3 text-sm text-gray-700 dark:text-gray-300">
+            {t('challenges.canReuse')}
+          </label>
+        </div>
+        
+        {/* Punishment options */}
+        <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
+          {/* Include Punishment - Using common Switch component with custom icons */}
+          <div className="flex items-center mb-4">
+            <Switch
+              checked={hasPunishment}
+              onChange={() => setHasPunishment(!hasPunishment)}
+              ariaLabel={t('challenges.includePunishment')}
+              activeIcon={<CheckIcon className="h-4 w-4 text-green-500" />}
+              inactiveIcon={<XMarkIcon className="h-4 w-4 text-red-500" />}
+            />
+            <label className="ml-3 text-sm font-medium text-gray-700 dark:text-gray-300">
+              {t('challenges.includePunishment')}
+            </label>
+          </div>
+          
+          {/* Animated punishment section */}
+          <AnimatePresence>
+            {hasPunishment && (
+              <motion.div
+                initial={{ opacity: 0, y: -20, height: 0 }}
+                animate={{ opacity: 1, y: 0, height: 'auto' }}
+                exit={{ opacity: 0, y: -20, height: 0 }}
+                transition={{ duration: 0.3 }}
+                className="bg-gray-50 dark:bg-gray-800 rounded-md p-4 space-y-4 overflow-hidden"
+              >
+                {/* Punishment Type */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    {t('challenges.punishmentType')}
+                  </label>
+                  <div className="flex space-x-4">
+                    <button
+                      type="button"
+                      onClick={() => setPunishmentType('sips')}
+                      className={`
+                        flex-1 px-4 py-2 rounded-md text-sm font-medium transition-colors
+                        ${punishmentType === 'sips' 
+                          ? 'bg-red-400 text-white' 
+                          : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-red-100 dark:hover:bg-red-900/30'}
+                      `}
+                    >
+                      {t('challenges.sips')}
+                    </button>
+                    
+                    <button
+                      type="button"
+                      onClick={() => setPunishmentType('custom')}
+                      className={`
+                        flex-1 px-4 py-2 rounded-md text-sm font-medium transition-colors
+                        ${punishmentType === 'custom' 
+                          ? 'bg-purple-400 text-white' 
+                          : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-purple-100 dark:hover:bg-purple-900/30'}
+                      `}
+                    >
+                      {t('challenges.custom')}
+                    </button>
+                  </div>
+                </div>
+                
+                {/* Animated punishment content based on type */}
+                <AnimatePresence mode="wait">
+                  {punishmentType === 'sips' ? (
+                    <motion.div
+                      key="sips"
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: 20 }}
+                      transition={{ duration: 0.2 }}
+                    >
+                      <label htmlFor="punishment-value" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        {t('challenges.numberOfSips')} <span className="text-sm font-normal text-gray-500 dark:text-gray-400">(1-10)</span>
+                      </label>
+                      <div className="max-w-xs">
+                        <div className="flex items-center space-x-2">
+                          <button
+                            type="button"
+                            onClick={() => setPunishmentValue(Math.max(1, punishmentValue - 1))}
+                            className="p-2 rounded-md bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300"
+                            disabled={punishmentValue <= 1 || isSubmitting}
+                          >
+                            <MinusIcon className="h-5 w-5" />
+                          </button>
+                          <div className="w-16 text-center font-medium text-gray-900 dark:text-white">
+                            {punishmentValue}
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setPunishmentValue(Math.min(10, punishmentValue + 1))}
+                            className="p-2 rounded-md bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300"
+                            disabled={punishmentValue >= 10 || isSubmitting}
+                          >
+                            <PlusIcon className="h-5 w-5" />
+                          </button>
+                        </div>
+                      </div>
+                    </motion.div>
+                  ) : (
+                    <motion.div
+                      key="custom"
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: 20 }}
+                      transition={{ duration: 0.2 }}
+                    >
+                      <label htmlFor="custom-punishment" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        {t('challenges.customPunishment')}
+                      </label>
+                      <textarea
+                        id="custom-punishment"
+                        value={customPunishmentDescription}
+                        onChange={(e) => setCustomPunishmentDescription(e.target.value)}
+                        className="w-full rounded-md border-gray-300 dark:border-gray-700 shadow-sm focus:border-game-primary focus:ring focus:ring-game-primary focus:ring-opacity-50 dark:bg-gray-700 dark:text-white"
+                        placeholder={t('challenges.customPunishmentPlaceholder')}
+                        rows={2}
+                        required={punishmentType === 'custom'}
+                      />
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
         
         {/* Submit Buttons */}
