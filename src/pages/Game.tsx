@@ -131,12 +131,12 @@ const Game: React.FC = () => {
       // For team mode, find a player from each team
       const teamIds = state.currentChallengeParticipants;
       
-      teamIds.forEach((teamId, index) => {
+      teamIds.forEach((teamId) => {
         const team = state.teams.find(t => t.id === teamId);
         if (team && team.playerIds.length > 0) {
-          // Deterministically select a player from each team based on round
-          const playerIndex = (state.currentRound + index) % team.playerIds.length;
-          const playerId = team.playerIds[playerIndex];
+          // Randomly select a player from the team
+          const randomIndex = Math.floor(Math.random() * team.playerIds.length);
+          const playerId = team.playerIds[randomIndex];
           const player = state.players.find(p => p.id === playerId);
           if (player) {
             players.push(player);

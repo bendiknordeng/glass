@@ -1,10 +1,12 @@
 import React from 'react';
 import { Challenge, PrebuiltChallengeType } from '@/types/Challenge';
 import SpotifyMusicQuizPlayer from './SpotifyMusicQuizPlayer';
+import { Player } from '@/types/Player';
 
 interface PrebuiltChallengePlayerProps {
   challenge: Challenge;
   onComplete: (completed: boolean, winnerId?: string) => void;
+  selectedParticipantPlayers?: Player[]; // Add selected players for one-on-one challenges
 }
 
 /**
@@ -13,7 +15,8 @@ interface PrebuiltChallengePlayerProps {
  */
 const PrebuiltChallengePlayer: React.FC<PrebuiltChallengePlayerProps> = ({
   challenge,
-  onComplete
+  onComplete,
+  selectedParticipantPlayers
 }) => {
   // Check if this is a prebuilt challenge
   if (!challenge.isPrebuilt || !challenge.prebuiltType) {
@@ -28,6 +31,7 @@ const PrebuiltChallengePlayer: React.FC<PrebuiltChallengePlayerProps> = ({
         <SpotifyMusicQuizPlayer
           challenge={challenge}
           onComplete={onComplete}
+          selectedParticipantPlayers={selectedParticipantPlayers}
         />
       );
     default:

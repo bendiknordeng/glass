@@ -30,11 +30,13 @@ import {
 interface SpotifyMusicQuizPlayerProps {
   challenge: Challenge;
   onComplete: (completed: boolean, winnerId?: string) => void;
+  selectedParticipantPlayers?: Player[];
 }
 
 const SpotifyMusicQuizPlayer: React.FC<SpotifyMusicQuizPlayerProps> = ({
   challenge,
-  onComplete
+  onComplete,
+  selectedParticipantPlayers
 }) => {
   const { t } = useTranslation();
   const { state, dispatch } = useGame();
@@ -776,6 +778,15 @@ const SpotifyMusicQuizPlayer: React.FC<SpotifyMusicQuizPlayerProps> = ({
   
   // Get lists of players/teams for winner selection
   const getPlayerOptions = () => {
+    // For ONE_ON_ONE challenges, if we have the selected participant players, use those
+    if (challenge.type === ChallengeType.ONE_ON_ONE && selectedParticipantPlayers && selectedParticipantPlayers.length > 0) {
+      return selectedParticipantPlayers.map(player => ({
+        id: player.id,
+        name: player.name,
+        teamId: player.teamId
+      }));
+    }
+    
     return state.players.map(player => ({
       id: player.id,
       name: player.name,
@@ -1074,8 +1085,24 @@ const SpotifyMusicQuizPlayer: React.FC<SpotifyMusicQuizPlayerProps> = ({
               ) : challenge.type === ChallengeType.ONE_ON_ONE ? (
                 // For one-on-one (head to head), show all participants involved
                 <div className="flex flex-wrap justify-center gap-3 mb-4">
-                  {/* Filter to show only the players who are part of this challenge */}
-                  {state.currentChallengeParticipants && state.currentChallengeParticipants.length > 0 ? (
+                  {/* Use the provided selectedParticipantPlayers if available */}
+                  {selectedParticipantPlayers && selectedParticipantPlayers.length > 0 ? (
+                    // Use the selected players that were passed down
+                    selectedParticipantPlayers.map(player => (
+                      <div 
+                        key={player.id}
+                        onClick={() => handleSelectWinner(player.id)}
+                        className={`cursor-pointer border-2 ${selectedWinnerId === player.id ? 'border-pastel-green' : 'border-transparent'} rounded-lg`}
+                      >
+                        <PlayerCard
+                          player={player}
+                          size="sm"
+                          showScore={false}
+                          isSelected={selectedWinnerId === player.id}
+                        />
+                      </div>
+                    ))
+                  ) : state.currentChallengeParticipants && state.currentChallengeParticipants.length > 0 ? (
                     // If we have specific participants for this challenge
                     state.players
                       .filter(player => 

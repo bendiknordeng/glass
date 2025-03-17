@@ -280,6 +280,7 @@ const ChallengeDisplay: React.FC<ChallengeDisplayProps> = ({
         <PrebuiltChallengePlayer 
           challenge={challenge}
           onComplete={onComplete}
+          selectedParticipantPlayers={selectedParticipantPlayers}
         />
       );
     }
