@@ -778,37 +778,37 @@ const Game: React.FC = () => {
   return (
     <div>
       <div className="max-w-6xl mx-auto">
-        {/* Header */}
-        <div className="flex justify-between items-center mb-6">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-800 dark:text-white">
-              {t('app.name')}
-            </h1>
-            <div className="flex flex-col gap-1">
-              <p className="text-gray-600 dark:text-gray-400">
-                {t('game.round', { round: state.currentRound })}
-              </p>
-              
-              {/* Game Progress Status */}
-              {state.gameDuration.type === 'time' ? (
-                <p className="text-game-primary font-medium">
-                  {timeRemaining !== null && formatTime(timeRemaining)}
-                </p>
-              ) : (
-                <p className="text-game-primary font-medium">
-                  {t('game.challengeProgress', {
-                    current: state.results.length + 1,
-                    total: state.gameDuration.value
-                  })}
-                </p>
-              )}
-            </div>
-          </div>
-        </div>
+        {/* Header section removed from here */}
         
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Left sidebar (scoreboard) */}
           <div className="lg:col-span-1">
+            {/* Game header info moved into the scoreboard section */}
+            <div className="mb-4">
+              <h1 className="text-2xl font-bold text-gray-800 dark:text-white">
+                {t('app.name')}
+              </h1>
+              <div className="flex flex-col gap-1">
+                <p className="text-gray-600 dark:text-gray-400">
+                  {t('game.round', { round: state.currentRound })}
+                </p>
+                
+                {/* Game Progress Status */}
+                {state.gameDuration.type === 'time' ? (
+                  <p className="text-game-primary font-medium">
+                    {timeRemaining !== null && formatTime(timeRemaining)}
+                  </p>
+                ) : (
+                  <p className="text-game-primary font-medium">
+                    {t('game.challengeProgress', {
+                      current: state.results.length + 1,
+                      total: state.gameDuration.value
+                    })}
+                  </p>
+                )}
+              </div>
+            </div>
+            
             <ScoreBoard
               players={state.players}
               teams={state.teams}

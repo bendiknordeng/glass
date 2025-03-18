@@ -148,7 +148,9 @@ const TeamCreation = forwardRef<TeamCreationRef, {}>((props, ref) => {
         newNames.push('');
       }
       // Trim excess names if reducing team count
-      return newNames.slice(0, numTeams);
+      // Make sure there are no undefined values in the array
+      const finalNames = newNames.slice(0, numTeams).map(name => name || '');
+      return finalNames;
     });
   }, [numTeams]);
 
@@ -205,6 +207,12 @@ const TeamCreation = forwardRef<TeamCreationRef, {}>((props, ref) => {
   const handleTeamNameChange = (index: number, name: string): void => {
     setTeamNames(prevNames => {
       const newNames = [...prevNames];
+      // Make sure we fill any gaps with empty strings
+      for (let i = 0; i <= index; i++) {
+        if (newNames[i] === undefined) {
+          newNames[i] = '';
+        }
+      }
       newNames[index] = name;
       return newNames;
     });
@@ -473,7 +481,7 @@ const TeamCreation = forwardRef<TeamCreationRef, {}>((props, ref) => {
                   <div key={index} className="flex items-center gap-2">
                     <input
                       type="text"
-                      value={teamNames[index]}
+                      value={teamNames[index] || ''}
                       onChange={(e) => handleTeamNameChange(index, e.target.value)}
                       placeholder={`Team ${index + 1}`}
                       className="w-full px-3 py-2 border rounded-md text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-game-primary"

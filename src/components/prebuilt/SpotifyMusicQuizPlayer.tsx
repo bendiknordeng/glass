@@ -896,112 +896,6 @@ const SpotifyMusicQuizPlayer: React.FC<SpotifyMusicQuizPlayerProps> = ({
         </div>
       )}
       
-      {/* Display current players/teams */}
-      <div className="w-full mb-6">
-        <div className="flex items-center justify-center mb-3">
-          <div className="px-4 py-1 rounded-full bg-gray-100 dark:bg-gray-800 text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center">
-            {state.gameMode === GameMode.TEAMS ? (
-              <UserGroupIcon className="h-4 w-4 mr-2" />
-            ) : (
-              <UserIcon className="h-4 w-4 mr-2" />
-            )}
-            {t('prebuilt.spotifyMusicQuiz.currentParticipants')}
-          </div>
-        </div>
-        
-        {state.gameMode === GameMode.TEAMS ? (
-          <div className="flex flex-wrap justify-center gap-3 mb-2">
-            {getTeamOptions().map(team => (
-              <div key={team.id} className="border-2 border-transparent rounded-lg">
-                <TeamCard
-                  team={{
-                    id: team.id,
-                    name: team.name,
-                    playerIds: team.players.map(p => p.id),
-                    score: 0,
-                    color: 'pastel-blue'
-                  }}
-                  players={team.players}
-                  size="sm"
-                  showScore={false}
-                />
-              </div>
-            ))}
-          </div>
-        ) : challenge.type === ChallengeType.INDIVIDUAL ? (
-          <div className="flex justify-center mb-2">
-            <div className="border-2 border-transparent rounded-lg">
-              <PlayerCard
-                player={state.players[state.currentTurnIndex]}
-                size="sm"
-                showScore={false}
-              />
-            </div>
-          </div>
-        ) : challenge.type === ChallengeType.ONE_ON_ONE ? (
-          <div className="flex flex-wrap justify-center gap-3 mb-2">
-            {selectedParticipantPlayers && selectedParticipantPlayers.length > 0 ? (
-              selectedParticipantPlayers.map(player => (
-                <div key={player.id} className="border-2 border-transparent rounded-lg">
-                  <PlayerCard
-                    player={player}
-                    size="sm"
-                    showScore={false}
-                  />
-                </div>
-              ))
-            ) : state.currentChallengeParticipants && state.currentChallengeParticipants.length > 0 ? (
-              state.players
-                .filter(player => 
-                  state.currentChallengeParticipants.includes(player.id)
-                )
-                .map(player => (
-                  <div key={player.id} className="border-2 border-transparent rounded-lg">
-                    <PlayerCard
-                      player={player}
-                      size="sm"
-                      showScore={false}
-                    />
-                  </div>
-                ))
-            ) : (
-              state.players.slice(
-                state.currentTurnIndex, 
-                state.currentTurnIndex + 2 > state.players.length 
-                  ? state.players.length 
-                  : state.currentTurnIndex + 2
-              ).map(player => (
-                <div key={player.id} className="border-2 border-transparent rounded-lg">
-                  <PlayerCard
-                    player={player}
-                    size="sm"
-                    showScore={false}
-                  />
-                </div>
-              ))
-            )}
-          </div>
-        ) : (
-          <div className="flex flex-wrap justify-center gap-3 mb-2 max-w-3xl mx-auto">
-            {getPlayerOptions().map(player => (
-              <div key={player.id} className="border-2 border-transparent rounded-lg">
-                <PlayerCard
-                  player={{
-                    id: player.id,
-                    name: player.name,
-                    score: 0,
-                    teamId: player.teamId,
-                    image: player.image || `https://example.com/default-${player.name}.jpg`
-                  }}
-                  size="sm"
-                  showScore={false}
-                />
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-      
       {/* Hidden audio element */}
       <audio ref={audioRef} preload="auto" />
       
@@ -1120,184 +1014,6 @@ const SpotifyMusicQuizPlayer: React.FC<SpotifyMusicQuizPlayerProps> = ({
             <p className="text-lg text-gray-700 dark:text-gray-300 mb-4">
               {currentSong.artist}
             </p>
-            
-            {/* Play button after reveal */}
-            <div className="flex justify-center mb-4">
-              {isPlaying ? (
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  leftIcon={<PauseCircleIcon className="h-5 w-5" />}
-                  onClick={pauseSong}
-                >
-                  {t('prebuilt.spotifyMusicQuiz.pause')}
-                </Button>
-              ) : (
-                <Button
-                  variant="primary"
-                  size="sm"
-                  leftIcon={<PlayCircleIcon className="h-5 w-5" />}
-                  onClick={playSong}
-                >
-                  {t('prebuilt.spotifyMusicQuiz.play')}
-                </Button>
-              )}
-            </div>
-            
-            {/* Player/Team selection for awarding points */}
-            <div>
-              <h4 className="font-medium text-gray-800 dark:text-gray-200 mb-2 flex items-center justify-center">
-                <TrophyIcon className="w-4 h-4 mr-1" />
-                {t('prebuilt.spotifyMusicQuiz.awardPointsTo')}
-              </h4>
-              
-              {state.gameMode === GameMode.TEAMS ? (
-                <div className="flex flex-wrap justify-center gap-3 mb-4">
-                  {getTeamOptions().map(team => (
-                    <div 
-                      key={team.id}
-                      onClick={() => handleSelectWinner(team.id)}
-                      className={`cursor-pointer border-2 ${selectedWinnerId === team.id ? 'border-pastel-green' : 'border-transparent'} rounded-lg`}
-                    >
-                      <TeamCard
-                        team={{
-                          id: team.id,
-                          name: team.name,
-                          playerIds: team.players.map(p => p.id),
-                          score: 0,
-                          color: 'pastel-blue'
-                        }}
-                        players={team.players}
-                        size="sm"
-                        showScore={false}
-                        isSelected={selectedWinnerId === team.id}
-                      />
-                    </div>
-                  ))}
-                </div>
-              ) : challenge.type === ChallengeType.INDIVIDUAL ? (
-                // For individual challenges, show correct/incorrect option
-                <div className="flex justify-center gap-4 mb-4">
-                  <Button
-                    variant="success"
-                    onClick={() => handleSelectWinner(state.players[state.currentTurnIndex]?.id || '')}
-                    className={`px-6 py-2 ${selectedWinnerId ? 'bg-pastel-green text-white' : ''}`}
-                  >
-                    <span className="flex items-center">
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
-                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                      </svg>
-                      {t('prebuilt.spotifyMusicQuiz.correct', 'Correct')}
-                    </span>
-                  </Button>
-                  <Button
-                    variant="danger"
-                    onClick={() => setSelectedWinnerId(null)}
-                    className={`px-6 py-2 ${selectedWinnerId === null ? 'bg-red-500 text-white' : ''}`}
-                  >
-                    <span className="flex items-center">
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
-                        <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-                      </svg>
-                      {t('prebuilt.spotifyMusicQuiz.incorrect', 'Incorrect')}
-                    </span>
-                  </Button>
-                </div>
-              ) : challenge.type === ChallengeType.ONE_ON_ONE ? (
-                // For one-on-one (head to head), show all participants involved
-                <div className="flex flex-wrap justify-center gap-3 mb-4">
-                  {/* Use the provided selectedParticipantPlayers if available */}
-                  {selectedParticipantPlayers && selectedParticipantPlayers.length > 0 ? (
-                    // Use the selected players that were passed down
-                    selectedParticipantPlayers.map(player => (
-                      <div 
-                        key={player.id}
-                        onClick={() => handleSelectWinner(player.id)}
-                        className={`cursor-pointer border-2 ${selectedWinnerId === player.id ? 'border-pastel-green' : 'border-transparent'} rounded-lg`}
-                      >
-                        <PlayerCard
-                          player={player}
-                          size="sm"
-                          showScore={false}
-                          isSelected={selectedWinnerId === player.id}
-                        />
-                      </div>
-                    ))
-                  ) : state.currentChallengeParticipants && state.currentChallengeParticipants.length > 0 ? (
-                    // If we have specific participants for this challenge
-                    state.players
-                      .filter(player => 
-                        state.currentChallengeParticipants.includes(player.id)
-                      )
-                      .map(player => (
-                        <div 
-                          key={player.id}
-                          onClick={() => handleSelectWinner(player.id)}
-                          className={`cursor-pointer border-2 ${selectedWinnerId === player.id ? 'border-pastel-green' : 'border-transparent'} rounded-lg`}
-                        >
-                          <PlayerCard
-                            player={player}
-                            size="sm"
-                            showScore={false}
-                            isSelected={selectedWinnerId === player.id}
-                          />
-                        </div>
-                      ))
-                  ) : (
-                    // Fallback to showing current player and next player
-                    state.players.slice(
-                      state.currentTurnIndex, 
-                      state.currentTurnIndex + 2 > state.players.length 
-                        ? state.players.length 
-                        : state.currentTurnIndex + 2
-                    ).map(player => (
-                      <div 
-                        key={player.id}
-                        onClick={() => handleSelectWinner(player.id)}
-                        className={`cursor-pointer border-2 ${selectedWinnerId === player.id ? 'border-pastel-green' : 'border-transparent'} rounded-lg`}
-                      >
-                        <PlayerCard
-                          player={player}
-                          size="sm"
-                          showScore={false}
-                          isSelected={selectedWinnerId === player.id}
-                        />
-                      </div>
-                    ))
-                  )}
-                </div>
-              ) : (
-                // For all vs all, show all players (existing behavior)
-                <div className="flex flex-wrap justify-center gap-3 mb-4 max-w-3xl">
-                  {getPlayerOptions().map(player => (
-                    <div 
-                      key={player.id}
-                      onClick={() => handleSelectWinner(player.id)}
-                      className={`cursor-pointer border-2 ${selectedWinnerId === player.id ? 'border-pastel-green' : 'border-transparent'} rounded-lg`}
-                    >
-                      <PlayerCard
-                        player={{
-                          id: player.id,
-                          name: player.name,
-                          score: 0,
-                          teamId: player.teamId,
-                          image: player.image || `https://example.com/default-${player.name}.jpg`
-                        }}
-                        size="sm"
-                        showScore={false}
-                        isSelected={selectedWinnerId === player.id}
-                      />
-                    </div>
-                  ))}
-                </div>
-              )}
-              
-              {selectedWinnerId && (
-                <p className="text-sm text-pastel-green font-medium mb-3">
-                  {t('prebuilt.spotifyMusicQuiz.pointsAwarded', { points: challenge.points })}
-                </p>
-              )}
-            </div>
           </motion.div>
         )}
       </AnimatePresence>
@@ -1347,24 +1063,222 @@ const SpotifyMusicQuizPlayer: React.FC<SpotifyMusicQuizPlayerProps> = ({
         )}
         
         {isRevealed && (
-          <Button
-            variant={currentSongIndex === songs.length - 1 ? "success" : "primary"}
-            leftIcon={<ForwardIcon className="h-5 w-5" />}
-            onClick={nextSong}
-          >
-            {currentSongIndex === songs.length - 1 
-              ? t('prebuilt.spotifyMusicQuiz.finish') 
-              : t('prebuilt.spotifyMusicQuiz.nextSong')}
-          </Button>
+          <>
+            {isPlaying ? (
+              <Button
+                variant="secondary"
+                leftIcon={<PauseCircleIcon className="h-5 w-5" />}
+                onClick={pauseSong}
+              >
+                {t('prebuilt.spotifyMusicQuiz.pause')}
+              </Button>
+            ) : (
+              <Button
+                variant="primary"
+                leftIcon={<PlayCircleIcon className="h-5 w-5" />}
+                onClick={playSong}
+              >
+                {t('prebuilt.spotifyMusicQuiz.play')}
+              </Button>
+            )}
+            
+            <Button
+              variant={currentSongIndex === songs.length - 1 ? "success" : "primary"}
+              leftIcon={<ForwardIcon className="h-5 w-5" />}
+              onClick={nextSong}
+            >
+              {currentSongIndex === songs.length - 1 
+                ? t('prebuilt.spotifyMusicQuiz.finish') 
+                : t('prebuilt.spotifyMusicQuiz.nextSong')}
+            </Button>
+          </>
         )}
       </div>
       
       {/* Song counter */}
-      <div className="text-center text-sm text-gray-600 dark:text-gray-400">
+      <div className="text-center text-sm text-gray-600 dark:text-gray-400 mb-6">
         {t('prebuilt.spotifyMusicQuiz.songCounter', { 
           current: currentSongIndex + 1, 
           total: songs.length 
         })}
+      </div>
+      
+      {/* Unified player display - used for both viewing and awarding points */}
+      <div className="w-full mt-4 mb-6">
+        {/* Conditional header for award mode */}
+        {isRevealed && (
+          <div className="mb-4 text-center">
+            <h4 className="font-medium text-gray-800 dark:text-gray-200 flex items-center justify-center">
+              <TrophyIcon className="w-4 h-4 mr-1" />
+              {t('prebuilt.spotifyMusicQuiz.awardPointsTo')}
+            </h4>
+          </div>
+        )}
+
+        <div className="flex items-center justify-center mb-3">
+          <div className="px-4 py-1 rounded-full bg-gray-100 dark:bg-gray-800 text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center">
+            {state.gameMode === GameMode.TEAMS ? (
+              <UserGroupIcon className="h-4 w-4 mr-2" />
+            ) : (
+              <UserIcon className="h-4 w-4 mr-2" />
+            )}
+            {t('prebuilt.spotifyMusicQuiz.currentParticipants')}
+          </div>
+        </div>
+        
+        {state.gameMode === GameMode.TEAMS ? (
+          <div className="flex flex-wrap justify-center gap-3 mb-2">
+            {getTeamOptions().map(team => (
+              <div 
+                key={team.id}
+                onClick={isRevealed ? () => handleSelectWinner(team.id) : undefined}
+                className={`${isRevealed ? 'cursor-pointer' : ''} border-2 ${selectedWinnerId === team.id ? 'border-pastel-green' : 'border-transparent'} rounded-lg`}
+              >
+                <TeamCard
+                  team={{
+                    id: team.id,
+                    name: team.name,
+                    playerIds: team.players.map(p => p.id),
+                    score: 0,
+                    color: 'pastel-blue'
+                  }}
+                  players={team.players}
+                  size="sm"
+                  showScore={false}
+                  isSelected={selectedWinnerId === team.id}
+                />
+              </div>
+            ))}
+          </div>
+        ) : challenge.type === ChallengeType.INDIVIDUAL ? (
+          isRevealed ? (
+            // For individual challenges in award mode, show correct/incorrect buttons
+            <div className="flex justify-center gap-4 mb-4">
+              <Button
+                variant="success"
+                onClick={() => handleSelectWinner(state.players[state.currentTurnIndex]?.id || '')}
+                className={`px-6 py-2 ${selectedWinnerId ? 'bg-pastel-green text-white' : ''}`}
+              >
+                <span className="flex items-center">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                  </svg>
+                  {t('prebuilt.spotifyMusicQuiz.correct', 'Correct')}
+                </span>
+              </Button>
+              <Button
+                variant="danger"
+                onClick={() => setSelectedWinnerId(null)}
+                className={`px-6 py-2 ${selectedWinnerId === null ? 'bg-red-500 text-white' : ''}`}
+              >
+                <span className="flex items-center">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                  </svg>
+                  {t('prebuilt.spotifyMusicQuiz.incorrect', 'Incorrect')}
+                </span>
+              </Button>
+            </div>
+          ) : (
+            // Show current player in view mode
+            <div className="flex justify-center mb-2">
+              <div className="border-2 border-transparent rounded-lg">
+                <PlayerCard
+                  player={state.players[state.currentTurnIndex]}
+                  size="sm"
+                  showScore={false}
+                />
+              </div>
+            </div>
+          )
+        ) : challenge.type === ChallengeType.ONE_ON_ONE ? (
+          <div className="flex flex-wrap justify-center gap-3 mb-2">
+            {selectedParticipantPlayers && selectedParticipantPlayers.length > 0 ? (
+              selectedParticipantPlayers.map(player => (
+                <div 
+                  key={player.id}
+                  onClick={isRevealed ? () => handleSelectWinner(player.id) : undefined}
+                  className={`${isRevealed ? 'cursor-pointer' : ''} border-2 ${selectedWinnerId === player.id ? 'border-pastel-green' : 'border-transparent'} rounded-lg`}
+                >
+                  <PlayerCard
+                    player={player}
+                    size="sm"
+                    showScore={false}
+                    isSelected={selectedWinnerId === player.id}
+                  />
+                </div>
+              ))
+            ) : state.currentChallengeParticipants && state.currentChallengeParticipants.length > 0 ? (
+              state.players
+                .filter(player => 
+                  state.currentChallengeParticipants.includes(player.id)
+                )
+                .map(player => (
+                  <div 
+                    key={player.id}
+                    onClick={isRevealed ? () => handleSelectWinner(player.id) : undefined}
+                    className={`${isRevealed ? 'cursor-pointer' : ''} border-2 ${selectedWinnerId === player.id ? 'border-pastel-green' : 'border-transparent'} rounded-lg`}
+                  >
+                    <PlayerCard
+                      player={player}
+                      size="sm"
+                      showScore={false}
+                      isSelected={selectedWinnerId === player.id}
+                    />
+                  </div>
+                ))
+            ) : (
+              state.players.slice(
+                state.currentTurnIndex, 
+                state.currentTurnIndex + 2 > state.players.length 
+                  ? state.players.length 
+                  : state.currentTurnIndex + 2
+              ).map(player => (
+                <div 
+                  key={player.id}
+                  onClick={isRevealed ? () => handleSelectWinner(player.id) : undefined}
+                  className={`${isRevealed ? 'cursor-pointer' : ''} border-2 ${selectedWinnerId === player.id ? 'border-pastel-green' : 'border-transparent'} rounded-lg`}
+                >
+                  <PlayerCard
+                    player={player}
+                    size="sm"
+                    showScore={false}
+                    isSelected={selectedWinnerId === player.id}
+                  />
+                </div>
+              ))
+            )}
+          </div>
+        ) : (
+          <div className="flex flex-wrap justify-center gap-3 mb-2 max-w-3xl mx-auto">
+            {getPlayerOptions().map(player => (
+              <div 
+                key={player.id}
+                onClick={isRevealed ? () => handleSelectWinner(player.id) : undefined}
+                className={`${isRevealed ? 'cursor-pointer' : ''} border-2 ${selectedWinnerId === player.id ? 'border-pastel-green' : 'border-transparent'} rounded-lg`}
+              >
+                <PlayerCard
+                  player={{
+                    id: player.id,
+                    name: player.name,
+                    score: 0,
+                    teamId: player.teamId,
+                    image: player.image || `https://example.com/default-${player.name}.jpg`
+                  }}
+                  size="sm"
+                  showScore={false}
+                  isSelected={selectedWinnerId === player.id}
+                />
+              </div>
+            ))}
+          </div>
+        )}
+        
+        {isRevealed && selectedWinnerId && (
+          <p className="text-sm text-pastel-green font-medium text-center mt-3">
+            {t('prebuilt.spotifyMusicQuiz.pointsAwarded', { points: challenge.points })}
+          </p>
+        )}
       </div>
     </div>
   );
