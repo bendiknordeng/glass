@@ -386,13 +386,14 @@ const ChallengeDisplay: React.FC<ChallengeDisplayProps> = ({
           {/* Show teams for team challenges */}
           {challenge.type === ChallengeType.TEAM && gameMode === GameMode.TEAMS && (
             <div className="mb-6">
-              <div className="flex flex-wrap justify-center gap-6">
+              <div className="flex flex-wrap justify-center gap-4">
                 {teams.map((team) => (
                   <div key={team.id} className="flex flex-col items-center">
                     <TeamCard 
                       team={team}
                       players={players.filter(p => team.playerIds.includes(p.id))}
-                      size="md"
+                      size="sm"
+                      compact={true}
                       isSelected={selectedWinner === team.id}
                       onClick={() => handleSelectWinner(team.id)}
                     />
@@ -456,6 +457,7 @@ const ChallengeDisplay: React.FC<ChallengeDisplayProps> = ({
                         team={option.team}
                         players={players.filter(p => option.team?.playerIds.includes(p.id) || false)}
                         size="sm"
+                        compact={true}
                         isSelected={selectedWinner === option.id}
                       />
                     </div>

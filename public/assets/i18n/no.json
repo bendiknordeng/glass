@@ -132,7 +132,10 @@
     "customPunishment": "Tid for straff!",
     "allVsAllDescription": "Alle spillere konkurrerer mot hverandre",
     "allVsAllWinnerDescription": "Velg spilleren som presterte best",
-    "playerFromTeam": "Fra {{team}}"
+    "playerFromTeam": "Fra {{team}}",
+    "teamVsTeam": "Lag mot lag",
+    "teamChallenge": "Lagutfordring",
+    "moreMembers": "flere medlemmer"
   },
   "results": {
     "finalResults": "Endelig resultat",

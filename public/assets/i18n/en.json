@@ -131,7 +131,10 @@
     "customPunishment": "Time for the punishment!",
     "allVsAllDescription": "All players compete against each other",
     "allVsAllWinnerDescription": "Select the player who performed best",
-    "playerFromTeam": "From {{team}}"
+    "playerFromTeam": "From {{team}}",
+    "teamVsTeam": "Team vs Team",
+    "teamChallenge": "Team Challenge",
+    "moreMembers": "more members"
   },
   "results": {
     "finalResults": "Final Results",

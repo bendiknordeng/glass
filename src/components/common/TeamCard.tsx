@@ -15,6 +15,7 @@ interface TeamCardProps {
   showScore?: boolean;
   size?: 'sm' | 'md' | 'lg';
   animation?: 'highlight' | 'pulse' | 'bounce' | 'none';
+  compact?: boolean;
 }
 
 const TeamCard: React.FC<TeamCardProps> = ({
@@ -27,14 +28,15 @@ const TeamCard: React.FC<TeamCardProps> = ({
   showPlayers = true,
   showScore = true,
   size = 'md',
-  animation = 'none'
+  animation = 'none',
+  compact = false
 }) => {
   // Filter players that belong to this team
   const teamPlayers = players.filter(player => team.playerIds.includes(player.id));
   
   // Determine card size
   const sizeClasses = {
-    sm: 'p-2 text-sm min-w-32',
+    sm: 'p-2 text-sm min-w-28',
     md: 'p-3 text-base min-w-48',
     lg: 'p-4 text-lg min-w-64'
   };
@@ -98,12 +100,12 @@ const TeamCard: React.FC<TeamCardProps> = ({
       
       {/* Team Players */}
       {showPlayers && teamPlayers.length > 0 && (
-        <div className="flex flex-wrap gap-2 justify-center">
+        <div className="flex flex-wrap gap-1 justify-center">
           {teamPlayers.map(player => (
             <PlayerCard
               key={player.id}
               player={player}
-              size="sm"
+              size="xs"
               showScore={false}
             />
           ))}
@@ -111,9 +113,11 @@ const TeamCard: React.FC<TeamCardProps> = ({
       )}
       
       {/* Player Count */}
-      <div className="text-sm text-gray-700 dark:text-gray-300 mt-2">
-        {teamPlayers.length} player{teamPlayers.length !== 1 ? 's' : ''}
-      </div>
+      {!compact && (
+        <div className="text-sm text-gray-700 dark:text-gray-300 mt-2">
+          {teamPlayers.length} player{teamPlayers.length !== 1 ? 's' : ''}
+        </div>
+      )}
     </motion.div>
   );
 };
