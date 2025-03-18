@@ -44,10 +44,29 @@ const Game: React.FC = () => {
   const [selectedPlayersForReveal, setSelectedPlayersForReveal] = useState<Player[]>([]);
   const [showContentAfterReveal, setShowContentAfterReveal] = useState(false);
   
+  // Add a state to track isNewGameStart (in addition to the ref)
+  const [isFirstChallengeInNewGame, setIsFirstChallengeInNewGame] = useState<boolean>(() => {
+    // Initialize from localStorage on component mount
+    return localStorage.getItem('isNewGameStart') === 'true';
+  });
+  
   // Add refs to prevent update loops
   const animationInProgressRef = useRef(false);
   const gameInitializedRef = useRef(false);
   const participantRetryCount = useRef(0);
+  const isNewGameStartRef = useRef<boolean>(false);
+  
+  // Initialize the new game flag on first render
+  useEffect(() => {
+    // Check localStorage only once on mount
+    const isNewGame = localStorage.getItem('isNewGameStart') === 'true';
+    
+    // Set the ref and state
+    isNewGameStartRef.current = isNewGame;
+    setIsFirstChallengeInNewGame(isNewGame);
+    
+    console.log("Game component mounted, isNewGameStart from localStorage:", isNewGame);
+  }, []);
   
   // Redirect to home if no game started
   useEffect(() => {
@@ -73,13 +92,23 @@ const Game: React.FC = () => {
       // Check if this is a direct continuation from setup
       const isNewGameStart = localStorage.getItem('isNewGameStart') === 'true';
       
+      // Save to both ref and state for redundancy
+      isNewGameStartRef.current = isNewGameStart;
+      setIsFirstChallengeInNewGame(isNewGameStart);
+      
       if (isNewGameStart) {
         console.log("Fresh game from setup detected, will skip player reveal for first challenge only");
         // We'll keep the flag - it will be cleared in startRevealSequence
         
         // For fresh games coming directly from setup, just select the next challenge normally
         // The startRevealSequence function will handle the special first challenge logic
-        selectNextChallenge(); 
+        selectNextChallenge();
+        
+        // Add a small delay to ensure the challenge is selected before starting the reveal
+        setTimeout(() => {
+          console.log("Triggering reveal sequence for first challenge in new game");
+          startRevealSequence();
+        }, 100);
       }
       // For continued games, just select the next challenge with normal reveal flow
       else if (state.results.length > 0) {
@@ -556,14 +585,26 @@ const Game: React.FC = () => {
   const startRevealSequence = () => {
     console.log("Starting reveal sequence", state.currentChallenge?.type);
     
+    // Debug information to help troubleshoot
+    console.log("isNewGameStartRef value:", isNewGameStartRef.current);
+    console.log("isFirstChallengeInNewGame state:", isFirstChallengeInNewGame);
+    console.log("localStorage isNewGameStart value:", localStorage.getItem('isNewGameStart'));
+    
     // Prevent multiple reveal sequences from starting
     if (animationInProgressRef.current) {
       console.log("Animation already in progress, canceling this reveal");
       return;
     }
     
-    // Check if we should skip the player reveal for the first challenge after setup
-    const isNewGameStart = localStorage.getItem('isNewGameStart') === 'true';
+    // Check if this is the first challenge in a new game
+    // Use state, ref, and localStorage to ensure we don't miss the flag
+    const isNewGameStart = Boolean(
+      isFirstChallengeInNewGame || 
+      isNewGameStartRef.current || 
+      localStorage.getItem('isNewGameStart') === 'true'
+    );
+    
+    console.log("isNewGameStart evaluation result:", isNewGameStart);
     
     // Set animation in progress flag
     animationInProgressRef.current = true;
@@ -579,9 +620,17 @@ const Game: React.FC = () => {
     // For the first challenge after setup, skip directly to challenge reveal
     if (isNewGameStart) {
       console.log("First challenge after setup - skipping player reveal");
-      localStorage.removeItem('isNewGameStart'); // Clear the flag immediately
       
+      // Reset our ref and state
+      isNewGameStartRef.current = false;
+      setIsFirstChallengeInNewGame(false);
+      
+      // And clear localStorage (even if it wasn't set, this is harmless)
+      localStorage.removeItem('isNewGameStart');
+      
+      // Go directly to challenge reveal after a short delay
       setTimeout(() => {
+        console.log("Showing challenge reveal for first challenge");
         setIsRevealingChallenge(true);
         setIsTransitioning(false);
       }, 300);
@@ -675,11 +724,27 @@ const Game: React.FC = () => {
   
   // Add event listener for the custom reveal event
   useEffect(() => {
+    // Create a standardized event handler that ensures we don't miss reveals
     const handleStartReveal = () => {
-      startRevealSequence();
+      console.log("Received start-reveal-sequence event");
+      // Add a small delay to ensure state is ready
+      setTimeout(() => {
+        startRevealSequence();
+      }, 50);
     };
 
+    // Listen for both hyphenated and non-hyphenated event names for robustness
     window.addEventListener('start-reveal-sequence', handleStartReveal);
+    window.addEventListener('startRevealSequence', handleStartReveal);
+    
+    // Add direct call for first challenge in case the event isn't firing
+    if (state.currentChallenge && !animationInProgressRef.current && 
+        !isRevealingPlayer && !isRevealingChallenge && !showContentAfterReveal) {
+      console.log("First render with challenge but no animations - triggering reveal");
+      setTimeout(() => {
+        startRevealSequence();
+      }, 150);
+    }
     
     // Add listener for resetting animation states
     const handleResetAnimations = () => {
@@ -696,9 +761,10 @@ const Game: React.FC = () => {
     
     return () => {
       window.removeEventListener('start-reveal-sequence', handleStartReveal);
+      window.removeEventListener('startRevealSequence', handleStartReveal);
       window.removeEventListener('reset-game-animations', handleResetAnimations);
     };
-  }, []);
+  }, [state.currentChallenge, isRevealingPlayer, isRevealingChallenge, showContentAfterReveal]);
   
   // Determine if we should show the main game content or loading
   const showGameContent = state.currentChallenge && 

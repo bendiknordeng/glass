@@ -20,7 +20,12 @@
     "points": "Poeng",
     "point": "poeng",
     "home": "Hjem",
-    "loser": "Tapere"
+    "loser": "Tapere",
+    "connect": "Koble til",
+    "disconnect": "Koble fra",
+    "login": "Logg inn",
+    "logout": "Logg ut",
+    "skip": "Hopp over"
   },
   "home": {
     "newGame": "Nytt spill",
@@ -68,7 +73,16 @@
     "moveAllHere": "Flytt alle hit",
     "recentPlayers": "Nylig brukte spillere",
     "teamSetup": "Lagoppsett",
-    "addAllPlayers": "Legg til alle"
+    "addAllPlayers": "Legg til alle",
+    "setupComplete": "Klar til å starte!",
+    "notEnoughPlayers": "Legg til minst 2 spillere for å starte",
+    "maxPlayersReached": "Maksimalt antall spillere er nådd",
+    "createTeamsDescription": "Opprett lag for spillerne dine",
+    "teamName": "Lagnavn",
+    "teamColor": "Lagfarge",
+    "dragPlayersInstructions": "Dra spillere for å legge dem til lag",
+    "teamsRequired": "Vennligst opprett minst 2 lag",
+    "allPlayersAssigned": "Alle spillere må være tildelt et lag"
   },
   "game": {
     "round": "Runde {{round}}",
@@ -84,13 +98,16 @@
     "challengeTypes": {
       "individual": "Individuell utfordring",
       "oneOnOne": "En mot en utfordring",
-      "team": "Lagutfordring"
+      "team": "Lagutfordring",
+      "allVsAll": "Alle mot alle"
     },
     "challengeReveal": "Din utfordring er...",
     "challengeQuestion": "Ble utfordringen fullført?",
     "challengeResult": "Utfordringsresultat",
     "completed": "Fullført",
     "failed": "Mislykket",
+    "completeChallenge": "Fullfør utfordring",
+    "failChallenge": "Mislykket utfordring",
     "versus": "MOT",
     "winner": "Vinner",
     "timeRemaining": "Gjenværende tid: {{time}}",
@@ -105,7 +122,17 @@
     "confirmEndGame": "Er du sikker på at du vil avslutte spillet?",
     "challengeProgress": "Utfordring {{current}} av {{total}}",
     "endGame": "Avslutt spill",
-    "noScoresYet": "Ingen poeng enda. Spill et spill for å se resultatene!"
+    "noScoresYet": "Ingen poeng enda. Spill et spill for å se resultatene!",
+    "score": "Poeng",
+    "yourTurn": "Din tur",
+    "selectWinnerPrompt": "Velg vinneren",
+    "failurePunishmentSips": "Drikk {{count}} slurk(er)!",
+    "failurePunishmentCustom": "Tid for straff!",
+    "punishmentSips": "{{target}} må drikke {{count}} slurk(er)!",
+    "customPunishment": "Tid for straff!",
+    "allVsAllDescription": "Alle spillere konkurrerer mot hverandre",
+    "allVsAllWinnerDescription": "Velg spilleren som presterte best",
+    "playerFromTeam": "Fra {{team}}"
   },
   "results": {
     "finalResults": "Endelig resultat",
@@ -127,7 +154,8 @@
     "completedChallenges": "Fullførte utfordringer",
     "totalChallenges": "Totale utfordringer",
     "finalStandings": "Endelig stilling",
-    "gameComplete": "Spillet er avsluttet"
+    "gameComplete": "Spillet er avsluttet",
+    "finalScores": "Endelige poeng"
   },
   "challenges": {
     "customChallenges": "Egendefinerte utfordringer",
@@ -149,11 +177,28 @@
     "titlePlaceholder": "Eksempel: Vann eller Vodka",
     "descriptionPlaceholder": "Eksempel: Drikk en shot av vann eller vodka. La gruppen gjette hva du drakk.",
     "recentCustomChallenges": "Nylig brukte egendefinerte utfordringer",
+    "yourCustomChallenges": "Dine egendefinerte utfordringer",
+    "recentChallenges": "Nylige egendefinerte utfordringer",
     "noChallenges": "Ingen egendefinerte utfordringer ennå",
     "noRecentChallenges": "Ingen nylige utfordringer",
     "recentChallengesDesc": "Utfordringer du har laget tidligere vil vises her for enkel tilgang.",
+    "deleteConfirmation": "Er du sikker på at du vil slette denne utfordringen?",
+    "includePunishment": "Inkluder straff for å mislykkes",
+    "punishmentType": "Straffetype",
+    "sips": "Slurker",
+    "custom": "Egendefinert",
+    "numberOfSips": "Antall slurker",
+    "customPunishment": "Egendefinert straff",
+    "customPunishmentPlaceholder": "Beskriv straffen (f.eks. 'Gjør 10 pushups')",
     "clearAllRecent": "Fjern alle nylige",
-    "deleteAllRecent": "Slett alle nylige utfordringer"
+    "deleteAllRecent": "Slett alle nylige utfordringer",
+    "points": "{{points}} poeng",
+    "type": {
+      "individual": "Individuell",
+      "oneOnOne": "En mot en",
+      "team": "Lag",
+      "allVsAll": "Alle mot alle"
+    }
   },
   "settings": {
     "title": "Innstillinger",
@@ -173,6 +218,100 @@
     "toggleTheme": "Bytt tema",
     "resetGame": "Tilbakestill spill",
     "resetGameWarning": "Ved tilbakestilling må du starte på nytt",
-    "reset": "Tilbakestill"
+    "reset": "Tilbakestill",
+    "appSettings": "App-innstillinger",
+    "soundEffects": "Lydeffekter",
+    "vibration": "Vibrasjon",
+    "resetData": "Tilbakestill app-data",
+    "resetDataConfirmation": "Dette vil slette all app-data inkludert egendefinerte utfordringer. Denne handlingen kan ikke angres.",
+    "resetComplete": "App-data er tilbakestilt"
+  },
+  "about": {
+    "appInfo": "App-informasjon",
+    "version": "Versjon",
+    "createdBy": "Laget av",
+    "privacyPolicy": "Personvernerklæring",
+    "termsOfService": "Brukervilkår",
+    "acknowledge": "Glass er en morsom festspill-app designet for å brukes ansvarlig. Vennligst drikk ansvarlig og sørg for at alle deltakere er over lovlig drikkealder i ditt land."
+  },
+  "prebuilt": {
+    "title": "Forhåndsbygde utfordringer",
+    "prebuiltChallenges": "Forhåndsbygde utfordringer",
+    "description": "Velg fra vår samling av spillklare utfordringstyper. Bare konfigurer og spill!",
+    "createChallenge": "Lag utfordring",
+    "comingSoon": "Flere utfordringer kommer snart",
+    "moreChallengesComingSoon": "Vi jobber med flere spennende forhåndsbygde utfordringer. Følg med!",
+    "updateChallenge": "Oppdater utfordring",
+    "spotifyMusicQuiz": {
+      "title": "Spotify Musikk-Quiz",
+      "formTitle": "Lag Spotify Musikk-Quiz",
+      "shortDescription": "Hold en musikk-quiz med sanger fra en Spotify-spilleliste. Perfekt for å teste vennenes musikkunnskap!",
+      "description": "En musikk-quiz med {{numberOfSongs}} sanger spilt i {{playDurationSeconds}} sekunder hver. Gjett sangen og artisten!",
+      "playlistUrl": "Spotify spilleliste-URL",
+      "playlistUrlHelp": "Lim inn en lenke til en offentlig Spotify-spilleliste. Du kan finne denne ved å klikke 'Del' på en spilleliste i Spotify.",
+      "spotifyLoginRequired": "Spotify-innlogging kreves for å bla gjennom spillelistene dine",
+      "spotifyLoginHelp": "Koble til Spotify-kontoen din for å få tilgang til spillelistene dine eller bruk offentlige spilleliste-URLer.",
+      "connectSpotify": "Koble til Spotify",
+      "disconnectSpotify": "Koble fra Spotify",
+      "loginToUseYourPlaylists": "Logg inn for å bruke spillelistene dine",
+      "yourPlaylists": "Dine spillelister",
+      "publicPlaylist": "Offentlig spilleliste",
+      "enterPlaylistUrl": "Skriv inn spilleliste-URL",
+      "useYourPlaylists": "Bruk dine spillelister",
+      "usePublicPlaylist": "Bruk offentlig spilleliste",
+      "noPlaylists": "Ingen spillelister funnet",
+      "noPlaylistsMessage": "Vi kunne ikke finne noen spillelister i Spotify-kontoen din. Prøv å opprette en spilleliste først.",
+      "searchPlaylists": "Søk i spillelistene dine",
+      "playlistOwner": "Av {{owner}}",
+      "tracks": "{{count}} spor",
+      "selectPlaylist": "Velg denne spillelisten",
+      "numberOfSongs": "Antall sanger",
+      "numberOfSongsHelp": "Hvor mange sanger som skal velges tilfeldig fra spillelisten (maks 20).",
+      "playDuration": "Avspillingsvarighet (sekunder)",
+      "challengeTypeHelp": "Velg hvordan spillerne skal konkurrere i musikk-quizen.",
+      "validating": "Validerer spilleliste...",
+      "createChallenge": "Lag musikk-quiz",
+      "loadingSongs": "Laster sanger fra Spotify",
+      "pleaseWait": "Dette kan ta noen øyeblikk...",
+      "noSongs": "Ingen sanger tilgjengelig",
+      "noSongsMessage": "Vi kunne ikke hente noen sanger fra den angitte spillelisten. Vennligst prøv igjen med en annen spilleliste.",
+      "play": "Spill sang",
+      "playAgain": "Spill igjen",
+      "pause": "Pause",
+      "restart": "Start på nytt",
+      "reveal": "Avslør sang",
+      "nextSong": "Neste sang",
+      "finish": "Fullfør quiz",
+      "songCounter": "Sang {{current}} av {{total}}",
+      "guessPrompt": "Hvilken sang og artist er dette?",
+      "currentParticipants": "Nåværende spillere",
+      "updateChallenge": "Oppdater musikk-quiz",
+      "awardPointsTo": "Gi poeng til vinneren",
+      "pointsAwarded": "{{points}} poeng tildelt"
+    }
+  },
+  "validation": {
+    "required": "{{field}} er påkrevd",
+    "titleRequired": "Tittel er påkrevd",
+    "descriptionRequired": "Beskrivelse er påkrevd",
+    "punishmentDescriptionRequired": "Straffebeskrivelse er påkrevd",
+    "invalidSpotifyUrl": "Vennligst skriv inn en gyldig Spotify-spilleliste URL",
+    "minValue": "Verdi må være minst {{min}}",
+    "maxValue": "Verdi må være maks {{max}}"
+  },
+  "error": {
+    "title": "Feil",
+    "general": "Noe gikk galt. Vennligst prøv igjen."
+  },
+  "auth": {
+    "spotifyConnecting": "Kobler til Spotify",
+    "spotifyProcessing": "Behandler autentiseringen din...",
+    "spotifyConnected": "Tilkoblet!",
+    "spotifyRedirecting": "Omdirigerer deg tilbake til appen...",
+    "spotifyError": "Autentiseringsfeil",
+    "spotifyLoginInfo": "Koble til Spotify-kontoen din for å få tilgang til spillelistene dine",
+    "spotifyLoginHelp": "Dette vil tillate Glass å bla gjennom Spotify-spillelistene dine og bruke dem for musikk-quizer.",
+    "spotifyLoggedInAs": "Logget inn som",
+    "spotifyUserProfile": "Spotify-brukerprofil"
   }
 }

@@ -1072,7 +1072,7 @@ const SpotifyMusicQuizForm: React.FC<SpotifyMusicQuizFormProps> = ({
             {isValidatingPlaylist 
               ? t('prebuilt.spotifyMusicQuiz.validating') 
               : editChallenge 
-                ? t('prebuilt.spotifyMusicQuiz.updateChallenge', 'Update Challenge') 
+                ? t('prebuilt.spotifyMusicQuiz.updateChallenge') 
                 : t('prebuilt.spotifyMusicQuiz.createChallenge')}
           </Button>
         </div>

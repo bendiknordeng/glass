@@ -13,6 +13,7 @@ class RevealSequenceSimulator {
   private challengeType: ChallengeType;
   private gameMode: GameMode;
   private revealSequence: string[] = [];
+  private mockLocalStorage: Record<string, string> = {};
 
   constructor(
     challengeType: ChallengeType = ChallengeType.INDIVIDUAL,
@@ -22,14 +23,25 @@ class RevealSequenceSimulator {
     this.challengeType = challengeType;
     this.gameMode = gameMode;
     this.isNewGameStart = isNewGameStart;
+
+    // Initialize localStorage
+    if (isNewGameStart) {
+      this.mockLocalStorage['isNewGameStart'] = 'true';
+    } else {
+      delete this.mockLocalStorage['isNewGameStart'];
+    }
   }
 
   public startRevealSequence(): string[] {
     this.revealSequence = [];
     this.reset();
 
-    // For the first challenge after setup, skip directly to challenge reveal
-    if (this.isNewGameStart) {
+    // For the first challenge after setup, check the localStorage value
+    const isNewGameStartFromStorage = this.mockLocalStorage['isNewGameStart'] === 'true';
+    
+    if (isNewGameStartFromStorage) {
+      // Clean up the flag after using it
+      delete this.mockLocalStorage['isNewGameStart'];
       this.revealSequence.push('CHALLENGE_REVEAL');
       return this.revealSequence;
     }
@@ -53,6 +65,10 @@ class RevealSequenceSimulator {
     }
 
     return this.revealSequence;
+  }
+
+  public getLocalStorage(): Record<string, string> {
+    return { ...this.mockLocalStorage };
   }
 
   private reset(): void {
@@ -99,6 +115,31 @@ describe('Reveal Sequence', () => {
     const sequence = simulator.startRevealSequence();
     
     expect(sequence).toEqual(['CHALLENGE_REVEAL']);
+  });
+
+  it('removes the isNewGameStart flag after using it', () => {
+    const simulator = new RevealSequenceSimulator(ChallengeType.INDIVIDUAL, GameMode.FREE_FOR_ALL, true);
+    
+    // Flag should be set initially
+    expect(simulator.getLocalStorage()['isNewGameStart']).toBe('true');
+    
+    // Run the sequence which should consume the flag
+    simulator.startRevealSequence();
+    
+    // Flag should now be removed
+    expect(simulator.getLocalStorage()['isNewGameStart']).toBeUndefined();
+  });
+  
+  it('shows player reveal for the second challenge after consuming the isNewGameStart flag', () => {
+    const simulator = new RevealSequenceSimulator(ChallengeType.INDIVIDUAL, GameMode.FREE_FOR_ALL, true);
+    
+    // First reveal sequence consumes the flag
+    const firstSequence = simulator.startRevealSequence();
+    expect(firstSequence).toEqual(['CHALLENGE_REVEAL']);
+    
+    // Second reveal sequence should now include player reveal
+    const secondSequence = simulator.startRevealSequence();
+    expect(secondSequence).toEqual(['PLAYER_REVEAL', 'CHALLENGE_REVEAL']);
   });
   
   it('always shows player/team reveal before challenge reveal when not the first challenge', () => {

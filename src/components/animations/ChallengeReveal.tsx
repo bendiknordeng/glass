@@ -137,7 +137,7 @@ const ChallengeReveal: React.FC<ChallengeRevealProps> = ({
               }}
             >
               <div className="inline-flex items-center bg-gradient-to-r from-game-accent/90 to-game-primary/90 px-4 py-1.5 rounded-full shadow-md">
-                <span className="text-white text-sm font-medium mr-1.5">{t(`challenge.type.${challenge.type}`)}</span>
+                <span className="text-white text-sm font-medium mr-1.5">{t(`challenges.type.${challenge.type}`)}</span>
                 {getChallengeTypeIcon()}
               </div>
             </motion.div>
@@ -216,7 +216,7 @@ const ChallengeReveal: React.FC<ChallengeRevealProps> = ({
                     }}
                   >
                     <span className="text-game-primary font-bold text-xl">
-                      {t('challenge.points', { points: challenge.points })}
+                      {t('challenges.points', { points: challenge.points })}
                     </span>
                   </motion.div>
                 </motion.div>

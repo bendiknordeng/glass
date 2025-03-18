@@ -24,7 +24,8 @@
     "connect": "Connect",
     "disconnect": "Disconnect",
     "login": "Log In",
-    "logout": "Log Out"
+    "logout": "Log Out",
+    "skip": "Skip"
   },
   "home": {
     "newGame": "New Game",
@@ -180,7 +181,6 @@
     "noChallenges": "No Custom Challenges Yet",
     "noRecentChallenges": "No Recent Challenges",
     "recentChallengesDesc": "Challenges you've created before will appear here for easy access.",
-    "addChallenge": "Add Challenge",
     "deleteConfirmation": "Are you sure you want to delete this challenge?",
     "includePunishment": "Include punishment for failing",
     "punishmentType": "Punishment Type",
@@ -190,7 +190,14 @@
     "customPunishment": "Custom Punishment",
     "customPunishmentPlaceholder": "Describe the punishment (e.g., 'Do 10 pushups')",
     "clearAllRecent": "Clear All Recent",
-    "deleteAllRecent": "Delete all recent challenges"
+    "deleteAllRecent": "Delete all recent challenges",
+    "points": "{{points}} points",
+    "type": {
+      "individual": "Individual",
+      "oneOnOne": "One-on-One",
+      "team": "Team",
+      "allVsAll": "All vs All"
+    }
   },
   "settings": {
     "title": "Settings",
@@ -233,6 +240,7 @@
     "createChallenge": "Create Challenge",
     "comingSoon": "More Challenges Coming Soon",
     "moreChallengesComingSoon": "We're working on more exciting prebuilt challenges. Stay tuned!",
+    "updateChallenge": "Update Challenge",
     "spotifyMusicQuiz": {
       "title": "Spotify Music Quiz",
       "formTitle": "Create Spotify Music Quiz",
@@ -274,7 +282,11 @@
       "nextSong": "Next Song",
       "finish": "Finish Quiz",
       "songCounter": "Song {{current}} of {{total}}",
-      "guessPrompt": "Which song and artist is this?"
+      "guessPrompt": "Which song and artist is this?",
+      "currentParticipants": "Current players",
+      "updateChallenge": "Update Music Quiz",
+      "awardPointsTo": "Award points to the winner",
+      "pointsAwarded": "{{points}} points awarded"
     }
   },
   "validation": {
