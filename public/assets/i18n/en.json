@@ -289,7 +289,8 @@
       "currentParticipants": "Current players",
       "updateChallenge": "Update Music Quiz",
       "awardPointsTo": "Award points to the winner",
-      "pointsAwarded": "{{points}} points awarded"
+      "pointsAwarded": "{{points}} points awarded",
+      "selected": "Selected"
     }
   },
   "validation": {

@@ -290,7 +290,8 @@
       "currentParticipants": "Nåværende spillere",
       "updateChallenge": "Oppdater musikk-quiz",
       "awardPointsTo": "Gi poeng til vinneren",
-      "pointsAwarded": "{{points}} poeng tildelt"
+      "pointsAwarded": "{{points}} poeng tildelt",
+      "selected": "Valgt"
     }
   },
   "validation": {

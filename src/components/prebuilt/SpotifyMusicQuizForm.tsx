@@ -729,7 +729,7 @@ const SpotifyMusicQuizForm: React.FC<SpotifyMusicQuizFormProps> = ({
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="text-xs font-medium text-pastel-green mb-1">
-                        {t('common.selected')}
+                        {t('prebuilt.spotifyMusicQuiz.selected')}
                       </div>
                       <h4 className="text-sm font-medium text-gray-900 dark:text-white truncate">
                         {selectedPlaylist.name}
