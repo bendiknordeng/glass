@@ -10,8 +10,6 @@ const Profile: React.FC = () => {
   const { user, spotifyAuth, signOut, isAuthenticated } = useAuth();
   const navigate = useNavigate();
   
-  console.log(user);
-  
   // Check if user is connected to Facebook or Google using identities
   const isConnectedToFacebook = user?.identities?.some(
     (identity) => identity.provider === 'facebook'
