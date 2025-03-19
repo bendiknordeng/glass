@@ -168,7 +168,7 @@ const MultiPlayerReveal: React.FC<MultiPlayerRevealProps> = ({
               >
                 {customTitle ||
                   (players.length > 3
-                    ? t("game.allVsAll")
+                    ? t("game.challengeTypes.allVsAll")
                     : t("game.showdown"))}
               </motion.h2>
             </motion.div>

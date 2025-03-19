@@ -843,7 +843,7 @@ const Game: React.FC = () => {
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
-                  className="flex flex-col items-center justify-center h-64 bg-white dark:bg-gray-800 rounded-lg shadow-md"
+                  className="flex flex-col items-center justify-center h-64 rounded-lg shadow-md"
                 >
                   <div className="animate-spin mb-4">
                     <svg className="w-12 h-12 text-game-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
@@ -899,7 +899,7 @@ const Game: React.FC = () => {
                 : undefined,
               // Use different title for challenge types
               customTitle: state.currentChallenge?.type === ChallengeType.ALL_VS_ALL
-                ? t('game.allVsAll')
+                ? t('game.challengeTypes.allVsAll')
                 : undefined,
               // Use different title text for different challenge types
               showTitle: true,
