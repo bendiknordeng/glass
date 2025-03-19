@@ -5,11 +5,13 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useGame } from '@/contexts/GameContext';
+import { useAuth } from '@/contexts/AuthContext';
 import Switch from './Switch';
 import Dropdown from './Dropdown';
 import Button from './Button';
 import { ConfirmModal } from './Modal';
 import { HomeIcon } from '@heroicons/react/24/solid';
+import { UserCircleIcon, ArrowRightOnRectangleIcon, UserIcon, CogIcon } from '@heroicons/react/24/outline';
 
 interface HeaderProps {
   showHomeButton?: boolean;
@@ -22,11 +24,31 @@ const Header: React.FC<HeaderProps> = ({ showHomeButton = false }) => {
   const { theme, setTheme, isDarkMode } = useTheme();
   const { language, setLanguage } = useLanguage();
   const { state, dispatch } = useGame();
+  const { user, isAuthenticated, signOut } = useAuth();
   const [showEndGameModal, setShowEndGameModal] = useState(false);
 
   // Toggle theme
   const toggleTheme = () => {
     setTheme(isDarkMode ? 'light' : 'dark');
+  };
+
+  // Handle logout
+  const handleLogout = () => {
+    try {
+      console.log("Header: Executing sign out");
+      
+      // Show feedback to the user
+      const userButton = document.querySelector('[aria-label="User menu"]');
+      if (userButton instanceof HTMLElement) {
+        userButton.classList.add('opacity-50');
+      }
+      
+      // Navigate to the logout page directly
+      // This provides immediate feedback and the Logout component will handle the rest
+      navigate('/logout');
+    } catch (error) {
+      console.error('Header: Logout error:', error);
+    }
   };
 
   // Check if we're in an active game
@@ -60,7 +82,7 @@ const Header: React.FC<HeaderProps> = ({ showHomeButton = false }) => {
           )}
         </div>
         
-        <div className="flex gap-3 items-center">
+        <div className="flex gap-7 items-center">
           <Dropdown
             trigger={
               <button
@@ -107,6 +129,54 @@ const Header: React.FC<HeaderProps> = ({ showHomeButton = false }) => {
             onChange={toggleTheme}
             ariaLabel={t('settings.toggleTheme')}
           />
+
+{isAuthenticated ? (
+            <Dropdown
+              trigger={
+                <button
+                  className="inline-flex items-center justify-center w-9 h-9 rounded-full bg-game-primary text-white hover:bg-opacity-90 transition-colors"
+                  aria-label="User menu"
+                >
+                  {user?.user_metadata?.avatar_url ? (
+                    <img src={user.user_metadata.avatar_url} alt="User avatar" className="w-8 h-8 rounded-full" />
+                  ) : (
+                    <h1 className="text-lg font-bold">{user?.user_metadata?.full_name?.split(' ')[0].charAt(0).toUpperCase()}{user?.user_metadata?.full_name?.split(' ')[1].charAt(0).toUpperCase()}</h1>
+                  )}
+                </button>
+              }
+              items={[
+                {
+                  label: (
+                    <span className="flex items-center gap-2">
+                      <UserIcon className="w-4 h-4" />
+                      <span>Profile</span>
+                    </span>
+                  ),
+                  value: 'profile',
+                  onClick: () => navigate('/profile')
+                },
+                {
+                  label: (
+                    <span className="flex items-center gap-2">
+                      <ArrowRightOnRectangleIcon className="w-4 h-4" />
+                      <span>Sign Out</span>
+                    </span>
+                  ),
+                  value: 'signout',
+                  onClick: handleLogout
+                }
+              ]}
+              ariaLabel="User menu"
+            />
+          ) : (
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={() => navigate('/login')}
+            >
+              Login
+            </Button>
+          )}
         </div>
       </div>
 

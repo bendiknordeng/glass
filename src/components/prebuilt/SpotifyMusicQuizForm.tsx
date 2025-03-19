@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
@@ -288,7 +288,11 @@ const SpotifyMusicQuizForm: React.FC<SpotifyMusicQuizFormProps> = ({
   
   // Handle Spotify logout
   const handleSpotifyLogout = () => {
+    console.log("SpotifyMusicQuizForm: Handling Spotify logout");
+    // Call the logout method in the service
     spotifyService.logout();
+    
+    // Update local state
     setIsSpotifyAuthenticated(false);
     setSpotifyUser(undefined);
     setPlaylists([]);

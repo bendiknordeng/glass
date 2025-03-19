@@ -161,7 +161,6 @@ const CustomChallengeForm: React.FC<CustomChallengeFormProps> = ({
           title,
           description,
           type,
-          difficulty: 1, // Default difficulty (deprecated but still needed for compatibility)
           points,
           canReuse,
           punishment: getPunishment()

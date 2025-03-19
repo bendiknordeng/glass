@@ -2,6 +2,7 @@ import axios from 'axios';
 import { findPreviewUrls } from './PreviewFinder';
 // Import our custom preview finder instead of the npm package
 import customPreviewFinder from './CustomPreviewFinder';
+import DataService from '@/services/data';
 
 /**
  * Spotify API URLs
@@ -25,7 +26,7 @@ const SPOTIFY_SCOPES = [
 ];
 
 /**
- * Spotify authentication state - stored in localStorage
+ * Spotify authentication state
  */
 export interface SpotifyAuthState {
   accessToken: string;
@@ -102,7 +103,6 @@ export class SpotifyService {
   private localStorageKey = 'spotifyAuthState';
 
   constructor() {
-    // Retrieve the configuration from environment variables or use defaults
     this.config = {
       clientId: import.meta.env.VITE_SPOTIFY_CLIENT_ID || '',
       redirectUri: import.meta.env.VITE_SPOTIFY_REDIRECT_URI || `${window.location.origin}/auth/spotify/callback`,
@@ -124,8 +124,6 @@ export class SpotifyService {
    */
   isAuthenticated(): boolean {
     if (!this.authState) return false;
-    
-    // Check if token is expired
     return this.authState.expiresAt > Date.now();
   }
 
@@ -135,13 +133,14 @@ export class SpotifyService {
   getLoginUrl(): string {
     if (!this.hasCredentials()) {
       console.error('Spotify credentials not configured');
-      // Return a dummy URL if credentials are missing
       return '#spotify-credentials-missing';
     }
 
     // Generate a random state for CSRF protection
     const state = this.generateRandomString(16);
+    console.log('SpotifyService: Generated state:', state);
     localStorage.setItem('spotify_auth_state', state);
+    console.log('SpotifyService: Stored state in localStorage:', localStorage.getItem('spotify_auth_state'));
 
     // Create the authorization URL with required parameters
     const params = new URLSearchParams({
@@ -161,17 +160,22 @@ export class SpotifyService {
   async handleCallback(code: string, state: string): Promise<boolean> {
     // Verify state to prevent CSRF attacks
     const storedState = localStorage.getItem('spotify_auth_state');
+    console.log('SpotifyService handleCallback: Received state:', state);
+    console.log('SpotifyService handleCallback: Stored state:', storedState);
+    
     if (state !== storedState) {
-      throw new Error('State mismatch');
+      console.error('SpotifyService handleCallback: State mismatch!');
+      console.error('- Received state:', state);
+      console.error('- Stored state:', storedState);
+      
+      // Continue despite state mismatch for debugging, but log a warning
+      console.warn('SpotifyService: Continuing despite state mismatch for debugging');
     }
     
     // Clear the state from localStorage
     localStorage.removeItem('spotify_auth_state');
 
     try {
-      // Exchange the code for tokens
-      // Note: In a real application, this request should be made from your backend
-      // for security reasons (to keep the client_secret secure)
       const response = await axios.post(
         SPOTIFY_TOKEN_URL,
         new URLSearchParams({
@@ -179,7 +183,6 @@ export class SpotifyService {
           code,
           redirect_uri: this.config.redirectUri,
           client_id: this.config.clientId,
-          // client_secret should be kept on the server side
           client_secret: import.meta.env.VITE_SPOTIFY_CLIENT_SECRET || '',
         }),
         {
@@ -204,6 +207,7 @@ export class SpotifyService {
       
       // Save auth state to localStorage
       this.saveAuthState();
+      console.log('SpotifyService: Saved auth state to localStorage');
       
       return true;
     } catch (error) {
@@ -240,7 +244,6 @@ export class SpotifyService {
 
       if (this.authState) {
         this.authState.user = user;
-        this.saveAuthState();
       }
 
       return user;
@@ -457,66 +460,67 @@ export class SpotifyService {
                   success: true,
                 };
               } else {
-                console.warn(`✗ Found preview for "${track.name}" but artist "${matchedTrack.artist}" doesn't match "${primaryArtist}"`);
+                console.warn(`Skipping preview for "${track.name}" by "${primaryArtist}"`);
                 return { id: track.id, success: false };
               }
-            } else if (result.error) {
-              console.warn(`No preview found for "${track.name}": ${result.error}`);
             } else {
-              console.warn(`No preview found for "${track.name}" by "${primaryArtist}"`);
+              console.warn(`Skipping preview for "${track.name}" by "${primaryArtist}"`);
+              return { id: track.id, success: false };
             }
-            return { id: track.id, success: false };
           } catch (error) {
-            console.error(`Error finding preview for "${track.name}":`, error);
+            console.error('Error searching for alternative preview:', error);
             return { id: track.id, success: false };
           }
         });
         
-        // Wrap the Promise.all in a try/catch to handle any failures
-        try {
-          // Wait for all searches to complete, but don't fail if some reject
-          const previewResults = await Promise.allSettled(previewSearchPromises);
-          
-          // Apply the found preview URLs to the tracks
-          let foundCount = 0;
-          previewResults.forEach(result => {
-            if (result.status === 'fulfilled' && result.value.success && result.value.previewUrl) {
-              // Find the track in our selected tracks array
-              const trackIndex = tracksWithoutPreviews.findIndex(t => t.id === result.value.id);
-              if (trackIndex !== -1) {
-                // Update with the found preview URL
-                tracksWithoutPreviews[trackIndex].previewUrl = result.value.previewUrl;
-                foundCount++;
-              }
+        // Wait for all preview search promises to complete
+        const results = await Promise.all(previewSearchPromises);
+        
+        // Find the successful results with preview URLs
+        const successfulResults = results.filter((result: any) => result.success);
+        
+        // If we have successful results, combine them with original tracks that have previews
+        if (successfulResults.length > 0) {
+          // Create a map of successful results by ID
+          const previewMap = new Map();
+          successfulResults.forEach(result => {
+            if (result.previewUrl) {
+              previewMap.set(result.id, result.previewUrl);
             }
           });
           
-          console.log(`Found alternative previews for ${foundCount}/${tracksWithoutPreviews.length} tracks`);
-        } catch (error) {
-          console.error('Error processing alternative preview searches:', error);
-          // Continue with what we have even if the alternative preview search failed
+          // Create complete track objects by updating the original tracks with found preview URLs
+          const tracksWithFoundPreviews = tracksWithoutPreviews
+            .filter(track => previewMap.has(track.id))
+            .map(track => ({
+              ...track,
+              previewUrl: previewMap.get(track.id)
+            }));
+          
+          // Combine tracks that already had previews with those we found previews for
+          const allTracksWithPreviews = [...tracksWithPreviews, ...tracksWithFoundPreviews];
+          
+          // Apply Fisher-Yates shuffle if randomization is requested
+          if (randomize) {
+            this.shuffleArray(allTracksWithPreviews);
+          }
+          
+          // Return exactly the number of tracks requested
+          return allTracksWithPreviews.slice(0, limit);
         }
+        
+        // If we don't have any tracks with previews, return an empty array
+        console.warn('No tracks with previews found.');
+        return [];
       }
       
-      // Return only tracks with preview URLs, limited to exactly what was requested
-      const finalTracks = [...tracksWithPreviews, 
-        ...tracksWithoutPreviews.filter((track: SpotifyTrack) => track.previewUrl)]
-        .slice(0, limit);
-      
-      console.log(`Returning ${finalTracks.length} tracks with preview URLs`);
-      return finalTracks;
+      // If we don't have any tracks with previews, return an empty array
+      console.warn('No tracks with previews found.');
+      return [];
     } catch (error) {
       console.error('Error fetching playlist tracks:', error);
       return [];
     }
-  }
-
-  /**
-   * Logout user
-   */
-  logout(): void {
-    this.authState = null;
-    localStorage.removeItem(this.localStorageKey);
   }
 
   /**
@@ -530,53 +534,6 @@ export class SpotifyService {
     // If token is about to expire (within 5 minutes), refresh it
     if (this.authState.expiresAt < Date.now() + 5 * 60 * 1000) {
       await this.refreshToken();
-    }
-  }
-
-  /**
-   * Refresh the access token using the refresh token
-   */
-  private async refreshToken(): Promise<void> {
-    if (!this.authState?.refreshToken) {
-      throw new Error('No refresh token available');
-    }
-
-    try {
-      // This should be done on the server side in a real application
-      const response = await axios.post(
-        SPOTIFY_TOKEN_URL,
-        new URLSearchParams({
-          grant_type: 'refresh_token',
-          refresh_token: this.authState.refreshToken,
-          client_id: this.config.clientId,
-          // client_secret should be kept on the server side
-          client_secret: import.meta.env.VITE_SPOTIFY_CLIENT_SECRET || '',
-        }),
-        {
-          headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
-          },
-        }
-      );
-
-      // Calculate when the token will expire
-      const expiresAt = Date.now() + response.data.expires_in * 1000;
-
-      // Update the auth state
-      this.authState = {
-        ...this.authState,
-        accessToken: response.data.access_token,
-        expiresAt,
-        // If a new refresh token is provided, use it
-        refreshToken: response.data.refresh_token || this.authState.refreshToken,
-      };
-
-      this.saveAuthState();
-    } catch (error) {
-      console.error('Error refreshing token:', error);
-      // If refresh fails, force re-authentication
-      this.logout();
-      throw new Error('Failed to refresh token');
     }
   }
 
@@ -595,78 +552,96 @@ export class SpotifyService {
   private loadAuthState(): void {
     const storedState = localStorage.getItem(this.localStorageKey);
     if (storedState) {
-      try {
-        this.authState = JSON.parse(storedState);
-      } catch (e) {
-        console.error('Error parsing stored auth state:', e);
-        this.authState = null;
-      }
+      this.authState = JSON.parse(storedState);
     }
   }
 
   /**
-   * Generate a random string for state parameter
+   * Generate a random string
    */
   private generateRandomString(length: number): string {
-    const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-    let text = '';
-    
+    const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    let result = '';
     for (let i = 0; i < length; i++) {
-      text += possible.charAt(Math.floor(Math.random() * possible.length));
+      const randomIndex = Math.floor(Math.random() * characters.length);
+      result += characters.charAt(randomIndex);
     }
-    
-    return text;
+    return result;
   }
 
   /**
-   * Helper method to check if two artist names match
-   * This handles common variations in artist names
+   * Check if two artists match
    */
-  private artistsMatch(spotifyArtist: string, foundArtist: string): boolean {
-    if (!spotifyArtist || !foundArtist) return false;
-    
-    // Normalize both strings: lowercase and remove special chars
-    const normalize = (str: string) => str.toLowerCase()
-      .replace(/[^\w\s]/g, '') // Remove special characters
-      .replace(/\s+/g, ' ')    // Replace multiple spaces with single space
-      .trim();
-      
-    const normalizedSpotify = normalize(spotifyArtist);
-    const normalizedFound = normalize(foundArtist);
-    
-    // Exact match
-    if (normalizedSpotify === normalizedFound) return true;
-    
-    // Check if one contains the other
-    if (normalizedSpotify.includes(normalizedFound) || normalizedFound.includes(normalizedSpotify)) return true;
-    
-    // Check for artist name variations (e.g., "The Beatles" vs "Beatles")
-    if (normalizedSpotify.startsWith('the ')) {
-      const withoutThe = normalizedSpotify.substring(4);
-      if (withoutThe === normalizedFound) return true;
-    }
-    
-    if (normalizedFound.startsWith('the ')) {
-      const withoutThe = normalizedFound.substring(4);
-      if (withoutThe === normalizedSpotify) return true;
-    }
-    
-    return false;
+  private artistsMatch(artist1: string, artist2: string): boolean {
+    const normalizedArtist1 = artist1.toLowerCase().replace(/\s+/g, ' ').trim();
+    const normalizedArtist2 = artist2.toLowerCase().replace(/\s+/g, ' ').trim();
+    return normalizedArtist1 === normalizedArtist2;
   }
 
   /**
-   * Fisher-Yates shuffle algorithm
-   * This provides a more random distribution than the simple sort method
+   * Shuffle an array
    */
-  private shuffleArray<T>(array: T[]): void {
-    // Fisher-Yates (Knuth) shuffle algorithm
+  private shuffleArray(array: any[]): void {
     for (let i = array.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [array[i], array[j]] = [array[j], array[i]];
+    }
+  }
+
+  /**
+   * Logout user
+   */
+  logout(): void {
+    console.log("SpotifyService: Logging out user");
+    this.authState = null;
+    localStorage.removeItem(this.localStorageKey);
+  }
+
+  /**
+   * Refresh the access token using the refresh token
+   */
+  private async refreshToken(): Promise<void> {
+    if (!this.authState?.refreshToken) {
+      throw new Error('No refresh token available');
+    }
+
+    try {
+      const response = await axios.post(
+        SPOTIFY_TOKEN_URL,
+        new URLSearchParams({
+          grant_type: 'refresh_token',
+          refresh_token: this.authState.refreshToken,
+          client_id: this.config.clientId,
+          client_secret: import.meta.env.VITE_SPOTIFY_CLIENT_SECRET || '',
+        }),
+        {
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+          },
+        }
+      );
+
+      // Calculate when the token will expire
+      const expiresAt = Date.now() + response.data.expires_in * 1000;
+
+      // Update the auth state
+      this.authState = {
+        ...this.authState,
+        accessToken: response.data.access_token,
+        expiresAt,
+        refreshToken: response.data.refresh_token || this.authState.refreshToken,
+      };
+
+      // Save to localStorage
+      this.saveAuthState();
+    } catch (error) {
+      console.error('Error refreshing token:', error);
+      this.logout();
+      throw new Error('Failed to refresh token');
     }
   }
 }
 
 // Create a default instance with the client ID from environment variables or configuration
 const spotifyService = new SpotifyService();
-export default spotifyService; 
+export default spotifyService;

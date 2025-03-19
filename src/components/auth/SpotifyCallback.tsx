@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import spotifyService from '@/services/SpotifyService';
+import { useAuth } from '@/contexts/AuthContext';
+import DataService from '@/services/data';
 
 /**
  * Component that handles Spotify OAuth callback
@@ -9,6 +11,7 @@ import spotifyService from '@/services/SpotifyService';
 const SpotifyCallback: React.FC = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const { user } = useAuth();
   
   const [status, setStatus] = useState<'processing' | 'success' | 'error'>('processing');
   const [errorMessage, setErrorMessage] = useState<string>('');
@@ -29,6 +32,12 @@ const SpotifyCallback: React.FC = () => {
         const state = urlParams.get('state');
         const error = urlParams.get('error');
         
+        console.log('SpotifyCallback: URL parameters:', {
+          code: code ? `${code.substring(0, 5)}...` : null,
+          state,
+          error
+        });
+        
         // Check if there's an error from Spotify
         if (error) {
           setStatus('error');
@@ -47,7 +56,32 @@ const SpotifyCallback: React.FC = () => {
         const success = await spotifyService.handleCallback(code, state);
         
         if (success) {
+          // If the user is authenticated with Supabase, save the Spotify auth data to Supabase
+          if (user) {
+            console.log('SpotifyCallback: User is logged in, saving to Supabase for user:', user.id);
+            
+            // Spotify auth state is already in localStorage, load it
+            const authState = localStorage.getItem('spotifyAuthState');
+            if (authState) {
+              const parsedAuthState = JSON.parse(authState);
+              
+              // Save to Supabase
+              await DataService.saveSpotifyAuth(
+                user.id, 
+                parsedAuthState.accessToken,
+                parsedAuthState.refreshToken,
+                Math.floor(parsedAuthState.expiresAt / 1000) // Convert to Unix timestamp
+              );
+              console.log('SpotifyCallback: Saved Spotify auth data to Supabase');
+            } else {
+              console.error('SpotifyCallback: No Spotify auth state found in localStorage');
+            }
+          } else {
+            console.log('SpotifyCallback: User is not logged in, skipping Supabase save');
+          }
+          
           setStatus('success');
+          
           // Redirect back to the music quiz creation page after a short delay
           setTimeout(() => {
             navigate('/setup');
@@ -57,13 +91,14 @@ const SpotifyCallback: React.FC = () => {
           setErrorMessage('Failed to authenticate with Spotify');
         }
       } catch (error) {
+        console.error('SpotifyCallback: Error in handleCallback:', error);
         setStatus('error');
         setErrorMessage(error instanceof Error ? error.message : 'An unknown error occurred');
       }
     };
     
     handleCallback();
-  }, [navigate]);
+  }, [navigate, user]);
   
   return (
     <div className="flex flex-col items-center justify-center min-h-screen p-4 bg-gray-50 dark:bg-gray-900">
