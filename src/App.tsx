@@ -62,6 +62,9 @@ const App: React.FC = () => {
               <Route path="/game" element={<AppLayout><Game /></AppLayout>} />
               <Route path="/results" element={<AppLayout><Results /></AppLayout>} />
               <Route path="/profile" element={<AppLayout><Profile /></AppLayout>} />
+              
+              {/* Catch all route - redirect to home */}
+              <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </GameProvider>
         </AuthProvider>

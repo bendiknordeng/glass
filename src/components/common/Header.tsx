@@ -16,9 +16,10 @@ import { UserCircleIcon, ArrowRightOnRectangleIcon, UserIcon, CogIcon } from '@h
 interface HeaderProps {
   showHomeButton?: boolean;
   isSidebar?: boolean;
+  mobileDisplay?: boolean;
 }
 
-const Header: React.FC<HeaderProps> = ({ showHomeButton = false, isSidebar = false }) => {
+const Header: React.FC<HeaderProps> = ({ showHomeButton = false, isSidebar = false, mobileDisplay = false }) => {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const location = useLocation();
@@ -55,12 +56,84 @@ const Header: React.FC<HeaderProps> = ({ showHomeButton = false, isSidebar = fal
   // Check if we're in an active game
   const isInActiveGame = location.pathname === '/game' && state.players.length > 0 && !state.gameFinished;
 
+  // For mobile display, only show a simplified user menu
+  if (mobileDisplay) {
+    return (
+      <>
+        {isAuthenticated ? (
+          <Dropdown
+            trigger={
+              <button
+                className="inline-flex items-center justify-center w-9 h-9 rounded-full bg-gradient-to-br from-game-primary to-purple-500 dark:from-game-primary-dark dark:to-purple-600 text-white hover:bg-opacity-90 transition-colors shadow-sm"
+                aria-label="User menu"
+              >
+                {user?.user_metadata?.avatar_url ? (
+                  <img src={user.user_metadata.avatar_url} alt="User avatar" className="w-8 h-8 rounded-full" />
+                ) : (
+                  <h1 className="text-lg font-bold">
+                    {user?.user_metadata?.full_name?.split(' ')[0].charAt(0).toUpperCase()}
+                    {user?.user_metadata?.full_name?.split(' ')[1]?.charAt(0).toUpperCase() || ''}
+                  </h1>
+                )}
+              </button>
+            }
+            items={[
+              {
+                label: (
+                  <span className="flex items-center gap-2">
+                    <UserIcon className="w-4 h-4" />
+                    <span>{t('common.profile')}</span>
+                  </span>
+                ),
+                value: 'profile',
+                onClick: () => navigate('/profile')
+              },
+              {
+                label: (
+                  <span className="flex items-center gap-2">
+                    <SunIcon className="w-4 h-4" />
+                    <span>{isDarkMode ? t('settings.lightMode') : t('settings.darkMode')}</span>
+                  </span>
+                ),
+                value: 'theme',
+                onClick: toggleTheme
+              },
+              {
+                label: (
+                  <span className="flex items-center gap-2">
+                    <ArrowRightOnRectangleIcon className="w-4 h-4" />
+                    <span>Sign Out</span>
+                  </span>
+                ),
+                value: 'signout',
+                onClick: handleLogout
+              }
+            ]}
+            ariaLabel="User menu"
+          />
+        ) : (
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={() => navigate('/login')}
+            className="dark:bg-game-primary-dark dark:hover:bg-opacity-90"
+          >
+            Login
+          </Button>
+        )}
+      </>
+    );
+  }
+
   if (isSidebar) {
     return (
       <>
         <div className="flex flex-col h-full space-y-8">
           {/* App title/logo */}
-          <div className="mt-4 mb-8 text-center">
+          <div className="mt-4 mb-4 text-center">
+            <div className="flex items-center justify-center mb-4">
+              <img src={`/assets/images/${isDarkMode ? 'glass-light.png' : 'glass-dark.png'}`} alt="Logo" className="w-20 h-20" />
+            </div>
             <h1 className="text-xl font-bold text-game-primary dark:text-game-primary-dark bg-gradient-to-r from-game-primary to-purple-500 dark:from-game-primary-dark dark:to-purple-400 bg-clip-text text-transparent">{t('app.name')}</h1>
             <p className="text-sm text-gray-500 dark:text-gray-400">{t('app.tagline')}</p>
           </div>
@@ -191,40 +264,40 @@ const Header: React.FC<HeaderProps> = ({ showHomeButton = false, isSidebar = fal
     );
   }
 
-  // Original header for non-sidebar use
+  // Original header for non-sidebar use - now only used internally in desktop view
   return (
     <>
-      <div className="flex justify-between items-center">
-        <div className="flex gap-3 items-center">
-          {showHomeButton && (
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => navigate('/')}
-              leftIcon={
-                <HomeIcon className="w-4 h-4" />
-              }
-            >
-              {t('common.home')}
-            </Button>
-          )}
-          
-          {isInActiveGame && (
-            <Button
-              variant="danger"
-              size="sm"
-              onClick={() => setShowEndGameModal(true)}
-            >
-              {t('game.endGame')}
-            </Button>
-          )}
-        </div>
+      <div className="flex items-center justify-end">
+        {isInActiveGame && (
+          <Button
+            variant="danger"
+            size="sm"
+            onClick={() => setShowEndGameModal(true)}
+            className="mr-4 dark:bg-red-900 dark:hover:bg-red-800 dark:border-red-800"
+          >
+            {t('game.endGame')}
+          </Button>
+        )}
         
-        <div className="flex gap-7 items-center">
+        {showHomeButton && (
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => navigate('/')}
+            leftIcon={
+              <HomeIcon className="w-4 h-4" />
+            }
+            className="mr-4 dark:bg-gray-800 dark:hover:bg-gray-700 dark:border-gray-700"
+          >
+            {t('common.home')}
+          </Button>
+        )}
+        
+        <div className="flex gap-4 items-center">
           <Dropdown
             trigger={
               <button
-                className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-white dark:bg-gray-800 shadow-md text-gray-700 dark:text-white hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors duration-200"
+                className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 shadow-sm text-gray-700 dark:text-white hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors duration-200"
                 aria-label={t('settings.toggleLanguage')}
               >
                 {language === 'en' ? (
@@ -268,17 +341,20 @@ const Header: React.FC<HeaderProps> = ({ showHomeButton = false, isSidebar = fal
             ariaLabel={t('settings.toggleTheme')}
           />
 
-{isAuthenticated ? (
+          {isAuthenticated ? (
             <Dropdown
               trigger={
                 <button
-                  className="inline-flex items-center justify-center w-9 h-9 rounded-full bg-game-primary text-white hover:bg-opacity-90 transition-colors"
+                  className="inline-flex items-center justify-center w-9 h-9 rounded-full bg-gradient-to-br from-game-primary to-purple-500 dark:from-game-primary-dark dark:to-purple-600 text-white hover:bg-opacity-90 transition-colors shadow-sm"
                   aria-label="User menu"
                 >
                   {user?.user_metadata?.avatar_url ? (
                     <img src={user.user_metadata.avatar_url} alt="User avatar" className="w-8 h-8 rounded-full" />
                   ) : (
-                    <h1 className="text-lg font-bold">{user?.user_metadata?.full_name?.split(' ')[0].charAt(0).toUpperCase()}{user?.user_metadata?.full_name?.split(' ')[1]?.charAt(0).toUpperCase() || ''}</h1>
+                    <h1 className="text-lg font-bold">
+                      {user?.user_metadata?.full_name?.split(' ')[0].charAt(0).toUpperCase()}
+                      {user?.user_metadata?.full_name?.split(' ')[1]?.charAt(0).toUpperCase() || ''}
+                    </h1>
                   )}
                 </button>
               }
@@ -311,6 +387,7 @@ const Header: React.FC<HeaderProps> = ({ showHomeButton = false, isSidebar = fal
               variant="primary"
               size="sm"
               onClick={() => navigate('/login')}
+              className="dark:bg-game-primary-dark dark:hover:bg-opacity-90"
             >
               Login
             </Button>
