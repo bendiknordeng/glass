@@ -25,7 +25,8 @@
     "disconnect": "Disconnect",
     "login": "Log In",
     "logout": "Log Out",
-    "skip": "Skip"
+    "skip": "Skip",
+    "profile": "Profile"
   },
   "home": {
     "newGame": "New Game",

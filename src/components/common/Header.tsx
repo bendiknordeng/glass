@@ -10,14 +10,15 @@ import Switch from './Switch';
 import Dropdown from './Dropdown';
 import Button from './Button';
 import { ConfirmModal } from './Modal';
-import { HomeIcon } from '@heroicons/react/24/solid';
+import { HomeIcon, MoonIcon, SunIcon } from '@heroicons/react/24/solid';
 import { UserCircleIcon, ArrowRightOnRectangleIcon, UserIcon, CogIcon } from '@heroicons/react/24/outline';
 
 interface HeaderProps {
   showHomeButton?: boolean;
+  isSidebar?: boolean;
 }
 
-const Header: React.FC<HeaderProps> = ({ showHomeButton = false }) => {
+const Header: React.FC<HeaderProps> = ({ showHomeButton = false, isSidebar = false }) => {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const location = useLocation();
@@ -54,6 +55,143 @@ const Header: React.FC<HeaderProps> = ({ showHomeButton = false }) => {
   // Check if we're in an active game
   const isInActiveGame = location.pathname === '/game' && state.players.length > 0 && !state.gameFinished;
 
+  if (isSidebar) {
+    return (
+      <>
+        <div className="flex flex-col h-full space-y-8">
+          {/* App title/logo */}
+          <div className="mt-4 mb-8 text-center">
+            <h1 className="text-xl font-bold text-game-primary dark:text-game-primary-dark bg-gradient-to-r from-game-primary to-purple-500 dark:from-game-primary-dark dark:to-purple-400 bg-clip-text text-transparent">{t('app.name')}</h1>
+            <p className="text-sm text-gray-500 dark:text-gray-400">{t('app.tagline')}</p>
+          </div>
+
+          {/* Navigation */}
+          <div className="flex flex-col space-y-2">
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => navigate('/')}
+              leftIcon={<HomeIcon className="w-4 h-4" />}
+              className="justify-start w-full dark:bg-gray-800 dark:hover:bg-gray-700 dark:border-gray-700"
+            >
+              {t('common.home')}
+            </Button>
+            
+            {isInActiveGame && (
+              <Button
+                variant="danger"
+                size="sm"
+                onClick={() => setShowEndGameModal(true)}
+                className="justify-start w-full dark:bg-red-900 dark:hover:bg-red-800 dark:border-red-800"
+              >
+                {t('game.endGame')}
+              </Button>
+            )}
+            
+            {isAuthenticated && (
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => navigate('/profile')}
+                leftIcon={<UserIcon className="w-4 h-4" />}
+                className="justify-start w-full dark:bg-gray-800 dark:hover:bg-gray-700 dark:border-gray-700"
+              >
+                {t('common.profile')}
+              </Button>
+            )}
+          </div>
+          
+          {/* User section */}
+          <div className="mt-4">
+            {isAuthenticated ? (
+              <div className="flex flex-col items-center space-y-3 p-4 rounded-lg bg-gray-100 dark:bg-gray-800/80 dark:backdrop-blur-sm dark:border dark:border-gray-700 shadow-sm dark:shadow-gray-950/20">
+                {user?.user_metadata?.avatar_url ? (
+                  <img src={user.user_metadata.avatar_url} alt="User avatar" className="w-12 h-12 rounded-full ring-2 ring-white dark:ring-gray-700 shadow-md" />
+                ) : (
+                  <div className="w-12 h-12 rounded-full bg-gradient-to-br from-game-primary to-purple-500 dark:from-game-primary-dark dark:to-purple-600 flex items-center justify-center text-white shadow-md">
+                    <h1 className="text-lg font-bold">
+                      {user?.user_metadata?.full_name?.split(' ')[0].charAt(0).toUpperCase()}
+                      {user?.user_metadata?.full_name?.split(' ')[1]?.charAt(0).toUpperCase() || ''}
+                    </h1>
+                  </div>
+                )}
+                <div className="text-center">
+                  <p className="font-medium dark:text-white">{user?.user_metadata?.full_name || user?.email}</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">{user?.email}</p>
+                </div>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={handleLogout}
+                  leftIcon={<ArrowRightOnRectangleIcon className="w-4 h-4" />}
+                  className="w-full mt-2 dark:bg-gray-700 dark:hover:bg-gray-600 dark:border-gray-600"
+                >
+                  Sign Out
+                </Button>
+              </div>
+            ) : (
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={() => navigate('/login')}
+                className="w-full dark:bg-game-primary-dark dark:hover:bg-opacity-90"
+              >
+                Login
+              </Button>
+            )}
+          </div>
+          
+          {/* Settings section */}
+          <div className="mt-auto space-y-4 pb-4">
+            <div className="flex items-center justify-between p-3 rounded-lg bg-gray-100 dark:bg-gray-800/80 dark:backdrop-blur-sm dark:border dark:border-gray-700">
+              <span className="text-sm dark:text-gray-300">{t('settings.toggleTheme')}</span>
+              <div className="flex items-center">
+                <Switch
+                  checked={isDarkMode}
+                  onChange={toggleTheme}
+                  ariaLabel={t('settings.toggleTheme')}
+                />
+              </div>
+            </div>
+            
+            <div className="flex items-center justify-between p-3 rounded-lg bg-gray-100 dark:bg-gray-800/80 dark:backdrop-blur-sm dark:border dark:border-gray-700">
+              <span className="text-sm dark:text-gray-300">{t('settings.toggleLanguage')}</span>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setLanguage('en')}
+                  className={`flex items-center justify-center w-8 h-8 rounded-full ${language === 'en' ? 'ring-2 ring-game-primary dark:ring-game-primary-dark shadow-md' : ''} hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors`}
+                >
+                  <GB className="w-6 h-6 rounded-sm" />
+                </button>
+                <button
+                  onClick={() => setLanguage('no')}
+                  className={`flex items-center justify-center w-8 h-8 rounded-full ${language === 'no' ? 'ring-2 ring-game-primary dark:ring-game-primary-dark shadow-md' : ''} hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors`}
+                >
+                  <NO className="w-6 h-6 rounded-sm" />
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <ConfirmModal
+          isOpen={showEndGameModal}
+          onClose={() => setShowEndGameModal(false)}
+          onConfirm={() => {
+            dispatch({ type: 'END_GAME' });
+            navigate('/results');
+          }}
+          title={t('game.endGame')}
+          message={t('game.confirmEndGame')}
+          confirmText={t('game.endGame')}
+          cancelText={t('common.cancel')}
+          confirmVariant="danger"
+        />
+      </>
+    );
+  }
+
+  // Original header for non-sidebar use
   return (
     <>
       <div className="flex justify-between items-center">
@@ -140,7 +278,7 @@ const Header: React.FC<HeaderProps> = ({ showHomeButton = false }) => {
                   {user?.user_metadata?.avatar_url ? (
                     <img src={user.user_metadata.avatar_url} alt="User avatar" className="w-8 h-8 rounded-full" />
                   ) : (
-                    <h1 className="text-lg font-bold">{user?.user_metadata?.full_name?.split(' ')[0].charAt(0).toUpperCase()}{user?.user_metadata?.full_name?.split(' ')[1].charAt(0).toUpperCase()}</h1>
+                    <h1 className="text-lg font-bold">{user?.user_metadata?.full_name?.split(' ')[0].charAt(0).toUpperCase()}{user?.user_metadata?.full_name?.split(' ')[1]?.charAt(0).toUpperCase() || ''}</h1>
                   )}
                 </button>
               }
@@ -149,7 +287,7 @@ const Header: React.FC<HeaderProps> = ({ showHomeButton = false }) => {
                   label: (
                     <span className="flex items-center gap-2">
                       <UserIcon className="w-4 h-4" />
-                      <span>Profile</span>
+                      <span>{t('common.profile')}</span>
                     </span>
                   ),
                   value: 'profile',

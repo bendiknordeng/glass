@@ -25,7 +25,8 @@
     "disconnect": "Koble fra",
     "login": "Logg inn",
     "logout": "Logg ut",
-    "skip": "Hopp over"
+    "skip": "Hopp over",
+    "profile": "Profil"
   },
   "home": {
     "newGame": "Nytt spill",
