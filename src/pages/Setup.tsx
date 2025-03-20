@@ -102,7 +102,13 @@ const Setup: React.FC = () => {
         await new Promise<void>((resolve) => {
           dispatch({
             type: 'LOAD_CHALLENGES',
-            payload: defaultChallenges
+            payload: defaultChallenges.map(challenge => ({
+              ...challenge,
+              punishment: {
+                ...challenge.punishment,
+                type: challenge.punishment.type as "custom" | "sips"
+              }
+            }))
           });
           
           // Create an interval to check state updates
