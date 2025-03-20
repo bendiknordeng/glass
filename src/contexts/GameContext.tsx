@@ -1,8 +1,10 @@
-import React, { createContext, useContext, useReducer, useEffect } from 'react';
+import React, { createContext, useContext, useReducer, useEffect, useState, useCallback } from 'react';
 import { Player } from '@/types/Player';
 import { Team, GameMode, GameDuration } from '@/types/Team';
 import { Challenge, ChallengeResult } from '@/types/Challenge';
-import { generateId, getParticipantById } from '@/utils/helpers';
+import { generateId } from '@/utils/helpers';
+import { challengesService } from '@/services/supabase';
+import { useAuth } from '@/contexts/AuthContext'; // Assuming you have an auth context
 
 // Define the state shape
 export interface GameState {
@@ -20,6 +22,8 @@ export interface GameState {
   customChallenges: Challenge[]; // User-created challenges
   currentChallenge: Challenge | null;
   currentChallengeParticipants: string[]; // IDs of players or teams participating
+  isLoadingChallenges: boolean;
+  challengeLoadError: string | null;
 }
 
 // Define initial state
@@ -38,6 +42,8 @@ const initialState: GameState = {
   customChallenges: [],
   currentChallenge: null,
   currentChallengeParticipants: [],
+  isLoadingChallenges: false,
+  challengeLoadError: null
 };
 
 // Define action types
@@ -46,11 +52,13 @@ type GameAction =
   | { type: 'END_GAME' }
   | { type: 'SET_GAME_MODE'; payload: GameMode }
   | { type: 'SET_GAME_DURATION'; payload: GameDuration }
-  | { type: 'ADD_PLAYER'; payload: Omit<Player, 'id' | 'score'> }
+  | { type: 'ADD_PLAYER'; payload: Omit<Player, 'score'> }
   | { type: 'REMOVE_PLAYER'; payload: string }
   | { type: 'CREATE_TEAMS'; payload: { numTeams: number; teamNames: string[] } }
   | { type: 'RANDOMIZE_TEAMS' }
   | { type: 'LOAD_CHALLENGES'; payload: Challenge[] }
+  | { type: 'SET_CHALLENGES_LOADING'; payload: boolean }
+  | { type: 'SET_CHALLENGES_ERROR'; payload: string | null }
   | { type: 'ADD_CUSTOM_CHALLENGE'; payload: Omit<Challenge, 'id'> }
   | { type: 'UPDATE_CUSTOM_CHALLENGE'; payload: Challenge }
   | { type: 'REMOVE_CUSTOM_CHALLENGE'; payload: string }
@@ -101,7 +109,7 @@ const gameReducer = (state: GameState, action: GameAction): GameState => {
 
     case 'ADD_PLAYER': {
       const newPlayer: Player = {
-        id: generateId(),
+        id: action.payload.id || generateId(),
         name: action.payload.name,
         image: action.payload.image,
         score: 0,
@@ -120,6 +128,27 @@ const gameReducer = (state: GameState, action: GameAction): GameState => {
           ...team,
           playerIds: team.playerIds.filter((id) => id !== action.payload),
         })),
+      };
+
+    case 'LOAD_CHALLENGES':
+      // Only update if we're loading challenges and don't already have them
+      return {
+        ...state,
+        challenges: [...action.payload],
+        isLoadingChallenges: false
+      };
+      
+    case 'SET_CHALLENGES_LOADING':
+      return {
+        ...state,
+        isLoadingChallenges: action.payload
+      };
+      
+    case 'SET_CHALLENGES_ERROR':
+      return {
+        ...state,
+        challengeLoadError: action.payload,
+        isLoadingChallenges: false
       };
 
     case 'CREATE_TEAMS': {
@@ -189,16 +218,6 @@ const gameReducer = (state: GameState, action: GameAction): GameState => {
         players: updatedPlayers,
       };
     }
-
-    case 'LOAD_CHALLENGES':
-      // Only update if we're loading challenges and don't already have them
-      if (action.payload.length > 0 && state.challenges.length === 0) {
-        return {
-          ...state,
-          challenges: [...action.payload],
-        };
-      }
-      return state;
 
     case 'ADD_CUSTOM_CHALLENGE': {
       const newChallenge: Challenge = {
@@ -336,7 +355,6 @@ const gameReducer = (state: GameState, action: GameAction): GameState => {
               randomOpponentId = sortedIds[nextIndex];
             }
             
-            console.log(`Selected opponent for player ${currentId} in round ${state.currentRound}: ${randomOpponentId}`);
             participants = [currentId, randomOpponentId];
           } else {
             // Fallback if there are no other players
@@ -495,6 +513,8 @@ const gameReducer = (state: GameState, action: GameAction): GameState => {
         customChallenges: customChallenges.map(c => ({ ...c })),
         currentChallenge: currentChallenge ? { ...currentChallenge } : null,
         currentChallengeParticipants,
+        isLoadingChallenges: false,
+        challengeLoadError: null
       };
     }
 
@@ -603,10 +623,28 @@ const getAllParticipantIds = (state: GameState): string[] => {
   return state.players.map(player => player.id);
 };
 
+// Additional helper function for converting DB challenges to app format
+const dbChallengeToAppChallenge = (dbChallenge: any): Challenge => {
+  return {
+    id: dbChallenge.id,
+    title: dbChallenge.title,
+    description: dbChallenge.description,
+    type: dbChallenge.type,
+    points: dbChallenge.points,
+    canReuse: dbChallenge.can_reuse,
+    category: dbChallenge.category || undefined,
+    isPrebuilt: dbChallenge.is_prebuilt,
+    prebuiltType: dbChallenge.prebuilt_type || undefined,
+    prebuiltSettings: dbChallenge.prebuilt_settings || undefined,
+    punishment: dbChallenge.punishment || undefined
+  };
+};
+
 // Create context
 interface GameContextType {
   state: GameState;
   dispatch: React.Dispatch<GameAction>;
+  loadChallenges: () => Promise<void>;
 }
 
 const GameContext = createContext<GameContextType | undefined>(undefined);
@@ -614,6 +652,69 @@ const GameContext = createContext<GameContextType | undefined>(undefined);
 // Create provider
 export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [state, dispatch] = useReducer(gameReducer, initialState);
+  const { user, isAuthenticated } = useAuth();
+  
+  const loadChallenges = async () => {
+    if (state.isLoadingChallenges) {
+      return;
+    }
+
+    // Set loading state
+    dispatch({ type: 'SET_CHALLENGES_LOADING', payload: true });
+    dispatch({ type: 'SET_CHALLENGES_ERROR', payload: null });
+    
+    // Set a timeout to prevent infinite loading
+    const loadingTimeout = setTimeout(() => {
+      dispatch({ type: 'SET_CHALLENGES_LOADING', payload: false });
+      dispatch({ 
+        type: 'SET_CHALLENGES_ERROR', 
+        payload: 'Timeout while loading challenges. Please try again.' 
+      });
+    }, 8000); // 8 seconds timeout
+    
+    try {
+      let challenges: Challenge[] = [];
+      
+      // Load from Supabase if authenticated
+      if (isAuthenticated && user) {
+        try {
+          // Make sure we're passing the user ID to filter only this user's challenges
+          const dbChallenges = await challengesService.getChallenges(user.id);
+          
+          challenges = dbChallenges.map(dbChallengeToAppChallenge);
+        } catch (error) {
+          console.error('Error loading challenges from Supabase:', error);
+          dispatch({ 
+            type: 'SET_CHALLENGES_ERROR', 
+            payload: 'Failed to load challenges from the database. Falling back to local storage.' 
+          });
+          
+          // Fall back to localStorage
+          const storedChallenges = localStorage.getItem('customChallenges');
+          if (storedChallenges) {
+            challenges = JSON.parse(storedChallenges);
+          }
+        }
+      } else {
+        // Not authenticated, load from localStorage
+        const storedChallenges = localStorage.getItem('customChallenges');
+        if (storedChallenges) {
+          challenges = JSON.parse(storedChallenges);
+        }
+      }
+      
+      dispatch({ type: 'LOAD_CHALLENGES', payload: challenges });
+    } catch (error) {
+      console.error('Error in loadChallenges:', error);
+      dispatch({ 
+        type: 'SET_CHALLENGES_ERROR', 
+        payload: 'An unexpected error occurred while loading challenges.' 
+      });
+    } finally {
+      clearTimeout(loadingTimeout);
+      dispatch({ type: 'SET_CHALLENGES_LOADING', payload: false });
+    }
+  };
 
   // Load game state from localStorage on mount
   useEffect(() => {
@@ -636,7 +737,9 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
               customChallenges: parsedState.customChallenges.map(c => ({ ...c })),
               results: parsedState.results.map(r => ({ ...r })),
               currentChallenge: parsedState.currentChallenge ? { ...parsedState.currentChallenge } : null,
-              currentChallengeParticipants: [...parsedState.currentChallengeParticipants]
+              currentChallengeParticipants: [...parsedState.currentChallengeParticipants],
+              isLoadingChallenges: false,
+              challengeLoadError: null
             }
           });
         }
@@ -644,7 +747,10 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
         console.error('Error restoring game state:', error);
       }
     }
-  }, []);
+    
+    // Load challenges on mount
+    loadChallenges();
+  }, [isAuthenticated]);
 
   // Save game state to localStorage whenever it changes
   useEffect(() => {
@@ -658,7 +764,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [state]);
 
   return (
-    <GameContext.Provider value={{ state, dispatch }}>
+    <GameContext.Provider value={{ state, dispatch, loadChallenges }}>
       {children}
     </GameContext.Provider>
   );

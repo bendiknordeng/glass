@@ -4,6 +4,7 @@ import supabase from '@/lib/supabase';
 import DataService from '@/services/data';
 import AuthService from '@/services/auth';
 import axios from 'axios';
+import { useValidatedAuth, getAnonymousUserId } from '@/utils/auth-helpers';
 
 // Global flag to prevent multiple simultaneous sign out attempts
 let isSigningOut = false;
@@ -74,13 +75,27 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   // Custom setter for isLoading that logs state changes
   const setLoadingWithLogging = (loading: boolean) => {
-    console.log(`Setting loading state: ${loading}`);
     setIsLoading(loading);
   }
 
   // Load Spotify auth data from Supabase
   const loadSpotifyAuth = async (userId: string) => {
     try {
+      // Ensure user ID is in UUID format
+      if (!userId || userId.trim() === '') {
+        console.warn('Invalid user ID provided to loadSpotifyAuth');
+        setSpotifyAuth(defaultSpotifyAuth);
+        return;
+      }
+      
+      // Validate UUID format
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      if (!uuidRegex.test(userId)) {
+        console.warn(`User ID "${userId}" is not in valid UUID format for Supabase`);
+        setSpotifyAuth(defaultSpotifyAuth);
+        return;
+      }
+
       const result = await DataService.getSpotifyAuth(userId);
       
       if (result.success && result.data) {
@@ -94,14 +109,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         });
       } else {
         // This is expected for users who haven't connected Spotify
-        console.log('No Spotify auth data found for user');
         setSpotifyAuth(defaultSpotifyAuth);
       }
     } catch (error) {
       console.error('Error loading Spotify auth:', error);
       // Reset Spotify auth on error
       setSpotifyAuth(defaultSpotifyAuth);
-      throw error;
     }
   };
 
@@ -112,6 +125,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
     
     try {
+      // Validate UUID format
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      if (!uuidRegex.test(user.id)) {
+        console.error(`Cannot save Spotify auth: User ID "${user.id}" is not in valid UUID format`);
+        throw new Error('Invalid user ID format for database operation');
+      }
+      
       // Calculate expiration timestamp
       const expiresAt = Math.floor(Date.now() / 1000) + expiresIn;
       
@@ -180,11 +200,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     
     // Set up auth state change listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event: AuthChangeEvent, newSession: Session | null) => {
-      console.log('Auth state changed:', event, !!newSession);
       
       // Handle duplicate auth events - if we're already authenticated and it's a SIGNED_IN event, ignore it
       if (event === 'SIGNED_IN' && isAuthenticated && newSession) {
-        console.log('Ignoring duplicate SIGNED_IN event - user is already authenticated');
         return;
       }
       
@@ -307,7 +325,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const signOut = async (redirectTo = '/') => {
     // Check if sign out is already in progress to prevent multiple calls
     if (isSigningOut) {
-      console.log("AuthContext: Sign out already in progress, ignoring duplicate call");
       return;
     }
     
@@ -316,28 +333,22 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     
     // Create a safety timeout - if anything hangs, we'll redirect anyway
     const safetyTimeout = setTimeout(() => {
-      console.log("AuthContext: Safety timeout triggered - forcing redirect");
       setLoadingWithLogging(false);
       isSigningOut = false;
       window.location.replace(redirectTo);
     }, 200);
     
     try {
-      console.log("AuthContext: Starting sign out process");
       setLoadingWithLogging(true);
       
       // Clear local state immediately to ensure UI updates
-      console.log("AuthContext: Clearing local state immediately");
       setIsAuthenticated(false);
       setUser(null);
       setSession(null);
       setSpotifyAuth(defaultSpotifyAuth);
       
       // Call AuthService.signOut which will handle cleanup with its own timeout
-      console.log("AuthContext: Calling Supabase auth.signOut()");
       const result = await AuthService.signOut(redirectTo);
-      
-      console.log("AuthContext: Sign out operation completed, redirecting to", redirectTo);
       
       // Clear the safety timeout since we completed successfully
       clearTimeout(safetyTimeout);

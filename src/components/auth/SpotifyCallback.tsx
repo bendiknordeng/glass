@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import spotifyService from '@/services/SpotifyService';
-import { useAuth } from '@/contexts/AuthContext';
+import { useValidatedAuth } from '@/utils/auth-helpers';
 import DataService from '@/services/data';
 
 /**
@@ -11,7 +11,7 @@ import DataService from '@/services/data';
 const SpotifyCallback: React.FC = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, getValidUserId } = useValidatedAuth();
   
   const [status, setStatus] = useState<'processing' | 'success' | 'error'>('processing');
   const [errorMessage, setErrorMessage] = useState<string>('');
@@ -32,11 +32,6 @@ const SpotifyCallback: React.FC = () => {
         const state = urlParams.get('state');
         const error = urlParams.get('error');
         
-        console.log('SpotifyCallback: URL parameters:', {
-          code: code ? `${code.substring(0, 5)}...` : null,
-          state,
-          error
-        });
         
         // Check if there's an error from Spotify
         if (error) {
@@ -58,26 +53,37 @@ const SpotifyCallback: React.FC = () => {
         if (success) {
           // If the user is authenticated with Supabase, save the Spotify auth data to Supabase
           if (user) {
-            console.log('SpotifyCallback: User is logged in, saving to Supabase for user:', user.id);
+            // Get a valid UUID format for the user ID
+            const validUserId = getValidUserId();
+            if (!validUserId) {
+              console.error('SpotifyCallback: Failed to get a valid user ID');
+              setStatus('error');
+              setErrorMessage('Authentication error: Invalid user ID format');
+              return;
+            }
+            
             
             // Spotify auth state is already in localStorage, load it
             const authState = localStorage.getItem('spotifyAuthState');
             if (authState) {
               const parsedAuthState = JSON.parse(authState);
               
-              // Save to Supabase
-              await DataService.saveSpotifyAuth(
-                user.id, 
-                parsedAuthState.accessToken,
-                parsedAuthState.refreshToken,
-                Math.floor(parsedAuthState.expiresAt / 1000) // Convert to Unix timestamp
-              );
-              console.log('SpotifyCallback: Saved Spotify auth data to Supabase');
+              try {
+                // Save to Supabase with validated user ID
+                await DataService.saveSpotifyAuth(
+                  validUserId,
+                  parsedAuthState.accessToken,
+                  parsedAuthState.refreshToken,
+                  Math.floor(parsedAuthState.expiresAt / 1000) // Convert to Unix timestamp
+                );
+              } catch (saveError) {
+                console.error('SpotifyCallback: Error saving to Supabase:', saveError);
+                // We continue anyway since the auth is already in localStorage
+                // Just log the error but don't show it to the user
+              }
             } else {
               console.error('SpotifyCallback: No Spotify auth state found in localStorage');
             }
-          } else {
-            console.log('SpotifyCallback: User is not logged in, skipping Supabase save');
           }
           
           setStatus('success');
@@ -88,17 +94,17 @@ const SpotifyCallback: React.FC = () => {
           }, 1500);
         } else {
           setStatus('error');
-          setErrorMessage('Failed to authenticate with Spotify');
+          setErrorMessage(t('auth.spotifyCallbackError'));
         }
       } catch (error) {
         console.error('SpotifyCallback: Error in handleCallback:', error);
         setStatus('error');
-        setErrorMessage(error instanceof Error ? error.message : 'An unknown error occurred');
+        setErrorMessage(error instanceof Error ? error.message : t('error.general'));
       }
     };
     
     handleCallback();
-  }, [navigate, user]);
+  }, [navigate, user, getValidUserId]);
   
   return (
     <div className="flex flex-col items-center justify-center min-h-screen p-4 bg-gray-50 dark:bg-gray-900">

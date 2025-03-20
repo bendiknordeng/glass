@@ -138,9 +138,7 @@ export class SpotifyService {
 
     // Generate a random state for CSRF protection
     const state = this.generateRandomString(16);
-    console.log('SpotifyService: Generated state:', state);
     localStorage.setItem('spotify_auth_state', state);
-    console.log('SpotifyService: Stored state in localStorage:', localStorage.getItem('spotify_auth_state'));
 
     // Create the authorization URL with required parameters
     const params = new URLSearchParams({
@@ -160,8 +158,6 @@ export class SpotifyService {
   async handleCallback(code: string, state: string): Promise<boolean> {
     // Verify state to prevent CSRF attacks
     const storedState = localStorage.getItem('spotify_auth_state');
-    console.log('SpotifyService handleCallback: Received state:', state);
-    console.log('SpotifyService handleCallback: Stored state:', storedState);
     
     if (state !== storedState) {
       console.error('SpotifyService handleCallback: State mismatch!');
@@ -207,7 +203,6 @@ export class SpotifyService {
       
       // Save auth state to localStorage
       this.saveAuthState();
-      console.log('SpotifyService: Saved auth state to localStorage');
       
       return true;
     } catch (error) {
@@ -396,9 +391,6 @@ export class SpotifyService {
         return tracksWithPreviews.slice(0, limit);
       }
       
-      // If we don't have enough tracks with previews, look for alternative previews
-      console.log(`Only found ${tracksWithPreviews.length} tracks with previews, need ${limit}. Trying to find alternatives...`);
-      
       // Randomize all tracks if requested
       const tracksToProcess = [...tracks];
       if (randomize) {
@@ -412,7 +404,6 @@ export class SpotifyService {
         .slice(0, limit - tracksWithPreviews.length);
       
       if (tracksWithoutPreviews.length > 0) {
-        console.log(`Finding alternative preview URLs for ${tracksWithoutPreviews.length} tracks...`);
         
         // Process each track without a preview URL in parallel, but limit the number of parallel requests
         const previewSearchPromises = tracksWithoutPreviews.map(async (track: SpotifyTrack) => {
@@ -442,7 +433,6 @@ export class SpotifyService {
             
             // Create a clean search term that won't cause API errors
             const searchTerm = `${sanitizedName} - ${sanitizedArtist}`;
-            console.log(`Searching for alternative preview: "${searchTerm}"`);
             
             // Pass song name and artist as separate parameters for more accurate matching
             const result = await customPreviewFinder(searchTerm, 1);
@@ -453,7 +443,6 @@ export class SpotifyService {
               const artistMatches = this.artistsMatch(primaryArtist, matchedTrack.artist || '');
               
               if (artistMatches) {
-                console.log(`✓ Found matching preview for "${track.name}" by "${primaryArtist}"`);
                 return {
                   id: track.id,
                   previewUrl: matchedTrack.previewUrls[0],
@@ -592,7 +581,6 @@ export class SpotifyService {
    * Logout user
    */
   logout(): void {
-    console.log("SpotifyService: Logging out user");
     this.authState = null;
     localStorage.removeItem(this.localStorageKey);
   }

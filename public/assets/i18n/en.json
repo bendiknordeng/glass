@@ -26,7 +26,11 @@
     "login": "Log In",
     "logout": "Log Out",
     "skip": "Skip",
-    "profile": "Profile"
+    "profile": "Profile",
+    "loading": "Loading...",
+    "error": "Error",
+    "retry": "Retry",
+    "confirmDelete": "Confirm delete"
   },
   "home": {
     "newGame": "New Game",
@@ -39,6 +43,8 @@
   "setup": {
     "title": "Game Setup",
     "playerRegistration": "Player Registration",
+    "noRecentPlayers": "No recent players",
+    "addPlayersToSee": "Add players to see recent players",
     "addPlayer": "Add Player",
     "playerName": "Player Name",
     "uploadImage": "Upload Image",
@@ -82,7 +88,8 @@
     "teamColor": "Team Color",
     "dragPlayersInstructions": "Drag players to assign them to teams",
     "teamsRequired": "Please create at least 2 teams",
-    "allPlayersAssigned": "All players must be assigned to a team"
+    "allPlayersAssigned": "All players must be assigned to a team",
+    "confirmDeletePlayer": "Are you sure you want to delete {{item}}?"
   },
   "game": {
     "round": "Round {{round}}",
@@ -305,7 +312,11 @@
   },
   "error": {
     "title": "Error",
-    "general": "Something went wrong. Please try again."
+    "general": "Something went wrong. Please try again.",
+    "timeoutLoadingPlayers": "Timeout loading players. Please try again.",
+    "loadingPlayers": "Error loading players. Please try again.",
+    "loadingChallenges": "Error loading challenges. Please try again.",
+    "loadingGames": "Error loading games. Please try again."
   },
   "auth": {
     "spotifyConnecting": "Connecting to Spotify",
@@ -316,6 +327,7 @@
     "spotifyLoginInfo": "Connect your Spotify account to access your playlists",
     "spotifyLoginHelp": "This will allow Glass to browse your Spotify playlists and use them for music quizzes.",
     "spotifyLoggedInAs": "Logged in as",
+    "spotifyCallbackError": "Failed to authenticate with Spotify",
     "spotifyUserProfile": "Spotify User Profile"
   }
 }

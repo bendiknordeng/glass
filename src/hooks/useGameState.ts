@@ -78,18 +78,15 @@ export const useGameState = () => {
    */
   const getCurrentParticipant = useCallback(() => {
     if (!state.currentChallengeParticipants || state.currentChallengeParticipants.length === 0) {
-      console.log("No challenge participants found");
       return null;
     }
     
     const participantId = state.currentChallengeParticipants[0];
-    console.log(`Looking for participant with ID: ${participantId}`);
     
     // First try looking in teams if in team mode
     if (state.gameMode === GameMode.TEAMS) {
       const team = state.teams.find(t => t.id === participantId);
       if (team) {
-        console.log(`Found team participant: ${team.name}`);
         return team;
       }
     }
@@ -97,11 +94,9 @@ export const useGameState = () => {
     // Then try looking in players
     const player = state.players.find(p => p.id === participantId);
     if (player) {
-      console.log(`Found player participant: ${player.name}`);
       return player;
     }
     
-    console.log(`Participant with ID ${participantId} not found`);
     return null;
   }, [state.currentChallengeParticipants, state.players, state.teams, state.gameMode]);
 
@@ -128,7 +123,6 @@ export const useGameState = () => {
   const verifyParticipantsAssigned = useCallback(() => {
     // If no challenge, can't verify participants
     if (!state.currentChallenge) {
-      console.log("No current challenge, can't verify participants");
       return false;
     }
     
@@ -140,7 +134,6 @@ export const useGameState = () => {
           : state.players.some(p => p.id === id);
       });
       
-    console.log(`Current participants valid: ${hasValidParticipants}`, state.currentChallengeParticipants);
     
     // If participants are already valid, nothing to do
     if (hasValidParticipants) {
@@ -168,16 +161,13 @@ export const useGameState = () => {
         if (state.teams.length >= 2) {
           // If there are at least 2 teams, include all teams
           participantIds = state.teams.map(team => team.id);
-          console.log(`Selected all ${participantIds.length} teams for one-on-one challenge`);
         } else {
           // If there's only one team, just use that team
           participantIds = [currentTurnTeam.id];
-          console.log(`Only one team available for one-on-one: ${currentTurnTeam.name}`);
         }
       } else if (state.currentChallenge.type === ChallengeType.TEAM) {
         // For team challenges, include all teams
         participantIds = state.teams.map(team => team.id);
-        console.log(`Selected all ${participantIds.length} teams for team challenge`);
       } else if (state.currentChallenge.type === ChallengeType.ALL_VS_ALL) {
         // For all vs all challenges in team mode, include all teams but players will compete individually
         participantIds = state.teams.map(team => team.id);
@@ -187,8 +177,6 @@ export const useGameState = () => {
         if (playerIds.length > 0) {
           participantIds = [...participantIds, ...playerIds];
         }
-        
-        console.log(`Selected all teams and players for all vs all challenge: ${participantIds.length} participants`);
       } else {
         // For individual challenges, select the current team
         participantIds = [currentTurnTeam.id];
@@ -204,11 +192,8 @@ export const useGameState = () => {
               participantIds: [playerId]
             }
           });
-          console.log(`Selected team and player for individual challenge: ${currentTurnTeam.name}, player ID: ${playerId}`);
           return true;
         }
-        
-        console.log(`Selected team for individual challenge: ${currentTurnTeam.name}`);
       }
     } else {
       // In free-for-all mode, select player(s) as participants
@@ -236,21 +221,17 @@ export const useGameState = () => {
           participantIds = state.players.map(p => p.id);
         }
         
-        console.log(`Selected ${participantIds.length} players for one-on-one challenge`);
       } else if (state.currentChallenge.type === ChallengeType.ALL_VS_ALL) {
         // For all vs all challenges in free-for-all mode, include all players
         participantIds = state.players.map(p => p.id);
-        console.log(`Selected all ${participantIds.length} players for all vs all challenge`);
       } else {
         // For other challenge types, select the current player
         participantIds = [currentTurnPlayer.id];
-        console.log(`Selected player for individual challenge: ${currentTurnPlayer.name}`);
       }
     }
     
     // Update the participants in state if we have valid ones
     if (participantIds.length > 0) {
-      console.log("Updating challenge participants:", participantIds);
       dispatch({ 
         type: 'UPDATE_CHALLENGE_PARTICIPANTS', 
         payload: {
@@ -280,7 +261,6 @@ export const useGameState = () => {
   const selectNextChallenge = useCallback(() => {
     // Prevent multiple calls to selectNextChallenge
     if (isChallengeTransitionInProgressRef.current) {
-      console.log('Challenge transition already in progress, ignoring duplicate call');
       return;
     }
     
@@ -301,7 +281,6 @@ export const useGameState = () => {
     nextTurnCalled.current = false;
 
     // First advance to next player's turn and wait for state update
-    console.log("Advancing to next turn");
     dispatch({ type: 'NEXT_TURN' });
     
     // We'll use this flag to track if we've called NEXT_TURN
@@ -319,7 +298,6 @@ export const useGameState = () => {
       
       if (!challenge) {
         // No more challenges available, end the game
-        console.log("No more challenges available, ending game");
         dispatch({ type: 'END_GAME' });
         isChallengeTransitionInProgressRef.current = false;
         return;
@@ -337,8 +315,6 @@ export const useGameState = () => {
         isChallengeTransitionInProgressRef.current = false;
         return;
       }
-
-      console.log(`Selected challenge: ${challenge.title}`);
       
       // Select the challenge in state
       dispatch({ type: 'SELECT_CHALLENGE', payload: challenge });
@@ -349,7 +325,6 @@ export const useGameState = () => {
         const participantsValid = verifyParticipantsAssigned();
         
         if (participantsValid) {
-          console.log("Participants assigned successfully, proceeding to reveal sequence");
           // After the challenge and participants are set up, directly proceed to revealing
           
           // Let the Game component handle the reveal sequence
@@ -367,14 +342,11 @@ export const useGameState = () => {
             isChallengeTransitionInProgressRef.current = false;
           } else {
             // Try once more after a longer delay
-            console.log(`Retrying participant assignment (attempt ${participantSelectionAttempts.current})`);
             setTimeout(() => {
               const retrySuccessful = verifyParticipantsAssigned();
               if (retrySuccessful) {
-                console.log("Participant assignment successful on retry");
                 startRevealSequence();
               } else {
-                console.log("Participant assignment failed again, going to challenge reveal");
                 setIsRevealingChallenge(true);
               }
               isChallengeTransitionInProgressRef.current = false;
@@ -401,7 +373,6 @@ export const useGameState = () => {
   const startGame = useCallback(() => {
     // Use ref to prevent duplicate calls in the same render cycle
     if (startGameCalledRef.current) {
-      console.log("Game already started, ignoring duplicate call");
       return;
     }
     
@@ -410,7 +381,6 @@ export const useGameState = () => {
     gameInitialized.current = true;
     
     // Initialize game state
-    console.log("Initializing game state");
     dispatch({ type: 'START_GAME' });
     
     // Small delay to ensure game context is updated
@@ -419,7 +389,6 @@ export const useGameState = () => {
       startGameCalledRef.current = false;
       
       // Move to the next challenge
-      console.log("Game initialized, selecting first challenge");
       selectNextChallenge();
     }, 300); // Increased delay for better state synchronization
   }, [dispatch, selectNextChallenge]);
@@ -432,7 +401,6 @@ export const useGameState = () => {
     
     // Prevent duplicate calls while processing
     if (isChallengeTransitionInProgressRef.current) {
-      console.log('Challenge transition already in progress, ignoring duplicate completion call');
       return;
     }
     
@@ -442,7 +410,6 @@ export const useGameState = () => {
     setIsRevealingChallenge(false);
     
     // Record the result and wait for state update before proceeding
-    console.log(`Completing challenge: ${state.currentChallenge.title}, completed: ${completed}, winner: ${winnerId || 'none'}`);
     dispatch({
       type: 'RECORD_CHALLENGE_RESULT',
       payload: {

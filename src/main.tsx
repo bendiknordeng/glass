@@ -1,15 +1,3 @@
-// Remove dotenv import attempt
-// try {
-//   // This is used by spotify-preview-finder
-//   // Use dynamic import instead of require for Vite compatibility
-//   import('dotenv').then(dotenv => {
-//     dotenv.config();
-//     console.log('dotenv loaded successfully');
-//   });
-// } catch (error) {
-//   console.log('dotenv not available, environment variables will be loaded through Vite only');
-// }
-
 import React, { Suspense } from 'react';
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';

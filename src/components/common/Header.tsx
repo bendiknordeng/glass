@@ -37,7 +37,6 @@ const Header: React.FC<HeaderProps> = ({ showHomeButton = false, isSidebar = fal
   // Handle logout
   const handleLogout = () => {
     try {
-      console.log("Header: Executing sign out");
       
       // Show feedback to the user
       const userButton = document.querySelector('[aria-label="User menu"]');
@@ -87,16 +86,6 @@ const Header: React.FC<HeaderProps> = ({ showHomeButton = false, isSidebar = fal
                 ),
                 value: 'profile',
                 onClick: () => navigate('/profile')
-              },
-              {
-                label: (
-                  <span className="flex items-center gap-2">
-                    <SunIcon className="w-4 h-4" />
-                    <span>{isDarkMode ? t('settings.lightMode') : t('settings.darkMode')}</span>
-                  </span>
-                ),
-                value: 'theme',
-                onClick: toggleTheme
               },
               {
                 label: (

@@ -12,8 +12,6 @@ export const AuthService = {
    */
   signInWithOAuth: async (provider: Provider) => {
     try {
-      console.log(`Starting ${provider} OAuth flow`);
-
       // For Google, we need specific options
       const options: Record<string, any> = {
         redirectTo: PROVIDER_REDIRECT_URI,
@@ -29,8 +27,6 @@ export const AuthService = {
         };
       }
 
-      console.log(`${provider} OAuth options:`, options);
-
       // Note: Removing the artificial delay that was causing issues
       // Allow the login to proceed immediately
 
@@ -42,11 +38,6 @@ export const AuthService = {
       if (error) {
         console.error(`${provider} OAuth error:`, error);
         throw error;
-      }
-
-      // Important debugging - log the auth URL that was generated
-      if (data?.url) {
-        console.log(`Redirecting to ${provider} auth URL:`, data.url);
       }
 
       return { success: true, data };
@@ -102,13 +93,11 @@ export const AuthService = {
    */
   signOut: async (redirectTo = '/') => {
     try {
-      console.log("Auth service: Starting sign out process");
       
       // Create a promise race between the Supabase signOut and a timeout
       const signOutPromise = supabase.auth.signOut({ scope: "global" });
       const timeoutPromise = new Promise((resolve) => {
         setTimeout(() => {
-          console.log("Auth service: Supabase signOut timed out after 1.5s, continuing with cleanup");
           resolve({ error: new Error("Supabase signOut timed out") });
         }, 100);
       });

@@ -6,6 +6,7 @@ import Game from './pages/Game';
 import Results from './pages/Results';
 import Login from './pages/Login';
 import Profile from './pages/Profile';
+import SupabaseTest from './pages/SupabaseTest';
 import SpotifyCallback from './components/auth/SpotifyCallback';
 import AuthCallback from './components/auth/AuthCallback';
 import { loadTranslations } from './i18n';
@@ -62,6 +63,9 @@ const App: React.FC = () => {
               <Route path="/game" element={<AppLayout><Game /></AppLayout>} />
               <Route path="/results" element={<AppLayout><Results /></AppLayout>} />
               <Route path="/profile" element={<AppLayout><Profile /></AppLayout>} />
+              
+              {/* Developer tools */}
+              <Route path="/debug/supabase" element={<AppLayout><SupabaseTest /></AppLayout>} />
               
               {/* Catch all route - redirect to home */}
               <Route path="*" element={<Navigate to="/" replace />} />

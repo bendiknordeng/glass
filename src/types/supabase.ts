@@ -14,40 +14,53 @@ export interface UserProfile {
   google_connected: boolean;
 }
 
-export interface RecentPlayer {
+// New interfaces for updated database schema
+export interface Player {
   id: string;
   user_id: string;
-  player_name: string;
-  avatar_url: string | null;
+  name: string;
+  image: string | null;
   score: number;
   created_at: string;
+  updated_at: string;
+  last_played_at: string | null;
+  total_games: number;
+  wins: number;
+  favorite: boolean;
 }
 
-export interface RecentChallenge {
+export interface DBChallenge {
   id: string;
   user_id: string;
-  challenge_id: string;
-  challenge_name: string;
-  difficulty: string;
+  title: string;
+  description: string;
+  type: string; // 'INDIVIDUAL', 'ONE_ON_ONE', 'TEAM', 'ALL_VS_ALL'
+  points: number;
+  can_reuse: boolean;
+  category: string | null;
+  is_prebuilt: boolean;
+  prebuilt_type: string | null;
+  prebuilt_settings: Record<string, any> | null;
+  punishment: Record<string, any> | null;
   created_at: string;
-  metadata: Record<string, any> | null;
+  updated_at: string;
+  times_played: number;
+  is_favorite: boolean;
 }
 
-export interface RecentGame {
+export interface Game {
   id: string;
   user_id: string;
   game_mode: string;
-  players: string[];
-  winner: string | null;
-  score: number;
-  duration: number; // in seconds
-  created_at: string;
-  challenge_id: string | null;
-  tracks: Array<{
-    id: string;
-    name: string;
-    artist: string;
-    album: string | null;
-    image_url: string | null;
-  }> | null;
+  status: 'active' | 'completed' | 'abandoned';
+  started_at: string;
+  completed_at: string | null;
+  players: Record<string, any>;
+  teams: Record<string, any> | null;
+  current_challenge: string | null;
+  completed_challenges: Record<string, any>[];
+  scores: Record<string, any>;
+  winner_id: string | null;
+  settings: Record<string, any> | null;
+  updated_at: string;
 }

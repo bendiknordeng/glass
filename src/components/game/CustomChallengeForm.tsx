@@ -7,7 +7,10 @@ import Button from '@/components/common/Button';
 import Modal from '@/components/common/Modal';
 import Switch from '@/components/common/Switch';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
-import { SunIcon, MoonIcon, XMarkIcon, CheckIcon } from '@heroicons/react/24/solid';
+import { XMarkIcon, CheckIcon } from '@heroicons/react/24/solid';
+import { challengesService } from '@/services/supabase';
+import { useValidatedAuth } from '@/utils/auth-helpers'; // Use validated auth
+import { DBChallenge } from '@/types/supabase';
 
 // Maximum number of recent custom challenges to store
 const MAX_RECENT_CHALLENGES = 10;
@@ -32,7 +35,9 @@ const CustomChallengeForm: React.FC<CustomChallengeFormProps> = ({
 }) => {
   const { t } = useTranslation();
   const { dispatch } = useGame();
+  const { user, isAuthenticated, getValidUserId } = useValidatedAuth(); // Use validated auth
   const [recentChallenges, setRecentChallenges] = useLocalStorage<Challenge[]>(RECENT_CHALLENGES_KEY, []);
+  const [isLoadingChallenges, setIsLoadingChallenges] = useState(false);
   
   // Form state
   const [title, setTitle] = useState('');
@@ -50,6 +55,39 @@ const CustomChallengeForm: React.FC<CustomChallengeFormProps> = ({
   
   // Validation errors
   const [errors, setErrors] = useState<ValidationError[]>([]);
+  
+  // Load challenges from Supabase when the form opens
+  useEffect(() => {
+    if (isOpen && isAuthenticated && user) {
+      loadChallenges();
+    }
+  }, [isOpen, isAuthenticated, user]);
+  
+  // Load challenges from Supabase
+  const loadChallenges = async () => {
+    setIsLoadingChallenges(true);
+    
+    // Set a timeout to prevent infinite loading
+    const loadingTimeout = setTimeout(() => {
+      setIsLoadingChallenges(false);
+    }, 5000); // 5 seconds max loading time
+    
+    try {
+      if (isAuthenticated && user) {
+        // Get a valid UUID format user ID
+        const validUserId = getValidUserId();
+        if (!validUserId) {
+          throw new Error('Could not get a valid user ID');
+        }
+        const dbChallenges = await challengesService.getChallenges(validUserId);
+      }
+    } catch (error) {
+      console.error('Error loading challenges:', error);
+    } finally {
+      clearTimeout(loadingTimeout);
+      setIsLoadingChallenges(false);
+    }
+  };
   
   // Load challenge data when editing
   useEffect(() => {
@@ -88,8 +126,8 @@ const CustomChallengeForm: React.FC<CustomChallengeFormProps> = ({
     return punishment;
   };
   
-  // Helper function to update recent challenges
-  const updateRecentChallenges = (challenge: Challenge) => {
+  // Helper function to update recent challenges in local storage
+  const updateRecentChallengesLocally = (challenge: Challenge) => {
     // Remove existing challenge with the same ID if found
     const filtered = recentChallenges.filter(c => c.id !== challenge.id);
     
@@ -98,6 +136,16 @@ const CustomChallengeForm: React.FC<CustomChallengeFormProps> = ({
     
     // Update localStorage via the hook
     setRecentChallenges(updated);
+  };
+  
+  // Convert app punishment to database punishment
+  const punishmentToDbFormat = (punishment: Punishment | undefined): Record<string, any> | null => {
+    if (!punishment) return null;
+    return {
+      type: punishment.type,
+      value: punishment.value,
+      ...(punishment.customDescription ? { customDescription: punishment.customDescription } : {})
+    };
   };
   
   // Validate form
@@ -126,7 +174,7 @@ const CustomChallengeForm: React.FC<CustomChallengeFormProps> = ({
   };
   
   // Handle form submission
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!validateForm()) {
@@ -134,6 +182,12 @@ const CustomChallengeForm: React.FC<CustomChallengeFormProps> = ({
     }
     
     setIsSubmitting(true);
+    
+    // Set a timeout to prevent infinite submitting
+    const submittingTimeout = setTimeout(() => {
+      setIsSubmitting(false);
+      setErrors([...errors, { id: 'timeout', message: t('common.requestTimeout') }]);
+    }, 10000); // 10 seconds max submission time
     
     try {
       let challenge: Challenge;
@@ -150,14 +204,45 @@ const CustomChallengeForm: React.FC<CustomChallengeFormProps> = ({
           punishment: getPunishment()
         };
         
+        // Update in Supabase if authenticated
+        if (isAuthenticated && user) {
+          // Get a valid UUID format user ID
+          const validUserId = getValidUserId();
+          if (!validUserId) {
+            throw new Error('Could not get a valid user ID');
+          }
+          
+          try {
+            const updated = await challengesService.updateChallenge(challenge.id, {
+              title,
+              description,
+              type: type.toString(),
+              points,
+              can_reuse: canReuse,
+              punishment: punishmentToDbFormat(getPunishment())
+            });
+            
+            if (updated) {
+            } else {
+              console.warn("Failed to update challenge in Supabase");
+            }
+          } catch (dbError) {
+            console.error("Error updating challenge in Supabase:", dbError);
+            // Continue with local update regardless of DB error
+          }
+        }
+        
         dispatch({
           type: 'UPDATE_CUSTOM_CHALLENGE',
           payload: challenge
         });
       } else {
+        // Create a new challenge ID
+        const challengeId = Date.now().toString();
+        
         // Add new challenge
         challenge = {
-          id: Date.now().toString(), // Generate a new ID
+          id: challengeId,
           title,
           description,
           type,
@@ -166,21 +251,61 @@ const CustomChallengeForm: React.FC<CustomChallengeFormProps> = ({
           punishment: getPunishment()
         };
         
+        // Save to Supabase if authenticated
+        if (isAuthenticated && user) {
+          // Get a valid UUID format user ID
+          const validUserId = getValidUserId();
+          if (!validUserId) {
+            throw new Error('Could not get a valid user ID');
+          }
+          
+          const dbChallengeData: Omit<DBChallenge, 'id' | 'created_at' | 'updated_at' | 'times_played'> = {
+            user_id: validUserId,
+            title,
+            description,
+            type: type.toString(),
+            points,
+            can_reuse: canReuse,
+            punishment: punishmentToDbFormat(getPunishment()),
+            is_prebuilt: false,
+            is_favorite: false,
+            category: null,
+            prebuilt_type: null,
+            prebuilt_settings: null
+          };
+          
+          try {
+            const dbChallenge = await challengesService.addChallenge(dbChallengeData);
+            
+            if (dbChallenge) {
+              // Use the Supabase-generated ID
+              challenge.id = dbChallenge.id;
+            } else {
+              console.warn("Failed to save challenge to Supabase, using local ID");
+            }
+          } catch (dbError) {
+            console.error("Error saving challenge to Supabase:", dbError);
+            // Continue with local ID if DB operation fails
+          }
+        }
+        
         dispatch({
           type: 'ADD_CUSTOM_CHALLENGE',
           payload: challenge
         });
       }
       
-      // Add to recent challenges in localStorage
-      updateRecentChallenges(challenge);
+      // Add to recent challenges in localStorage as a fallback
+      updateRecentChallengesLocally(challenge);
       
       // Reset form and close modal
       resetForm();
       onClose();
     } catch (error) {
       console.error('Error saving custom challenge:', error);
+      setErrors([...errors, { id: 'form', message: t('common.errorSaving') }]);
     } finally {
+      clearTimeout(submittingTimeout);
       setIsSubmitting(false);
     }
   };

@@ -15,11 +15,12 @@ import MultiPlayerReveal from '@/components/animations/MultiPlayerReveal';
 import { ChallengeType } from '@/types/Challenge';
 import { Player } from '@/types/Player';
 import { Team, GameMode } from '@/types/Team';
+import LoadingState from '@/components/common/LoadingState';
 
 const Game: React.FC = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { state } = useGame();
+  const { state, loadChallenges } = useGame();
   const {
     gameState,
     timeRemaining,
@@ -64,9 +65,12 @@ const Game: React.FC = () => {
     // Set the ref and state
     isNewGameStartRef.current = isNewGame;
     setIsFirstChallengeInNewGame(isNewGame);
-    
-    console.log("Game component mounted, isNewGameStart from localStorage:", isNewGame);
-  }, []);
+
+    // Load challenges on mount if needed
+    if (state.challenges.length === 0 && !state.isLoadingChallenges) {
+      loadChallenges();
+    }
+  }, [state.challenges.length, state.isLoadingChallenges, loadChallenges]);
   
   // Redirect to home if no game started
   useEffect(() => {
@@ -86,7 +90,6 @@ const Game: React.FC = () => {
   useEffect(() => {
     // Only run game initialization if not already done and prerequisites are met
     if (!gameInitializedRef.current && state.players.length > 0 && !state.gameFinished) {
-      console.log("Initializing game...");
       gameInitializedRef.current = true;
       
       // Check if this is a direct continuation from setup
@@ -96,8 +99,14 @@ const Game: React.FC = () => {
       isNewGameStartRef.current = isNewGameStart;
       setIsFirstChallengeInNewGame(isNewGameStart);
       
+      // Ensure challenges are loaded before proceeding
+      if (state.challenges.length === 0 && !state.isLoadingChallenges) {
+        loadChallenges();
+        // We'll continue initialization after challenges are loaded
+        return;
+      }
+      
       if (isNewGameStart) {
-        console.log("Fresh game from setup detected, will skip player reveal for first challenge only");
         // We'll keep the flag - it will be cleared in startRevealSequence
         
         // For fresh games coming directly from setup, just select the next challenge normally
@@ -106,21 +115,18 @@ const Game: React.FC = () => {
         
         // Add a small delay to ensure the challenge is selected before starting the reveal
         setTimeout(() => {
-          console.log("Triggering reveal sequence for first challenge in new game");
           startRevealSequence();
         }, 100);
       }
       // For continued games, just select the next challenge with normal reveal flow
       else if (state.results.length > 0) {
-        console.log("Continuing existing game...");
         selectNextChallenge();
       } else {
         // For new games not coming from setup, start with full animation flow
-        console.log("Starting new game...");
         startGame();
       }
     }
-  }, [state.players.length, state.results.length, state.gameFinished, startGame, selectNextChallenge]);
+  }, [state.players.length, state.results.length, state.gameFinished, state.challenges.length, state.isLoadingChallenges, startGame, selectNextChallenge, loadChallenges]);
   
   // Get current participant
   const currentParticipant = getCurrentParticipant();
@@ -130,7 +136,6 @@ const Game: React.FC = () => {
     // Since we no longer use isSelectingPlayer, we only need to verify participants
     // when we have a challenge but no valid participant
     if (!currentParticipant && state.currentChallenge) {
-      console.log("Current participant is null but we have a challenge, trying to fix");
       
       // Increment retry counter
       participantRetryCount.current += 1;
@@ -140,15 +145,12 @@ const Game: React.FC = () => {
         const success = verifyParticipantsAssigned();
         
         if (success) {
-          console.log("Successfully fixed participants");
           // The next render will have the right participant
         } else if (participantRetryCount.current >= 3) {
-          console.error("Failed to assign participants after multiple attempts, forcing challenge reveal");
           setIsRevealingChallenge(true);
         }
       } else {
         // Too many retries, just show the challenge
-        console.error("Too many participant selection retries, forcing challenge reveal");
         setIsRevealingChallenge(true);
       }
     } else if (currentParticipant) {
@@ -170,7 +172,6 @@ const Game: React.FC = () => {
     
     // Get the current challenge ID to track player selections per challenge
     const currentChallengeId = state.currentChallenge?.id || '';
-    console.log(`Selecting players for one-on-one challenge: ${state.currentChallenge?.title} (ID: ${currentChallengeId})`);
     
     if (state.gameMode === GameMode.TEAMS) {
       // For team mode, we need to select one player from each team
@@ -265,14 +266,6 @@ const Game: React.FC = () => {
         }
       });
       
-      console.log(`Challenge ${currentChallengeId} (${state.currentChallenge?.title}) - canReuse: ${state.currentChallenge?.canReuse}`);
-      console.log("Player selection counts for all one-on-one challenges:", playerSelectionCounts);
-      console.log(`Player selection counts for challenge ${currentChallengeId}:`, 
-        playerSelectionsPerChallenge[currentChallengeId] || {});
-      console.log("General player pair history:", Array.from(playerPairHistory));
-      console.log(`Player pair history for challenge ${currentChallengeId}:`, 
-        Array.from(playerPairHistoryForChallenge));
-      
       // Now we'll select players from each team
       const selectedPlayerIds: Set<string> = new Set();
       
@@ -314,7 +307,6 @@ const Game: React.FC = () => {
             
             if (unseenCandidatesForChallenge.length > 0) {
               bestCandidates = unseenCandidatesForChallenge;
-              console.log(`Found ${unseenCandidatesForChallenge.length} players who haven't faced the selected players in this specific challenge before`);
             }
           } 
           // For non-reusable challenges or if we couldn't find any unseen candidates for this challenge,
@@ -329,7 +321,6 @@ const Game: React.FC = () => {
             
             if (unseenCandidates.length > 0) {
               bestCandidates = unseenCandidates;
-              console.log(`Found ${unseenCandidates.length} players who haven't faced the selected players in any challenge before`);
             }
           }
         }
@@ -358,15 +349,6 @@ const Game: React.FC = () => {
         // Random selection from the pool
         const randomIndex = Math.floor(Math.random() * selectionPool.length);
         const selectedPlayer = selectionPool[randomIndex];
-        
-        if (state.currentChallenge?.canReuse) {
-          console.log(`Selected player ${selectedPlayer.name} from team ${team.name} ` + 
-            `(overall count: ${playerSelectionCounts[selectedPlayer.id] || 0}, ` +
-            `count for this challenge: ${playerSelectionsPerChallenge[currentChallengeId]?.[selectedPlayer.id] || 0})`);
-        } else {
-          console.log(`Selected player ${selectedPlayer.name} from team ${team.name} ` +
-            `(overall count: ${playerSelectionCounts[selectedPlayer.id] || 0})`);
-        }
         
         selectedPlayers.push(selectedPlayer);
         selectedPlayerIds.add(selectedPlayer.id);
@@ -437,24 +419,8 @@ const Game: React.FC = () => {
         }
         
         selectedPlayers = availablePlayers;
-        
-        // Log the selected players
-        selectedPlayers.forEach(player => {
-          if (state.currentChallenge?.canReuse) {
-            console.log(`Selected player ${player.name} for individual one-on-one ` +
-              `(overall count: ${playerSelectionCounts[player.id] || 0}, ` +
-              `count for this challenge: ${playerSelectionsPerChallenge[currentChallengeId]?.[player.id] || 0})`);
-          } else {
-            console.log(`Selected player ${player.name} for individual one-on-one ` +
-              `(overall count: ${playerSelectionCounts[player.id] || 0})`);
-          }
-        });
       }
     }
-    
-    // Log the final selection
-    console.log(`Selected ${selectedPlayers.length} players for one-on-one challenge:`, 
-      selectedPlayers.map(p => p.name).join(', '));
     
     return selectedPlayers;
   };
@@ -503,7 +469,6 @@ const Game: React.FC = () => {
 
   // Handle player reveal complete
   const handlePlayerRevealComplete = () => {
-    console.log("Player reveal complete");
     // Set transitioning state
     setIsTransitioning(true);
     
@@ -523,7 +488,6 @@ const Game: React.FC = () => {
   
   // Handle multi-player reveal complete
   const handleMultiPlayerRevealComplete = () => {
-    console.log("Multi-player reveal complete");
     // Set transitioning state to prevent showing main game area prematurely
     setIsTransitioning(true);
     
@@ -543,7 +507,6 @@ const Game: React.FC = () => {
   
   // Handle team vs team reveal complete
   const handleTeamVsTeamRevealComplete = () => {
-    console.log("Team vs team reveal complete");
     // Set transitioning state
     setIsTransitioning(true);
     
@@ -563,7 +526,6 @@ const Game: React.FC = () => {
   
   // Handle challenge reveal complete
   const handleChallengeRevealComplete = () => {
-    console.log("Challenge reveal complete");
     
     // Set transitioning state briefly
     setIsTransitioning(true);
@@ -583,16 +545,8 @@ const Game: React.FC = () => {
   
   // Start the reveal sequence based on challenge type
   const startRevealSequence = () => {
-    console.log("Starting reveal sequence", state.currentChallenge?.type);
-    
-    // Debug information to help troubleshoot
-    console.log("isNewGameStartRef value:", isNewGameStartRef.current);
-    console.log("isFirstChallengeInNewGame state:", isFirstChallengeInNewGame);
-    console.log("localStorage isNewGameStart value:", localStorage.getItem('isNewGameStart'));
-    
     // Prevent multiple reveal sequences from starting
     if (animationInProgressRef.current) {
-      console.log("Animation already in progress, canceling this reveal");
       return;
     }
     
@@ -604,7 +558,6 @@ const Game: React.FC = () => {
       localStorage.getItem('isNewGameStart') === 'true'
     );
     
-    console.log("isNewGameStart evaluation result:", isNewGameStart);
     
     // Set animation in progress flag
     animationInProgressRef.current = true;
@@ -619,7 +572,6 @@ const Game: React.FC = () => {
     
     // For the first challenge after setup, skip directly to challenge reveal
     if (isNewGameStart) {
-      console.log("First challenge after setup - skipping player reveal");
       
       // Reset our ref and state
       isNewGameStartRef.current = false;
@@ -630,7 +582,6 @@ const Game: React.FC = () => {
       
       // Go directly to challenge reveal after a short delay
       setTimeout(() => {
-        console.log("Showing challenge reveal for first challenge");
         setIsRevealingChallenge(true);
         setIsTransitioning(false);
       }, 300);
@@ -647,7 +598,6 @@ const Game: React.FC = () => {
       
       if (challengeType === ChallengeType.TEAM && state.gameMode === GameMode.TEAMS) {
         // For TEAM type challenges in team mode, show team vs team reveal
-        console.log("Starting team vs team reveal for TEAM challenge");
         setIsRevealingTeamVsTeam(true);
         
         // Clear transitioning state once the animation starts
@@ -670,7 +620,6 @@ const Game: React.FC = () => {
         }
         
         if (players.length > 0) {
-          console.log(`Starting multi-player reveal for ALL_VS_ALL challenge with ${players.length} players`);
           setSelectedPlayersForReveal(players);
           setIsRevealingMultiPlayers(true);
           
@@ -690,7 +639,6 @@ const Game: React.FC = () => {
         
         if (players.length >= 2) {
           // For head-to-head challenges, show both players
-          console.log("Starting multi-player reveal for ONE_ON_ONE challenge");
           setIsRevealingMultiPlayers(true);
           
           // Clear transitioning state once the animation starts
@@ -706,7 +654,6 @@ const Game: React.FC = () => {
         const player = getSelectedPlayerForReveal();
         
         if (player) {
-          console.log(`Starting player reveal for ${player.name}`);
           setSelectedPlayersForReveal([player]);
           setIsRevealingPlayer(true);
           
@@ -726,7 +673,6 @@ const Game: React.FC = () => {
   useEffect(() => {
     // Create a standardized event handler that ensures we don't miss reveals
     const handleStartReveal = () => {
-      console.log("Received start-reveal-sequence event");
       // Add a small delay to ensure state is ready
       setTimeout(() => {
         startRevealSequence();
@@ -740,7 +686,6 @@ const Game: React.FC = () => {
     // Add direct call for first challenge in case the event isn't firing
     if (state.currentChallenge && !animationInProgressRef.current && 
         !isRevealingPlayer && !isRevealingChallenge && !showContentAfterReveal) {
-      console.log("First render with challenge but no animations - triggering reveal");
       setTimeout(() => {
         startRevealSequence();
       }, 150);
@@ -748,7 +693,6 @@ const Game: React.FC = () => {
     
     // Add listener for resetting animation states
     const handleResetAnimations = () => {
-      console.log("Resetting game animations for next challenge");
       setIsRevealingPlayer(false);
       setIsRevealingMultiPlayers(false);
       setIsRevealingTeamVsTeam(false);
@@ -819,7 +763,25 @@ const Game: React.FC = () => {
           {/* Main game area - Only show once all reveals are complete */}
           <div className="lg:col-span-2">
             <AnimatePresence mode="wait">
-              {showGameContent && state.currentChallenge ? (
+              {/* Challenge loading state */}
+              {state.isLoadingChallenges && state.challenges.length === 0 ? (
+                <motion.div
+                  key="challenge-loading"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="rounded-lg shadow-md p-6"
+                >
+                  <LoadingState
+                    isLoading={state.isLoadingChallenges}
+                    hasData={state.challenges.length > 0}
+                    error={state.challengeLoadError}
+                    loadingMessage={t('game.loadingChallenges')}
+                    emptyMessage={t('game.noChallengesFound')}
+                    emptySubMessage={t('game.tryAddingChallenges')}
+                  />
+                </motion.div>
+              ) : showGameContent && state.currentChallenge ? (
                 <motion.div
                   key="challenge-display"
                   initial={{ opacity: 0, y: 20 }}

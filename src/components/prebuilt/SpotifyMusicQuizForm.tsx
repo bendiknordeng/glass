@@ -288,7 +288,6 @@ const SpotifyMusicQuizForm: React.FC<SpotifyMusicQuizFormProps> = ({
   
   // Handle Spotify logout
   const handleSpotifyLogout = () => {
-    console.log("SpotifyMusicQuizForm: Handling Spotify logout");
     // Call the logout method in the service
     spotifyService.logout();
     

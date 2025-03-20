@@ -32,20 +32,14 @@ const Login: React.FC = () => {
     setIsLoading(true);
     setErrorMsg(null);
     
-    console.log(`Starting ${provider} login flow`);
-    
     try {
       let result;
       
       if (provider === 'google') {
-        // Add a clear log before starting Google auth
-        console.log('Initiating Google OAuth flow...');
         result = await signInWithGoogle();
       } else {
         result = await signInWithFacebook();
       }
-      
-      console.log(`${provider} auth result:`, result);
       
       if (!result.success) {
         const errorMessage = 
@@ -58,7 +52,6 @@ const Login: React.FC = () => {
       // If redirecting, show a friendly message
       if (result.data?.url) {
         setErrorMsg(`Redirecting to ${provider} login page...`);
-        console.log(`Redirect URL: ${result.data.url}`);
         
         // Set a timeout to reset loading state if redirect doesn't happen
         // This is a safety measure for cases where the redirect fails silently

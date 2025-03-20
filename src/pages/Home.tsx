@@ -71,7 +71,7 @@ const Home: React.FC = () => {
             transition={{ duration: 0.6 }}
           />
           <motion.h1
-            className="text-4xl font-bold mb-1 text-game-primary"
+            className="text-4xl font-bold text-game-primary dark:text-game-primary-dark bg-gradient-to-r from-game-primary to-purple-500 dark:from-game-primary-dark dark:to-purple-400 bg-clip-text text-transparent"
             animate={{
               scale: [1, 1.05, 1],
             }}

@@ -26,7 +26,11 @@
     "login": "Logg inn",
     "logout": "Logg ut",
     "skip": "Hopp over",
-    "profile": "Profil"
+    "profile": "Profil",
+    "loading": "Laster...",
+    "error": "Feil",
+    "retry": "Prøv igjen",
+    "confirmDelete": "Bekreft sletting"
   },
   "home": {
     "newGame": "Nytt spill",
@@ -39,6 +43,8 @@
   "setup": {
     "title": "Oppsett av spill",
     "playerRegistration": "Registrering av spillere",
+    "noRecentPlayers": "Ingen nylige spillere",
+    "addPlayersToSee": "Legg til spillere for å se nylige spillere",
     "addPlayer": "Legg til spiller",
     "playerName": "Spillernavn",
     "uploadImage": "Last opp bilde",
@@ -83,7 +89,8 @@
     "teamColor": "Lagfarge",
     "dragPlayersInstructions": "Dra spillere for å legge dem til lag",
     "teamsRequired": "Vennligst opprett minst 2 lag",
-    "allPlayersAssigned": "Alle spillere må være tildelt et lag"
+    "allPlayersAssigned": "Alle spillere må være tildelt et lag",
+    "confirmDeletePlayer": "Er du sikker på at du vil slette {{item}}?"
   },
   "game": {
     "round": "Runde {{round}}",
@@ -306,7 +313,11 @@
   },
   "error": {
     "title": "Feil",
-    "general": "Noe gikk galt. Vennligst prøv igjen."
+    "general": "Noe gikk galt. Vennligst prøv igjen.",
+    "timeoutLoadingPlayers": "Tiden utløpte ved innlasting av spillere. Vennligst prøv igjen.",
+    "loadingPlayers": "Feil ved innlasting av spillere. Vennligst prøv igjen.",
+    "loadingChallenges": "Feil ved innlasting av utfordringer. Vennligst prøv igjen.",
+    "loadingGames": "Feil ved innlasting av spill. Vennligst prøv igjen."
   },
   "auth": {
     "spotifyConnecting": "Kobler til Spotify",
@@ -317,6 +328,7 @@
     "spotifyLoginInfo": "Koble til Spotify-kontoen din for å få tilgang til spillelistene dine",
     "spotifyLoginHelp": "Dette vil tillate Glass å bla gjennom Spotify-spillelistene dine og bruke dem for musikk-quizer.",
     "spotifyLoggedInAs": "Logget inn som",
-    "spotifyUserProfile": "Spotify-brukerprofil"
+    "spotifyUserProfile": "Spotify-brukerprofil",
+    "spotifyCallbackError": "En feil oppstod under autentiseringen"
   }
 }

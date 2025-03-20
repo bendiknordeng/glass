@@ -19,7 +19,6 @@ const AuthCallback: React.FC = () => {
         
         // Add some diagnostic information
         const debugInfo = `URL: ${window.location.href}\nHash: ${location.hash}\nSearch: ${location.search}`;
-        console.log('Auth callback debug info:', debugInfo);
         setDebug(debugInfo);
         
         // Check for errors explicitly
@@ -53,12 +52,9 @@ const AuthCallback: React.FC = () => {
         const sessionInfo = data?.session 
           ? `User ID: ${data.session.user.id}, Email: ${data.session.user.email}`
           : 'No session found';
-        console.log('Session info:', sessionInfo);
         setDebug(prev => `${prev}\nSession found: ${!!data?.session}\n${sessionInfo}`);
         
         if (data?.session) {
-          console.log('Authentication successful, session found');
-          
           // Set a slightly longer timeout to ensure state propagation
           setTimeout(() => {
             navigate('/');
@@ -73,12 +69,10 @@ const AuthCallback: React.FC = () => {
               // Force refresh the auth session
               await supabase.auth.refreshSession();
               const retryResult = await supabase.auth.getSession();
-              
-              console.log('Retry session result:', !!retryResult.data.session);
+
               setDebug(prev => `${prev}\nRetry session result: ${!!retryResult.data.session}`);
               
               if (retryResult.data.session) {
-                console.log('Authentication successful on retry');
                 navigate('/');
               } else {
                 setError('Could not establish a session. Please try again.');

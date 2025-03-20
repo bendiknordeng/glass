@@ -1,15 +1,22 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
-import DataService from '@/services/data';
-import LoadingSpinner from '@/components/ui/LoadingSpinner';
-import { RecentPlayer, RecentChallenge, RecentGame } from '@/types/supabase';
+import { Player, DBChallenge, Game } from '@/types/supabase';
 import spotifyService from '@/services/SpotifyService';
+import LoadingState from '@/components/common/LoadingState';
+import { SupabaseClient } from '@supabase/supabase-js';
+import { playersService, challengesService, gamesService } from '@/services/supabase';
+import { useTranslation } from 'react-i18next';
+interface ServiceResult {
+  success: boolean;
+  error?: any;
+  data?: any;
+}
 
 const Profile: React.FC = () => {
   const { user, spotifyAuth, signOut, isAuthenticated } = useAuth();
   const navigate = useNavigate();
-  
+  const { t } = useTranslation();
   // Check if user is connected to Facebook or Google using identities
   const isConnectedToFacebook = user?.identities?.some(
     (identity) => identity.provider === 'facebook'
@@ -19,10 +26,19 @@ const Profile: React.FC = () => {
     (identity) => identity.provider === 'google'
   );
   
-  const [isLoading, setIsLoading] = useState(true);
-  const [recentPlayers, setRecentPlayers] = useState<RecentPlayer[]>([]);
-  const [recentChallenges, setRecentChallenges] = useState<RecentChallenge[]>([]);
-  const [recentGames, setRecentGames] = useState<RecentGame[]>([]);
+  // Loading states for different data types
+  const [isLoadingPlayers, setIsLoadingPlayers] = useState(true);
+  const [isLoadingChallenges, setIsLoadingChallenges] = useState(true);
+  const [isLoadingGames, setIsLoadingGames] = useState(true);
+  
+  // Error states
+  const [playersError, setPlayersError] = useState<string | null>(null);
+  const [challengesError, setChallengesError] = useState<string | null>(null);
+  const [gamesError, setGamesError] = useState<string | null>(null);
+  
+  const [players, setPlayers] = useState<Player[]>([]);
+  const [challenges, setChallenges] = useState<DBChallenge[]>([]);
+  const [games, setGames] = useState<Game[]>([]);
   const [activeTab, setActiveTab] = useState<'players' | 'challenges' | 'games'>('games');
   
   useEffect(() => {
@@ -33,30 +49,78 @@ const Profile: React.FC = () => {
     }
     
     const loadUserData = async () => {
-      setIsLoading(true);
-      
       if (user) {
-        // Load recent data in parallel
-        const [playersResult, challengesResult, gamesResult] = await Promise.all([
-          DataService.getRecentPlayers(user.id),
-          DataService.getRecentChallenges(user.id),
-          DataService.getRecentGames(user.id)
-        ]);
+        // Reset loading and error states
+        setIsLoadingPlayers(true);
+        setIsLoadingChallenges(true);
+        setIsLoadingGames(true);
+        setPlayersError(null);
+        setChallengesError(null);
+        setGamesError(null);
         
-        if (playersResult.success) {
-          setRecentPlayers(playersResult.data || []);
+        // Set timeouts to prevent indefinite loading
+        const playersTimeout = setTimeout(() => {
+          setIsLoadingPlayers(false);
+          setPlayersError('Timed out while loading players');
+        }, 5000);
+        
+        const challengesTimeout = setTimeout(() => {
+          setIsLoadingChallenges(false);
+          setChallengesError('Timed out while loading challenges');
+        }, 5000);
+        
+        const gamesTimeout = setTimeout(() => {
+          setIsLoadingGames(false);
+          setGamesError('Timed out while loading games');
+        }, 5000);
+        
+        try {
+          // Load recent players
+          const playersResult = await playersService.getPlayers(user.id);
+          clearTimeout(playersTimeout);
+          
+          if (playersResult) {
+            setPlayers(playersResult);
+          }
+        } catch (error) {
+          clearTimeout(playersTimeout);
+          setIsLoadingPlayers(false);
+          setPlayersError(t('error.loadingPlayers'));
+          console.error('Error loading players:', error);
         }
         
-        if (challengesResult.success) {
-          setRecentChallenges(challengesResult.data || []);
+        try {
+          // Load recent challenges
+          const challengesResult = await challengesService.getChallenges(user.id);
+          clearTimeout(challengesTimeout);
+          
+          if (challengesResult) {
+            setChallenges(challengesResult);
+          }
+          setIsLoadingChallenges(false);
+        } catch (error) {
+          clearTimeout(challengesTimeout);
+          setIsLoadingChallenges(false);
+          setChallengesError(t('error.loadingChallenges'));
+          console.error('Error loading challenges:', error);
         }
         
-        if (gamesResult.success) {
-          setRecentGames(gamesResult.data || []);
+        try {
+          // Load recent games
+          const gamesResult = await gamesService.getGames(user.id);
+          clearTimeout(gamesTimeout);
+          
+          if (gamesResult) {
+            setGames(gamesResult);
+          }
+          setIsLoadingGames(false);
+        } catch (error) {
+          clearTimeout(gamesTimeout);
+          setIsLoadingGames(false);
+          setGamesError(t('error.loadingGames'));
+          console.error('Error loading games:', error);
         }
       }
-      
-      setIsLoading(false);
     };
     
     loadUserData();
@@ -64,7 +128,6 @@ const Profile: React.FC = () => {
   
   const handleSignOut = () => {
     try {
-      console.log("Profile: Executing sign out");
       // Navigate to the logout page which will handle the sign out process
       navigate('/logout');
     } catch (error) {
@@ -74,24 +137,20 @@ const Profile: React.FC = () => {
   
   const connectSpotify = () => {
     // Clear any existing Spotify auth state to avoid conflicts
-    console.log("Profile: Clearing existing Spotify auth state");
     localStorage.removeItem('spotify_redirect_attempts');
     localStorage.removeItem('spotify_code_verifier');
     localStorage.removeItem('spotify_auth_state'); // Make sure to clear existing state
     
     // Get login URL from Spotify service and redirect
     const loginUrl = spotifyService.getLoginUrl();
-    console.log("Profile: Generated Spotify login URL, redirecting...");
     window.location.href = loginUrl;
   };
   
   const connectFacebook = () => {
-    console.log("Profile: Initiating Facebook connection");
     navigate('/login?provider=facebook&redirect=/profile');
   };
   
   const connectGoogle = () => {
-    console.log("Profile: Initiating Google connection");
     navigate('/login?provider=google&redirect=/profile');
   };
   
@@ -273,122 +332,160 @@ const Profile: React.FC = () => {
       
       {/* Content */}
       <div className="bg-white rounded-lg shadow dark:bg-gray-800">
-        {isLoading ? (
-          <div className="flex items-center justify-center p-8">
-            <LoadingSpinner size="lg" />
-          </div>
-        ) : (
-          <div className="p-4">
-            {/* Recent Games */}
-            {activeTab === 'games' && (
-              <div>
-                <h2 className="mb-4 text-xl font-semibold text-gray-900 dark:text-white">Recent Games</h2>
-                {recentGames.length === 0 ? (
-                  <p className="text-gray-500 dark:text-gray-400">No recent games found.</p>
-                ) : (
-                  <div className="overflow-hidden bg-white shadow sm:rounded-md dark:bg-gray-800">
-                    <ul className="divide-y divide-gray-200 dark:divide-gray-700">
-                      {recentGames.map((game) => (
-                        <li key={game.id}>
-                          <div className="flex items-center px-4 py-4 sm:px-6">
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm font-medium text-gray-900 truncate dark:text-white">
-                                {game.game_mode}
+        <div className="p-4">
+          {/* Recent Games */}
+          {activeTab === 'games' && (
+            <div>
+              <h2 className="mb-4 text-xl font-semibold text-gray-900 dark:text-white">Recent Games</h2>
+              
+              <LoadingState
+                isLoading={isLoadingGames}
+                hasData={games.length > 0}
+                error={gamesError}
+                loadingMessage="Loading your recent games..."
+                emptyMessage="No recent games found."
+                emptySubMessage="Start a new game to see it here."
+              />
+              
+              {!isLoadingGames && !gamesError && games.length > 0 && (
+                <div className="overflow-hidden bg-white shadow sm:rounded-md dark:bg-gray-800">
+                  <ul className="divide-y divide-gray-200 dark:divide-gray-700">
+                    {games.map((game) => (
+                      <li key={game.id}>
+                        <div className="flex items-center px-4 py-4 sm:px-6">
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-gray-900 truncate dark:text-white">
+                              {game.game_mode}
+                            </p>
+                            <div className="flex mt-1 text-xs text-gray-500 dark:text-gray-400">
+                              <p>Score: {typeof game.scores === 'object' ? 
+                                Object.values(game.scores).join(' - ') : 
+                                JSON.stringify(game.scores)}
                               </p>
-                              <div className="flex mt-1 text-xs text-gray-500 dark:text-gray-400">
-                                <p>Score: {game.score}</p>
-                                <span className="mx-1">•</span>
-                                <p>Duration: {Math.floor(game.duration / 60)}m {game.duration % 60}s</p>
-                                <span className="mx-1">•</span>
-                                <p>Players: {game.players.join(', ')}</p>
-                              </div>
-                              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                                {formatDate(game.created_at)}
+                              <span className="mx-1">•</span>
+                              <p>Duration: {game.completed_at && game.started_at ? 
+                                Math.floor((new Date(game.completed_at).getTime() - new Date(game.started_at).getTime()) / 60000) + 'm ' + 
+                                Math.floor(((new Date(game.completed_at).getTime() - new Date(game.started_at).getTime()) % 60000) / 1000) + 's' : 
+                                'In progress'}
+                              </p>
+                              <span className="mx-1">•</span>
+                              <p>Players: {typeof game.players === 'object' ? 
+                                (Array.isArray(game.players) ? 
+                                  game.players.join(', ') : 
+                                  Object.values(game.players)
+                                    .map(player => typeof player === 'object' && player.name ? player.name : String(player))
+                                    .join(', ')) : 
+                                JSON.stringify(game.players)}
                               </p>
                             </div>
-                            {game.winner && (
-                              <div className="px-2 py-1 ml-2 text-xs font-medium text-green-700 bg-green-100 rounded-full dark:bg-green-900 dark:text-green-300">
-                                Winner: {game.winner}
-                              </div>
-                            )}
+                            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                              {formatDate(game.started_at)}
+                            </p>
                           </div>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-              </div>
-            )}
-            
-            {/* Recent Players */}
-            {activeTab === 'players' && (
-              <div>
-                <h2 className="mb-4 text-xl font-semibold text-gray-900 dark:text-white">Recent Players</h2>
-                {recentPlayers.length === 0 ? (
-                  <p className="text-gray-500 dark:text-gray-400">No recent players found.</p>
-                ) : (
-                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                    {recentPlayers.map((player) => (
-                      <div
-                        key={player.id}
-                        className="flex items-center p-4 bg-white rounded-lg shadow dark:bg-gray-700"
-                      >
-                        <div className="flex items-center justify-center w-10 h-10 mr-4 text-white rounded-full bg-pastel-blue">
-                          {player.player_name.charAt(0).toUpperCase()}
+                          {game.winner_id && (
+                            <div className="px-2 py-1 ml-2 text-xs font-medium text-green-700 bg-green-100 rounded-full dark:bg-green-900 dark:text-green-300">
+                              Winner: {typeof game.players === 'object' && 
+                                Object.entries(game.players).find(([id, _]) => id === game.winner_id)?.[1]?.name || 
+                                game.winner_id}
+                            </div>
+                          )}
                         </div>
-                        <div>
-                          <p className="font-medium text-gray-900 dark:text-white">
-                            {player.player_name}
-                          </p>
-                          <p className="text-sm text-gray-500 dark:text-gray-400">
-                            Score: {player.score}
-                          </p>
-                        </div>
-                      </div>
+                      </li>
                     ))}
-                  </div>
-                )}
-              </div>
-            )}
-            
-            {/* Recent Challenges */}
-            {activeTab === 'challenges' && (
-              <div>
-                <h2 className="mb-4 text-xl font-semibold text-gray-900 dark:text-white">Recent Challenges</h2>
-                {recentChallenges.length === 0 ? (
-                  <p className="text-gray-500 dark:text-gray-400">No recent challenges found.</p>
-                ) : (
-                  <div className="grid grid-cols-1 gap-4">
-                    {recentChallenges.map((challenge) => (
-                      <div
-                        key={challenge.id}
-                        className="p-4 bg-white rounded-lg shadow dark:bg-gray-700"
-                      >
-                        <div className="flex items-center justify-between">
-                          <h3 className="text-lg font-medium text-gray-900 dark:text-white">
-                            {challenge.challenge_name}
-                          </h3>
-                          <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                            challenge.difficulty === 'easy' 
-                              ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300'
-                              : challenge.difficulty === 'medium'
-                                ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300'
-                                : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300'
-                          }`}>
-                            {challenge.difficulty.charAt(0).toUpperCase() + challenge.difficulty.slice(1)}
-                          </span>
-                        </div>
-                        <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
-                          {formatDate(challenge.created_at)}
+                  </ul>
+                </div>
+              )}
+            </div>
+          )}
+          
+          {/* Recent Players */}
+          {activeTab === 'players' && (
+            <div>
+              <h2 className="mb-4 text-xl font-semibold text-gray-900 dark:text-white">Recent Players</h2>
+              
+              <LoadingState
+                isLoading={isLoadingPlayers}
+                hasData={players.length > 0}
+                error={playersError}
+                loadingMessage="Loading your recent players..."
+                emptyMessage="No recent players found."
+                emptySubMessage="Add players to your games to see them here."
+              />
+              
+              {!isLoadingPlayers && !playersError && players.length > 0 && (
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  {players.map((player) => (
+                    <div
+                      key={player.id}
+                      className="flex items-center p-4 bg-white rounded-lg shadow dark:bg-gray-700"
+                    >
+                      <div className="flex items-center justify-center w-10 h-10 mr-4 text-white rounded-full bg-pastel-blue">
+                        {player.name.charAt(0).toUpperCase()}
+                      </div>
+                      <div>
+                        <p className="font-medium text-gray-900 dark:text-white">
+                          {player.name}
+                        </p>
+                        <p className="text-sm text-gray-500 dark:text-gray-400">
+                          Score: {player.score}
                         </p>
                       </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+          
+          {/* Recent Challenges */}
+          {activeTab === 'challenges' && (
+            <div>
+              <h2 className="mb-4 text-xl font-semibold text-gray-900 dark:text-white">Recent Challenges</h2>
+              
+              <LoadingState
+                isLoading={isLoadingChallenges}
+                hasData={challenges.length > 0}
+                error={challengesError}
+                loadingMessage="Loading your recent challenges..."
+                emptyMessage="No recent challenges found."
+                emptySubMessage="Create challenges to see them here."
+              />
+              
+              {!isLoadingChallenges && !challengesError && challenges.length > 0 && (
+                <div className="grid grid-cols-1 gap-4">
+                  {challenges.map((challenge) => (
+                    <div
+                      key={challenge.id}
+                      className="p-4 bg-white rounded-lg shadow dark:bg-gray-700"
+                    >
+                      <div className="flex items-center justify-between">
+                        <h3 className="text-lg font-medium text-gray-900 dark:text-white">
+                          {challenge.title}
+                        </h3>
+                        <span className={`px-2 py-1 text-xs font-medium rounded-full ${
+                          challenge.type === 'INDIVIDUAL'  
+                            ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300'
+                            : challenge.type === 'ONE_ON_ONE'
+                              ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300'
+                              : challenge.type === 'TEAM'
+                                ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300'
+                                : challenge.type === 'ALL_VS_ALL'
+                                  ? 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-300'
+                                  : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300'
+                        }`}>
+                          {challenge.type.charAt(0).toUpperCase() + challenge.type.slice(1)}
+                        </span>
+                      </div>
+                      <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
+                        {formatDate(challenge.created_at)}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

@@ -9,7 +9,6 @@ const Logout: React.FC = () => {
   useEffect(() => {
     // Set a safety timeout to redirect even if signOut gets stuck
     const safetyTimeout = setTimeout(() => {
-      console.log("Logout safety timeout triggered - forcing redirect");
       window.location.replace('/');
     }, 2000); // 2 seconds timeout (reduced from 3)
     
