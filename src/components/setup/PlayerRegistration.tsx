@@ -17,27 +17,8 @@ import PlayerEditForm from '@/components/forms/PlayerEditForm';
 import { useGameActive } from '@/hooks/useGameActive';
 
 // Maximum number of recent players to store
-const MAX_RECENT_PLAYERS = 10;
+const MAX_RECENT_PLAYERS = 15;
 const RECENT_PLAYERS_KEY = 'recentPlayers';
-
-// Helper function to update recent players in local storage (for fallback)
-const updateRecentPlayersLocally = (newPlayer: Player) => {
-  try {
-    const recentPlayers = JSON.parse(localStorage.getItem(RECENT_PLAYERS_KEY) || '[]');
-    
-    // Remove any existing player with the same name (case insensitive)
-    const filteredPlayers = recentPlayers.filter(
-      (player: Player) => player.name.toLowerCase() !== newPlayer.name.toLowerCase()
-    );
-    
-    // Add new player to the beginning
-    const updatedPlayers = [newPlayer, ...filteredPlayers].slice(0, MAX_RECENT_PLAYERS);
-    
-    localStorage.setItem(RECENT_PLAYERS_KEY, JSON.stringify(updatedPlayers));
-  } catch (error) {
-    console.error('Error updating recent players locally:', error);
-  }
-};
 
 // Helper function to delete a player from local storage (for fallback)
 const deleteRecentPlayerLocally = (playerId: string) => {
@@ -105,6 +86,84 @@ const PlayerRegistration: React.FC = () => {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [playerToEdit, setPlayerToEdit] = useState<DbPlayer | null>(null);
   
+  // Helper function to update recent players in local storage (for fallback)
+  const updateRecentPlayersLocally = (newPlayer: Player) => {
+    try {
+      // For authenticated users, don't store in localStorage (already in Supabase)
+      if (isAuthenticated && user) {
+        // Just update the UI state but don't store in localStorage
+        return;
+      }
+      
+      const recentPlayers = JSON.parse(localStorage.getItem(RECENT_PLAYERS_KEY) || '[]');
+      
+      // Never store images in localStorage, only store player data with image reference
+      let playerToStore = {
+        ...newPlayer,
+        image: `avatar_ref_${newPlayer.id}|${encodeURIComponent(newPlayer.name)}` // Store name for avatar generation
+      };
+      
+      // Add new player to the beginning
+      const updatedPlayers = [playerToStore, ...recentPlayers].slice(0, MAX_RECENT_PLAYERS);
+      
+      localStorage.setItem(RECENT_PLAYERS_KEY, JSON.stringify(updatedPlayers));
+    } catch (error) {
+      console.error('Error updating recent players locally:', error);
+      // If the error is about localStorage quota, let the user know
+      if (error instanceof DOMException && error.name === 'QuotaExceededError') {
+        console.error('Could not store player data, localStorage quota exceeded');
+      }
+    }
+  };
+  
+  // Helper to filter out current players from recent players list
+  const filterRecentPlayers = (players: Player[]): Player[] => {
+    // Create a Set of current player IDs and names for faster lookups
+    const currentPlayerIds = new Set(state.players.map(p => p.id));
+    
+    return players.filter((recentPlayer: Player) => 
+      !currentPlayerIds.has(recentPlayer.id)
+    );
+  };
+  
+  // Cache players in localStorage - we never store actual images
+  const cachePlayers = (players: Player[]) => {
+    try {
+      // For all users, store players without images
+      const playersWithoutImages = players.map(player => ({
+        ...player,
+        // Store name reference for avatar generation
+        image: `avatar_ref_${player.id}|${encodeURIComponent(player.name)}`
+      }));
+      
+      localStorage.setItem('cachedPlayers', JSON.stringify(playersWithoutImages));
+    } catch (error) {
+      console.error('Error caching players:', error);
+    }
+  };
+  
+  // Generate an avatar for a player based on reference
+  const getAvatarFromReference = (imageRef: string): string => {
+    if (!imageRef.startsWith('avatar_ref_')) {
+      return imageRef; // Not a reference, return as is
+    }
+    
+    try {
+      // Extract player name from reference (format: avatar_ref_id|name)
+      const parts = imageRef.split('|');
+      if (parts.length > 1) {
+        const playerName = decodeURIComponent(parts[1]);
+        return getAvatarByName(playerName).url;
+      }
+      
+      // If format is incorrect, generate a generic avatar
+      return getAvatarByName('Unknown Player').url;
+    } catch (error) {
+      console.error('Error generating avatar from reference:', error);
+      return getAvatarByName('Error').url;
+    }
+  };
+  
   // Load recent players from Supabase or localStorage
   const loadRecentPlayers = async (forceRefresh = false) => {
     // Don't reload if already loading
@@ -119,18 +178,6 @@ const PlayerRegistration: React.FC = () => {
       setLoadError(t('error.timeoutLoadingPlayers'));
     }, 5000); // 5 seconds max loading time
     
-    // Create a Set of current player IDs and names for faster lookups
-    const currentPlayerIds = new Set(state.players.map(p => p.id));
-    const currentPlayerNames = new Set(state.players.map(p => p.name.toLowerCase()));
-    
-    // Helper to filter out current players
-    const filterCurrentPlayers = (players: Player[]) => {
-      return players.filter((recentPlayer: Player) => 
-        !currentPlayerIds.has(recentPlayer.id) && 
-        !currentPlayerNames.has(recentPlayer.name.toLowerCase())
-      );
-    };
-    
     try {
       // Check if we can use cached data (if not forced refresh and cache is fresh)
       const now = Date.now();
@@ -140,7 +187,7 @@ const PlayerRegistration: React.FC = () => {
         // For authenticated users: use cache or fetch from DB
         if (!forceRefresh && cacheIsFresh && dbPlayersCached.length > 0) {
           // Use cached data if available and not forcing refresh
-          const filteredPlayers = filterCurrentPlayers(dbPlayersCached);
+          const filteredPlayers = filterRecentPlayers(dbPlayersCached);
           setRecentPlayers(filteredPlayers);
         } else {
           // Need to load from database
@@ -155,18 +202,21 @@ const PlayerRegistration: React.FC = () => {
           // Map the database players to app Player format
           const formattedPlayers = dbPlayers.map(dbPlayerToAppPlayer);
           
-          // Cache the full set of players for future filtering
+          // Cache the full set of players for future filtering (with images)
           setDbPlayersCached(formattedPlayers);
           setLastLoadTime(now);
           
+          // Also cache a version without images in localStorage
+          cachePlayers(formattedPlayers);
+          
           // Filter players already in the game
-          const filteredPlayers = filterCurrentPlayers(formattedPlayers);
+          const filteredPlayers = filterRecentPlayers(formattedPlayers);
           setRecentPlayers(filteredPlayers);
         }
       } else {
         // For non-authenticated users: use localStorage
         const localPlayers = getRecentPlayersLocally();
-        const filteredPlayers = filterCurrentPlayers(localPlayers);
+        const filteredPlayers = filterRecentPlayers(localPlayers);
         setRecentPlayers(filteredPlayers);
       }
     } catch (error) {
@@ -174,26 +224,11 @@ const PlayerRegistration: React.FC = () => {
       setLoadError(t('error.loadingPlayers'));
       // Fallback to localStorage
       const players = getRecentPlayersLocally();
-      const filteredPlayers = filterCurrentPlayers(players);
+      const filteredPlayers = filterRecentPlayers(players);
       setRecentPlayers(filteredPlayers);
     } finally {
       clearTimeout(loadingTimeout);
       setIsLoadingPlayers(false);
-    }
-  };
-  
-  // Helper function to get recent players from local storage
-  const getRecentPlayersLocally = (): Player[] => {
-    try {
-      const stored = localStorage.getItem(RECENT_PLAYERS_KEY);
-      if (!stored) return [];
-      
-      const players = JSON.parse(stored);
-      // Filter happens in loadRecentPlayers now
-      return players;
-    } catch (error) {
-      console.error('Error reading recent players from local storage:', error);
-      return [];
     }
   };
   
@@ -208,6 +243,11 @@ const PlayerRegistration: React.FC = () => {
     // Skip on first render
     if (prevPlayersRef.current.length === 0) {
       prevPlayersRef.current = state.players;
+      // On initial mount, refilter recent players to ensure they don't include current players
+      // This is important for page refreshes when state.players may load after recent players
+      if (state.players.length > 0 && recentPlayers.length > 0) {
+        setRecentPlayers(filterRecentPlayers(recentPlayers));
+      }
       return;
     }
 
@@ -225,18 +265,50 @@ const PlayerRegistration: React.FC = () => {
         );
 
         if (playersToAdd.length > 0) {
-          // Add removed players back to recent players list
-          setRecentPlayers(prev => [...playersToAdd, ...prev]);
+          // Add removed players back to recent players list but ensure no duplicates
+          setRecentPlayers(prev => {
+            // Combine previous recent players with newly removed players
+            const updatedPlayers = [...playersToAdd, ...prev];
+            
+            // Remove any duplicates (by id)
+            const uniquePlayers = [...new Map(updatedPlayers.map(p => [p.id, p])).values()];
+            
+            // Filter out any players that are in the current game
+            return filterRecentPlayers(uniquePlayers);
+          });
         }
       } else if (!isAuthenticated) {
         // For local storage users, just add the removed players back
-        setRecentPlayers(prev => [...removedPlayers, ...prev]);
+        setRecentPlayers(prev => {
+          // Combine previous recent players with newly removed players
+          const updatedPlayers = [...removedPlayers, ...prev];
+          
+          // Remove any duplicates (by id)
+          const uniquePlayers = [...new Map(updatedPlayers.map(p => [p.id, p])).values()];
+          
+          // Filter out any players that are in the current game
+          return filterRecentPlayers(uniquePlayers);
+        });
       }
     }
 
     // Update the ref to current value
     prevPlayersRef.current = state.players;
   }, [state.players]);
+  
+  // Modify this useEffect to run more frequently
+  useEffect(() => {
+    // Only filter if we have recent players and game players
+    if (recentPlayers.length > 0 && state.players.length > 0) {
+      // Apply the filter to ensure no recent player is in the current game
+      const filteredPlayers = filterRecentPlayers(recentPlayers);
+      
+      // Only update the state if the filtered list is different from the current one
+      if (JSON.stringify(filteredPlayers) !== JSON.stringify(recentPlayers)) {
+        setRecentPlayers(filteredPlayers);
+      }
+    }
+  }, [state.players, recentPlayers]);
   
   // Handle enter key press
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -276,6 +348,11 @@ const PlayerRegistration: React.FC = () => {
       let imageDataUrl = '';
       if (playerImage) {
         imageDataUrl = await fileToDataUrl(playerImage);
+        
+        // Check image size if it seems very large
+        if (imageDataUrl.length > 5000000) { // 5MB
+          console.warn('Image is very large, consider compressing it');
+        }
       } else {
         // If no image uploaded, use the avatar based on player name
         imageDataUrl = getAvatarByName(playerName.trim()).url;
@@ -295,49 +372,97 @@ const PlayerRegistration: React.FC = () => {
           throw new Error('Could not get a valid user ID');
         }
         
-        
-        const newDbPlayer = await playersService.addPlayer({
-          user_id: validUserId,
-          name: playerData.name,
-          image: playerData.image,
-          score: 0,
-          favorite: false,
-          last_played_at: new Date().toISOString()
-        });
-
-        if (newDbPlayer) {
-          // Convert database player to app player type
-          const newPlayer = dbPlayerToAppPlayer(newDbPlayer);
-
-          // Dispatch action to add player
-          dispatch({
-            type: 'ADD_PLAYER',
-            payload: {
-              name: newPlayer.name,
-              image: newPlayer.image,
-              id: newPlayer.id
-            }
-          });
-        } else {
-          console.warn("Failed to add player to Supabase, falling back to client-side ID generation");
-          // Fallback to client-side ID generation if database insert fails
-          const newPlayer = {
-            ...playerData,
-            id: Date.now().toString()
-          };
-
-          // Dispatch action to add player
-          dispatch({
-            type: 'ADD_PLAYER',
-            payload: {
-              name: newPlayer.name,
-              image: newPlayer.image,
-              id: newPlayer.id
-            }
+        try {
+          const newDbPlayer = await playersService.addPlayer({
+            user_id: validUserId,
+            name: playerData.name,
+            image: playerData.image,
+            score: 0,
+            favorite: false,
+            last_played_at: new Date().toISOString()
           });
 
-          // Store locally as fallback
-          updateRecentPlayersLocally(newPlayer);
+          if (newDbPlayer) {
+            // Convert database player to app player type
+            const newPlayer = dbPlayerToAppPlayer(newDbPlayer);
+
+            // Dispatch action to add player
+            dispatch({
+              type: 'ADD_PLAYER',
+              payload: {
+                name: newPlayer.name,
+                image: newPlayer.image,
+                id: newPlayer.id
+              }
+            });
+            
+            // Cache player references (without images) in localStorage
+            // This will be updated by loadRecentPlayers later
+          } else {
+            throw new Error('Failed to add player to database');
+          }
+        } catch (error) {
+          console.error("Error adding player to Supabase:", error);
+          
+          // Check if the error is about the image size
+          if (error instanceof Error && 
+              (error.message.includes('too large') || 
+               error.message.includes('payload size') || 
+               error.message.includes('size limit'))) {
+            
+            console.warn("Image too large for Supabase, trying with default avatar instead");
+            
+            // Retry with default avatar instead of the large image
+            const defaultImage = getAvatarByName(playerData.name).url;
+            
+            const newDbPlayer = await playersService.addPlayer({
+              user_id: validUserId,
+              name: playerData.name,
+              image: defaultImage,
+              score: 0,
+              favorite: false,
+              last_played_at: new Date().toISOString()
+            });
+            
+            if (newDbPlayer) {
+              // Convert database player to app player type
+              const newPlayer = dbPlayerToAppPlayer(newDbPlayer);
+
+              // Dispatch action to add player
+              dispatch({
+                type: 'ADD_PLAYER',
+                payload: {
+                  name: newPlayer.name,
+                  image: newPlayer.image,
+                  id: newPlayer.id
+                }
+              });
+              
+              // Show warning about using default image
+              console.warn("Using default avatar for player due to image size constraints");
+            } else {
+              throw new Error('Failed to add player with default avatar');
+            }
+          } else {
+            // For other errors, fall back to client-side ID generation
+            console.warn("Failed to add player to Supabase, falling back to client-side ID generation");
+            
+            // Fallback to client-side ID generation if database insert fails
+            const newPlayer = {
+              ...playerData,
+              id: Date.now().toString()
+            };
+
+            // Dispatch action to add player
+            dispatch({
+              type: 'ADD_PLAYER',
+              payload: {
+                name: newPlayer.name,
+                image: newPlayer.image,
+                id: newPlayer.id
+              }
+            });
+          }
         }
       } else {
         // Not authenticated, generate ID client-side
@@ -356,12 +481,12 @@ const PlayerRegistration: React.FC = () => {
           }
         });
 
-        // Store locally
+        // Store locally only for non-authenticated users - without images
         updateRecentPlayersLocally(newPlayer);
       }
       
       // Update the displayed recent players
-      await loadRecentPlayers();
+      await loadRecentPlayers(true); // Force refresh to ensure we get the latest
       
       // Reset form
       setPlayerName('');
@@ -544,7 +669,7 @@ const PlayerRegistration: React.FC = () => {
     setPlayerToEdit(null);
   };
   
-  // TypeScript-friendly save function
+  // Handle saving edited player
   const handleSavePlayerEdit = async (updatedDbPlayer: DbPlayer) => {
     try {
       // Make sure image is never null
@@ -568,19 +693,27 @@ const PlayerRegistration: React.FC = () => {
           };
           // Cast to Player[] to satisfy TypeScript
           setDbPlayersCached(newDbPlayersCached as unknown as Player[]);
+          
+          // Also update the cached player references (without images)
+          cachePlayers(newDbPlayersCached as unknown as Player[]);
         }
       } else {
-        // Local storage update
+        // Local storage update - without images
         const localPlayers = getRecentPlayersLocally();
         const updatedLocalPlayers = localPlayers.map(p => 
           p.id === updatedDbPlayer.id 
-            ? { ...p, name: updatedDbPlayer.name, image: safeImage } 
+            ? { 
+                ...p, 
+                name: updatedDbPlayer.name,
+                // Store reference only, not the actual image
+                image: `avatar_ref_${p.id}|${encodeURIComponent(updatedDbPlayer.name)}`
+              } 
             : p
         );
         localStorage.setItem(RECENT_PLAYERS_KEY, JSON.stringify(updatedLocalPlayers));
       }
       
-      // Update recent players display
+      // Update recent players display - only if player is in recent players
       const newRecentPlayers = [...recentPlayers];
       const recentPlayerIndex = newRecentPlayers.findIndex(p => p.id === updatedDbPlayer.id);
       if (recentPlayerIndex >= 0) {
@@ -589,7 +722,8 @@ const PlayerRegistration: React.FC = () => {
           name: updatedDbPlayer.name,
           image: safeImage
         };
-        setRecentPlayers(newRecentPlayers);
+        // Make sure to filter the updated recent players
+        setRecentPlayers(filterRecentPlayers(newRecentPlayers));
       }
       
       // Update current game players if this player is in the game
@@ -609,6 +743,73 @@ const PlayerRegistration: React.FC = () => {
       handleCloseEditModal();
     } catch (error) {
       console.error('Error updating player:', error);
+    }
+  };
+  
+  // Helper function to get recent players from local storage
+  const getRecentPlayersLocally = (): Player[] => {
+    try {
+      if (isAuthenticated && user) {
+        // For authenticated users, load cached players
+        const stored = localStorage.getItem('cachedPlayers');
+        if (!stored) return [];
+        
+        const cachedPlayers = JSON.parse(stored);
+        
+        // Process players: if we have real images in memory, use those; otherwise generate avatars
+        const processedPlayers = cachedPlayers.map((cachedPlayer: Player) => {
+          // If we have this player in our memory cache, use that image
+          const dbPlayer = dbPlayersCached.find(p => p.id === cachedPlayer.id);
+          if (dbPlayer) {
+            return {
+              ...cachedPlayer,
+              image: dbPlayer.image
+            };
+          }
+          
+          // Otherwise, if it's a reference, generate an avatar
+          if (cachedPlayer.image && cachedPlayer.image.startsWith('avatar_ref_')) {
+            return {
+              ...cachedPlayer,
+              image: getAvatarFromReference(cachedPlayer.image)
+            };
+          }
+          
+          return cachedPlayer;
+        });
+        
+        // Filter against current game players if needed
+        if (state.players.length > 0) {
+          return filterRecentPlayers(processedPlayers);
+        }
+        return processedPlayers;
+      } else {
+        // For non-authenticated users, just load from localStorage
+        const stored = localStorage.getItem(RECENT_PLAYERS_KEY);
+        if (!stored) return [];
+        
+        const players = JSON.parse(stored);
+        
+        // Process players to generate avatars from references
+        const processedPlayers = players.map((player: Player) => {
+          if (player.image && player.image.startsWith('avatar_ref_')) {
+            return {
+              ...player,
+              image: getAvatarFromReference(player.image)
+            };
+          }
+          return player;
+        });
+        
+        // Filter against current game players if needed
+        if (state.players.length > 0) {
+          return filterRecentPlayers(processedPlayers);
+        }
+        return processedPlayers;
+      }
+    } catch (error) {
+      console.error('Error reading recent players from local storage:', error);
+      return [];
     }
   };
   
@@ -632,7 +833,7 @@ const PlayerRegistration: React.FC = () => {
               value={playerName}
               onChange={(e) => setPlayerName(e.target.value)}
               className="w-full flex-1 rounded-md border-gray-300 dark:border-gray-700 shadow-sm focus:border-game-primary focus:ring focus:ring-game-primary focus:ring-opacity-50 dark:bg-gray-700 dark:text-white"
-              placeholder="Enter player name"
+              placeholder={t('player.namePlaceholder')}
               onKeyDown={handleKeyDown}
             />
           </div>

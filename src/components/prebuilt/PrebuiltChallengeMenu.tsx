@@ -79,11 +79,11 @@ const PrebuiltChallengeMenu: React.FC<PrebuiltChallengeMenuProps> = ({
               <div className="mr-3 bg-white bg-opacity-20 p-2 rounded-full">
                 {challenge.icon}
               </div>
-              <h4 className="font-bold text-lg">{challenge.title}</h4>
+              <h4 className="font-bold text-lg">{t(challenge.title)}</h4>
             </div>
             <div className="p-4 bg-white dark:bg-gray-800">
               <p className="text-gray-700 dark:text-gray-300 mb-4">
-                {challenge.description}
+                {t(challenge.description)}
               </p>
               <Button
                 variant="primary"

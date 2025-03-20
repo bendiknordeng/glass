@@ -209,6 +209,25 @@
       "oneOnOne": "En mot en",
       "team": "Lag",
       "allVsAll": "Alle mot alle"
+    },
+    "standard": {
+      "waterOrVodka": {
+        "title": "Vann eller Vodka",
+        "description": "Drikk en shot av vann eller vodka. La gruppen gjette hva du drakk."
+      },
+      "categories": {
+        "title": "Kategorier: {{category}}",
+        "description": "Si ord etter tur som hører til kategorien {{category}}. Første som bommer taper!",
+        "beer-brands": "Ølmerker",
+        "tv-shows": "TV-serier",
+        "cities": "Byer",
+        "animals": "Dyr",
+        "fruits": "Frukter",
+        "countries": "Land",
+        "celebrities": "Kjente personer",
+        "movies": "Filmer",
+        "sports": "Sport"
+      }
     }
   },
   "settings": {
@@ -343,6 +362,8 @@
     "edit": "Rediger",
     "delete": "Slett",
     "clickToChange": "Klikk for å endre",
-    "editPlayer": "Rediger spiller"
+    "editPlayer": "Rediger spiller",
+    "namePlaceholder": "Eksempel: Ola Nordmann",
+    "preview": "Forhåndsvisning"
   }
 }

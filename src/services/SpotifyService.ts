@@ -3,6 +3,7 @@ import { findPreviewUrls } from './PreviewFinder';
 // Import our custom preview finder instead of the npm package
 import customPreviewFinder from './CustomPreviewFinder';
 import DataService from '@/services/data';
+import { supabase } from '@/services/supabase';
 
 /**
  * Spotify API URLs
@@ -101,6 +102,7 @@ export class SpotifyService {
   private config: SpotifyConfig;
   private authState: SpotifyAuthState | null = null;
   private localStorageKey = 'spotifyAuthState';
+  private stateStorageKey = 'spotify_auth_state';
 
   constructor() {
     this.config = {
@@ -108,8 +110,17 @@ export class SpotifyService {
       redirectUri: import.meta.env.VITE_SPOTIFY_REDIRECT_URI || `${window.location.origin}/auth/spotify/callback`,
     };
     
-    // Load auth state from localStorage if available
-    this.loadAuthState();
+    // First load from localStorage synchronously
+    const loadedFromLocal = this.loadLocalAuthState();
+    
+    // Then try loading from Supabase asynchronously if needed
+    if (!loadedFromLocal) {
+      this.tryLoadFromSupabase().catch(err => {
+        console.error('Failed to load auth from Supabase:', err);
+      });
+    } else {
+      console.log('Already loaded auth from localStorage, no need to check Supabase');
+    }
   }
 
   /**
@@ -121,24 +132,50 @@ export class SpotifyService {
 
   /**
    * Check if the user is authenticated with Spotify
+   * @param tryRefresh Whether to try refreshing the token if it's expired but has a refresh token
    */
-  isAuthenticated(): boolean {
+  isAuthenticated(tryRefresh = false): boolean {
     if (!this.authState) return false;
-    return this.authState.expiresAt > Date.now();
+    
+    const isValid = this.authState.expiresAt > Date.now();
+    
+    if (!isValid && tryRefresh && this.authState.refreshToken) {
+      // Schedule a token refresh but don't wait for it
+      console.log('Token expired but refresh token available, scheduling refresh');
+      this.refreshToken().catch(err => {
+        console.error('Failed to refresh token:', err);
+      });
+      // Return true to indicate we're "authenticated" since we have a refresh token
+      return true;
+    }
+    
+    return isValid;
   }
 
   /**
    * Get login URL for Spotify OAuth
    */
-  getLoginUrl(): string {
+  getLoginUrl(returnPath?: string): string {
     if (!this.hasCredentials()) {
       console.error('Spotify credentials not configured');
       return '#spotify-credentials-missing';
     }
 
+    // Store the current path to redirect back to after login
+    if (returnPath) {
+      localStorage.setItem('spotify_return_path', returnPath);
+    } else {
+      // If no path is provided, use the current path
+      const currentPath = window.location.pathname;
+      localStorage.setItem('spotify_return_path', currentPath !== '/auth/spotify/callback' ? currentPath : '/setup');
+    }
+
     // Generate a random state for CSRF protection
     const state = this.generateRandomString(16);
-    localStorage.setItem('spotify_auth_state', state);
+    
+    // Store state in localStorage instead of sessionStorage to ensure it persists across redirects
+    localStorage.setItem(this.stateStorageKey, state);
+    console.log('Stored Spotify auth state:', state);
 
     // Create the authorization URL with required parameters
     const params = new URLSearchParams({
@@ -157,21 +194,61 @@ export class SpotifyService {
    */
   async handleCallback(code: string, state: string): Promise<boolean> {
     // Verify state to prevent CSRF attacks
-    const storedState = localStorage.getItem('spotify_auth_state');
+    const storedState = localStorage.getItem(this.stateStorageKey);
+    
+    console.log('Verifying Spotify auth state...');
+    console.log('- Received state:', state);
+    console.log('- Stored state:', storedState);
+    
+    let stateMismatch = false;
     
     if (state !== storedState) {
       console.error('SpotifyService handleCallback: State mismatch!');
       console.error('- Received state:', state);
       console.error('- Stored state:', storedState);
       
-      // Continue despite state mismatch for debugging, but log a warning
+      // Mark that we had a state mismatch, but continue anyway for debugging
+      stateMismatch = true;
       console.warn('SpotifyService: Continuing despite state mismatch for debugging');
     }
     
     // Clear the state from localStorage
-    localStorage.removeItem('spotify_auth_state');
+    localStorage.removeItem(this.stateStorageKey);
+
+    // At this point, authorization code from Spotify should be single-use and short-lived
+    // Save it to detect and prevent reuse in case of page reload
+    const savedCode = localStorage.getItem('spotify_code');
+    if (savedCode === code) {
+      console.error('SpotifyService: Attempting to reuse an authorization code. This will fail.');
+      console.error('- Currently processing code is the same as previously used code');
+      
+      // If we already have valid tokens in memory, return success
+      if (this.authState && this.authState.expiresAt > Date.now()) {
+        console.log('SpotifyService: Using existing valid tokens instead of exchanging code again');
+        return true;
+      }
+      
+      // If we have a refreshToken, try to use it instead
+      if (this.authState?.refreshToken) {
+        try {
+          console.log('SpotifyService: Trying to refresh token instead of exchanging code again');
+          await this.refreshToken();
+          return true;
+        } catch (refreshError) {
+          console.error('Error refreshing token:', refreshError);
+          // Continue with code exchange as a last resort
+        }
+      }
+    }
+    
+    // Save the current code
+    localStorage.setItem('spotify_code', code);
 
     try {
+      console.log('Exchanging code for tokens...');
+      console.log('- Code length:', code.length);
+      console.log('- Redirect URI:', this.config.redirectUri);
+      
       const response = await axios.post(
         SPOTIFY_TOKEN_URL,
         new URLSearchParams({
@@ -188,6 +265,8 @@ export class SpotifyService {
         }
       );
 
+      console.log('Token exchange successful');
+      
       // Calculate when the token will expire
       const expiresAt = Date.now() + response.data.expires_in * 1000;
 
@@ -201,12 +280,50 @@ export class SpotifyService {
       // Fetch user profile
       await this.fetchUserProfile();
       
+      // Clear the saved code since we successfully exchanged it
+      localStorage.removeItem('spotify_code');
+      
       // Save auth state to localStorage
       this.saveAuthState();
       
+      // Note: We're letting the SpotifyCallback component handle saving to Supabase
+      // to avoid duplicate save operations and better handle the success/failure paths.
+      
       return true;
-    } catch (error) {
+    } catch (error: any) { // Type error as any for AxiosError properties
       console.error('Error exchanging code for tokens:', error);
+      
+      // Log detailed error information if it's an Axios error
+      if (error.response) {
+        console.error('- Status:', error.response.status);
+        console.error('- Data:', error.response.data);
+        console.error('- Headers:', error.response.headers);
+        
+        // If we got an invalid_grant error and we had a state mismatch,
+        // the code might have been reused or expired
+        if (
+          error.response.data?.error === 'invalid_grant' && 
+          (stateMismatch || error.response.data?.error_description === 'Invalid authorization code')
+        ) {
+          console.log('Detected invalid_grant error, redirecting to login again');
+          
+          // Clear any previously saved code
+          localStorage.removeItem('spotify_code');
+          
+          // If we have an existing valid token, just return success
+          if (this.authState && this.authState.expiresAt > Date.now()) {
+            console.log('Using existing valid tokens');
+            return true;
+          }
+          
+          return false;
+        }
+      } else if (error.request) {
+        console.error('- No response received:', error.request);
+      } else {
+        console.error('- Error message:', error.message);
+      }
+      
       return false;
     }
   }
@@ -536,13 +653,67 @@ export class SpotifyService {
   }
 
   /**
-   * Load auth state from localStorage
+   * Load auth state from localStorage or Supabase
    */
-  private loadAuthState(): void {
+  private async tryLoadFromSupabase(): Promise<void> {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user && user.id) {
+        console.log('Trying to load Spotify auth from Supabase for user:', user.id);
+        const { success, data } = await DataService.getSpotifyAuth(user.id);
+        if (success && data) {
+          console.log('Successfully loaded Spotify auth from Supabase');
+          this.authState = {
+            accessToken: data.access_token,
+            refreshToken: data.refresh_token,
+            expiresAt: data.expires_at,
+          };
+          
+          // Save to localStorage for future quick access
+          this.saveAuthState();
+        } else {
+          console.log('No Spotify auth found in Supabase');
+        }
+      }
+    } catch (error) {
+      console.error('Error loading auth from Supabase:', error);
+      // No auth state could be loaded, it will remain null
+    }
+  }
+
+  /**
+   * Load auth state from localStorage
+   * @returns boolean - true if successfully loaded valid auth
+   */
+  private loadLocalAuthState(): boolean {
     const storedState = localStorage.getItem(this.localStorageKey);
     if (storedState) {
-      this.authState = JSON.parse(storedState);
+      try {
+        const parsedState = JSON.parse(storedState);
+        
+        // Verify tokens are still valid before using them
+        if (parsedState && parsedState.expiresAt && parsedState.expiresAt > Date.now()) {
+          this.authState = parsedState;
+          console.log('Loaded valid Spotify auth from localStorage');
+          return true;
+        } else if (parsedState && parsedState.refreshToken) {
+          // We have refresh token but tokens are expired
+          console.log('Found expired Spotify auth with refresh token in localStorage');
+          this.authState = parsedState;
+          // Will be refreshed on next API call
+          return true;
+        } else {
+          console.log('Found expired Spotify auth without refresh token in localStorage');
+          localStorage.removeItem(this.localStorageKey);
+          return false;
+        }
+      } catch (e) {
+        console.error('Error parsing Spotify auth from localStorage:', e);
+        localStorage.removeItem(this.localStorageKey);
+        return false;
+      }
     }
+    return false;
   }
 
   /**
@@ -626,6 +797,37 @@ export class SpotifyService {
       console.error('Error refreshing token:', error);
       this.logout();
       throw new Error('Failed to refresh token');
+    }
+  }
+
+  /**
+   * Login to Spotify - redirect to Spotify login page
+   * @param returnPath Optional path to return to after login
+   * @param force Whether to force login even if already authenticated
+   * @returns true if redirecting, false if failed
+   */
+  login(returnPath?: string, force = false): boolean {
+    if (!this.hasCredentials()) {
+      console.error('Spotify credentials not configured');
+      return false;
+    }
+    
+    try {
+      // If already authenticated with valid tokens and not forcing re-login, just return true
+      if (!force && this.isAuthenticated(true)) {
+        console.log('Already authenticated with Spotify, no need to log in again');
+        return true;
+      }
+      
+      // Get the login URL
+      const loginUrl = this.getLoginUrl(returnPath);
+      
+      // Redirect to Spotify login
+      window.location.href = loginUrl;
+      return true;
+    } catch (error) {
+      console.error('Error during Spotify login redirect:', error);
+      return false;
     }
   }
 }

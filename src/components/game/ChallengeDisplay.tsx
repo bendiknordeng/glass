@@ -302,10 +302,10 @@ const ChallengeDisplay: React.FC<ChallengeDisplayProps> = ({
               t('game.challengeTypes.allVsAll')}
           </span>
           
-          <h2 className="text-xl sm:text-2xl font-bold text-gray-800 dark:text-white mb-2">{challenge.title}</h2>
+          <h2 className="text-xl sm:text-2xl font-bold text-gray-800 dark:text-white mb-2">{t(challenge.title)}</h2>
           
           <p className="text-gray-600 dark:text-gray-300">
-            {challenge.description}
+            {t(challenge.description)}
           </p>
         </div>
         

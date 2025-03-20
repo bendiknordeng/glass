@@ -1,9 +1,10 @@
-import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useEffect, useState, useRef } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import spotifyService from '@/services/SpotifyService';
 import { useValidatedAuth } from '@/utils/auth-helpers';
 import DataService from '@/services/data';
+import { supabase } from '@/services/supabase';
 
 /**
  * Component that handles Spotify OAuth callback
@@ -11,14 +12,31 @@ import DataService from '@/services/data';
 const SpotifyCallback: React.FC = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { user, getValidUserId } = useValidatedAuth();
+  const location = useLocation();
+  const { user } = useValidatedAuth();
+  
+  // Use refs to prevent duplicate execution
+  const isProcessingRef = useRef(false);
+  const hasRunRef = useRef(false);
   
   const [status, setStatus] = useState<'processing' | 'success' | 'error'>('processing');
   const [errorMessage, setErrorMessage] = useState<string>('');
   
   useEffect(() => {
+    // Prevent multiple executions of the callback handler
+    if (hasRunRef.current) return;
+    hasRunRef.current = true;
+    
+    // Get return path from localStorage instead of sessionStorage
+    const returnToPath = localStorage.getItem('spotify_return_path') || '/setup';
+    
     const handleCallback = async () => {
+      if (isProcessingRef.current) return;
+      isProcessingRef.current = true;
+      
       try {
+        console.log('SpotifyCallback: Starting to process callback');
+        
         // Check if Spotify credentials are configured
         if (!spotifyService.hasCredentials()) {
           setStatus('error');
@@ -27,11 +45,16 @@ const SpotifyCallback: React.FC = () => {
         }
         
         // Get the code and state from URL
-        const urlParams = new URLSearchParams(window.location.search);
+        const urlParams = new URLSearchParams(location.search);
         const code = urlParams.get('code');
         const state = urlParams.get('state');
         const error = urlParams.get('error');
         
+        console.log('SpotifyCallback: Received params', { 
+          hasCode: !!code, 
+          hasState: !!state, 
+          error 
+        });
         
         // Check if there's an error from Spotify
         if (error) {
@@ -47,51 +70,56 @@ const SpotifyCallback: React.FC = () => {
           return;
         }
         
+        // Get current user from Supabase
+        const { data: authData } = await supabase.auth.getUser();
+        const currentUser = authData?.user;
+        console.log('SpotifyCallback: Current user', currentUser?.id);
+        
         // Exchange the code for tokens
         const success = await spotifyService.handleCallback(code, state);
         
         if (success) {
-          // If the user is authenticated with Supabase, save the Spotify auth data to Supabase
-          if (user) {
-            // Get a valid UUID format for the user ID
-            const validUserId = getValidUserId();
-            if (!validUserId) {
-              console.error('SpotifyCallback: Failed to get a valid user ID');
-              setStatus('error');
-              setErrorMessage('Authentication error: Invalid user ID format');
-              return;
-            }
-            
-            
-            // Spotify auth state is already in localStorage, load it
-            const authState = localStorage.getItem('spotifyAuthState');
-            if (authState) {
-              const parsedAuthState = JSON.parse(authState);
+          console.log('SpotifyCallback: Successfully authenticated with Spotify');
+          
+          // Only try to save to Supabase if we have a logged in user
+          if (currentUser && currentUser.id) {
+            try {
+              // Check if auth data already exists
+              const { success: hasAuth } = await DataService.getSpotifyAuth(currentUser.id);
               
-              try {
-                // Save to Supabase with validated user ID
-                await DataService.saveSpotifyAuth(
-                  validUserId,
-                  parsedAuthState.accessToken,
-                  parsedAuthState.refreshToken,
-                  Math.floor(parsedAuthState.expiresAt / 1000) // Convert to Unix timestamp
-                );
-              } catch (saveError) {
-                console.error('SpotifyCallback: Error saving to Supabase:', saveError);
-                // We continue anyway since the auth is already in localStorage
-                // Just log the error but don't show it to the user
+              // Only save if we don't already have auth data
+              if (!hasAuth) {
+                console.log('No Spotify auth in Supabase yet, saving it...');
+                
+                const authState = localStorage.getItem('spotifyAuthState');
+                if (authState) {
+                  const parsedAuthState = JSON.parse(authState);
+                  
+                  await DataService.saveSpotifyAuth(
+                    currentUser.id,
+                    parsedAuthState.accessToken,
+                    parsedAuthState.refreshToken,
+                    parsedAuthState.expiresAt
+                  );
+                  console.log('Successfully saved Spotify auth to Supabase');
+                }
+              } else {
+                console.log('Spotify auth already exists in Supabase');
               }
-            } else {
-              console.error('SpotifyCallback: No Spotify auth state found in localStorage');
+            } catch (error) {
+              console.error('Error saving to Supabase:', error);
+              // Continue anyway since auth is in localStorage
             }
           }
           
           setStatus('success');
           
-          // Redirect back to the music quiz creation page after a short delay
+          // Redirect back to the original page after a short delay
           setTimeout(() => {
-            navigate('/setup');
-          }, 1500);
+            // Clear the return path
+            localStorage.removeItem('spotify_return_path');
+            navigate(returnToPath);
+          }, 1000);
         } else {
           setStatus('error');
           setErrorMessage(t('auth.spotifyCallbackError'));
@@ -100,11 +128,18 @@ const SpotifyCallback: React.FC = () => {
         console.error('SpotifyCallback: Error in handleCallback:', error);
         setStatus('error');
         setErrorMessage(error instanceof Error ? error.message : t('error.general'));
+      } finally {
+        isProcessingRef.current = false;
       }
     };
     
     handleCallback();
-  }, [navigate, user, getValidUserId]);
+    
+    // Return cleanup function
+    return () => {
+      isProcessingRef.current = false;
+    };
+  }, [navigate, location.search, t]); // Simplified dependencies to reduce re-renders
   
   return (
     <div className="flex flex-col items-center justify-center min-h-screen p-4 bg-gray-50 dark:bg-gray-900">

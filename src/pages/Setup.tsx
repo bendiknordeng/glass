@@ -82,6 +82,11 @@ const Setup: React.FC = () => {
       navigate('/');
     }
   };
+
+  useEffect(() => {
+    const defaultChallenges = generateDefaultChallenges();
+    console.log(defaultChallenges);
+  }, []);
   
   // Start the game
   const handleStartGame = async () => {
@@ -91,6 +96,7 @@ const Setup: React.FC = () => {
       // Load default challenges if not already loaded
       if (stateRef.current.challenges.length === 0) {
         const defaultChallenges = generateDefaultChallenges();
+        console.log(defaultChallenges);
         
         // Dispatch challenges and wait for state to update
         await new Promise<void>((resolve) => {

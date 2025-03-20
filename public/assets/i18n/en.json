@@ -208,6 +208,25 @@
       "oneOnOne": "One-on-One",
       "team": "Team",
       "allVsAll": "All vs All"
+    },
+    "standard": {
+      "waterOrVodka": {
+        "title": "Water or Vodka",
+        "description": "Drink a shot of water or vodka. Have the group guess what you drank."
+      },
+      "categories": {
+        "title": "Categories: {{category}}",
+        "description": "Say words after turn that belong to the category {{category}}. First to fail loses!",
+        "beer-brands": "Beer Brands",
+        "tv-shows": "TV Shows",
+        "cities": "Cities",
+        "animals": "Animals",
+        "fruits": "Fruits",
+        "countries": "Countries",
+        "celebrities": "Celebrities",
+        "movies": "Movies",
+        "sports": "Sports"
+      }
     }
   },
   "settings": {
@@ -342,6 +361,8 @@
     "edit": "Edit",
     "delete": "Delete",
     "clickToChange": "Click to change",
-    "editPlayer": "Edit Player"
+    "editPlayer": "Edit Player",
+    "namePlaceholder": "Example: John Doe",
+    "preview": "Preview"
   }
 }

@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useReducer, useEffect, useState, useCallback } from 'react';
 import { Player } from '@/types/Player';
 import { Team, GameMode, GameDuration } from '@/types/Team';
-import { Challenge, ChallengeResult } from '@/types/Challenge';
+import { Challenge, ChallengeResult, PrebuiltChallengeType, SpotifyMusicQuizSettings, SpotifySong } from '../types/Challenge';
 import { generateId } from '@/utils/helpers';
 import { challengesService } from '@/services/supabase';
 import { useAuth } from '@/contexts/AuthContext'; // Assuming you have an auth context
@@ -736,13 +736,31 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
         
         // Restore the complete game state at once
         if (parsedState.gameStarted && !parsedState.gameFinished) {
+          // Restore player images from separate localStorage items
+          const playersWithImages = parsedState.players.map(player => {
+            // Check if this is a player with a stored image
+            if (player.image && player.image.startsWith('__playerImage_')) {
+              const playerId = player.image.replace('__playerImage_', '');
+              const storedImage = localStorage.getItem(`playerImage_${playerId}`);
+              
+              return {
+                ...player,
+                // Restore the image if found, otherwise use empty string
+                image: storedImage || ''
+              };
+            }
+            
+            return player;
+          });
+          
           // Only restore if there's an active game
           dispatch({ 
             type: 'RESTORE_GAME_STATE', 
             payload: {
               ...parsedState,
+              // Use players with restored images
+              players: playersWithImages,
               // Ensure we keep the same references for complex objects
-              players: parsedState.players.map(p => ({ ...p })),
               teams: parsedState.teams.map(t => ({ ...t })),
               challenges: parsedState.challenges.map(c => ({ ...c })),
               customChallenges: parsedState.customChallenges.map(c => ({ ...c })),
@@ -767,10 +785,85 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     // Only save if we have an active game
     if (state.gameStarted && !state.gameFinished) {
-      localStorage.setItem('glassGameState', JSON.stringify(state));
+      try {
+        // Create a trimmed version of the state that excludes large data
+        const trimmedState = {
+          ...state,
+          // Create lightweight versions of players without full image data
+          players: state.players.map(player => ({
+            ...player,
+            // If image is a data URL (base64), store a flag instead of the full data
+            image: player.image.startsWith('data:') 
+              ? `__playerImage_${player.id}` // Just a marker to indicate image exists
+              : player.image // Keep external URLs as is
+          })),
+          // Store only essential Spotify data if present
+          challenges: state.challenges.map(challenge => {
+            if (challenge.prebuiltType === 'spotifyMusicQuiz' && challenge.prebuiltSettings) {
+              const settings = challenge.prebuiltSettings as SpotifyMusicQuizSettings;
+              return {
+                ...challenge,
+                prebuiltSettings: {
+                  ...settings,
+                  // Remove potentially large song arrays if present
+                  selectedSongs: settings.selectedSongs 
+                    ? settings.selectedSongs.map((song: SpotifySong) => ({
+                        id: song.id,
+                        name: song.name,
+                        artist: song.artist,
+                        // Omit large image URLs and preview URLs to save space
+                        isRevealed: song.isRevealed,
+                        isPlaying: song.isPlaying
+                      }))
+                    : undefined
+                }
+              };
+            }
+            return challenge;
+          })
+        };
+
+        // Store the main state data
+        localStorage.setItem('glassGameState', JSON.stringify(trimmedState));
+
+        // Store player images separately if they're base64
+        state.players.forEach(player => {
+          if (player.image.startsWith('data:')) {
+            try {
+              localStorage.setItem(`playerImage_${player.id}`, player.image);
+            } catch (imageError) {
+              console.warn(`Could not store image for player ${player.id}, too large for localStorage`);
+              // Fall back to not storing the image
+            }
+          }
+        });
+      } catch (error) {
+        console.error('Error saving game state to localStorage:', error);
+        // If we hit quota issues, try removing non-essential data completely
+        try {
+          const minimalState = {
+            ...state,
+            players: state.players.map(p => ({ ...p, image: p.image.startsWith('data:') ? '' : p.image })),
+            challenges: state.challenges.map(c => {
+              if (c.prebuiltType === 'spotifyMusicQuiz' && c.prebuiltSettings) {
+                return { ...c, prebuiltSettings: { ...c.prebuiltSettings, selectedSongs: [] } };
+              }
+              return c;
+            })
+          };
+          localStorage.setItem('glassGameState', JSON.stringify(minimalState));
+          console.log('Saved minimal game state as fallback');
+        } catch (fallbackError) {
+          console.error('Could not save even minimal game state:', fallbackError);
+        }
+      }
     } else if (state.gameFinished) {
       // Clear saved state when game is finished
       localStorage.removeItem('glassGameState');
+      // Also clear any player images
+      state.players.forEach(player => {
+        localStorage.removeItem(`playerImage_${player.id}`);
+      });
     }
   }, [state]);
 

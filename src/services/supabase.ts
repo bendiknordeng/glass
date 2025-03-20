@@ -141,6 +141,91 @@ const ensureUuid = (id: string | undefined): string | undefined => {
   return id; // Return as is, the database will reject if invalid
 };
 
+// Helper function to process images before storage
+const processImageForStorage = async (imageDataUrl: string): Promise<string> => {
+  // Check if the image is already small enough
+  if (!imageDataUrl || imageDataUrl.length < 1000000) { // Less than ~1MB
+    return imageDataUrl;
+  }
+  
+  // If this is a default avatar or already processed, return as is
+  if (!imageDataUrl.startsWith('data:image/')) {
+    return imageDataUrl;
+  }
+  
+  console.log('Processing large image for storage');
+  
+  try {
+    // Create an image element to load the data URL
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        // Create a canvas to resize the image
+        const canvas = document.createElement('canvas');
+        
+        // Calculate new dimensions (max 500px width or height)
+        const MAX_SIZE = 500;
+        let width = img.width;
+        let height = img.height;
+        
+        if (width > height && width > MAX_SIZE) {
+          height = Math.round((height * MAX_SIZE) / width);
+          width = MAX_SIZE;
+        } else if (height > MAX_SIZE) {
+          width = Math.round((width * MAX_SIZE) / height);
+          height = MAX_SIZE;
+        }
+        
+        // Set canvas dimensions and draw resized image
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        
+        if (!ctx) {
+          console.error('Could not get canvas context for image processing');
+          resolve(imageDataUrl); // Fallback to original
+          return;
+        }
+        
+        // Draw with smooth scaling
+        ctx.imageSmoothingQuality = 'high';
+        ctx.drawImage(img, 0, 0, width, height);
+        
+        // Convert to data URL with reduced quality
+        const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.7);
+        
+        console.log(`Image compressed from ${imageDataUrl.length} to ${compressedDataUrl.length} bytes`);
+        
+        // If still too large, reduce further or return a default
+        if (compressedDataUrl.length > 1500000) { // If still > 1.5MB
+          console.warn('Image still too large after compression, reducing quality further');
+          const furtherCompressed = canvas.toDataURL('image/jpeg', 0.4);
+          
+          if (furtherCompressed.length > 1500000) {
+            console.error('Image too large for storage even after significant compression');
+            // At this point, we could return a default image or a placeholder
+            resolve('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgdmlld0JveD0iMCAwIDEwMCAxMDAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHJlY3Qgd2lkdGg9IjEwMCIgaGVpZ2h0PSIxMDAiIGZpbGw9IiM2NjY2NjYiLz48dGV4dCB4PSI1MCIgeT0iNTAiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxNHB4IiBmaWxsPSJ3aGl0ZSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPkltYWdlIHRvbzxicj5sYXJnZTwvdGV4dD48L3N2Zz4=');
+          } else {
+            resolve(furtherCompressed);
+          }
+        } else {
+          resolve(compressedDataUrl);
+        }
+      };
+      
+      img.onerror = () => {
+        console.error('Error loading image for processing');
+        resolve(imageDataUrl); // Fallback to original
+      };
+      
+      img.src = imageDataUrl;
+    });
+  } catch (error) {
+    console.error('Error processing image:', error);
+    return imageDataUrl; // Return original on error
+  }
+};
+
 /**
  * Database helper functions for players
  */
@@ -183,9 +268,20 @@ export const playersService = {
         throw new Error('Valid user_id is required');
       }
       
+      // Process the image if present to make it smaller
+      let processedImage = player.image;
+      if (player.image) {
+        try {
+          processedImage = await processImageForStorage(player.image);
+        } catch (imageError) {
+          console.error('Error processing image, using original:', imageError);
+        }
+      }
+      
       const playerData = {
         ...player,
-        user_id: validatedUserId
+        user_id: validatedUserId,
+        image: processedImage
       };
       
       // Set a timeout for the request
@@ -221,10 +317,20 @@ export const playersService = {
   // Update a player
   async updatePlayer(playerId: string, updates: Partial<Omit<Player, 'id' | 'created_at'>>) {
     try {
+      // Process the image if present to make it smaller
+      let processedUpdates = { ...updates };
+      if (updates.image) {
+        try {
+          processedUpdates.image = await processImageForStorage(updates.image);
+        } catch (imageError) {
+          console.error('Error processing image for update, using original:', imageError);
+        }
+      }
+      
       const { data, error } = await supabase
         .from('players')
         .update({
-          ...updates,
+          ...processedUpdates,
           updated_at: new Date().toISOString()
         })
         .eq('id', playerId)

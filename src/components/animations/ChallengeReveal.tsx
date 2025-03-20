@@ -159,7 +159,7 @@ const ChallengeReveal: React.FC<ChallengeRevealProps> = ({
                   damping: 25
                 }}
               >
-                {challenge.title}
+                {t(challenge.title)}
               </motion.h2>
               
               {/* Animated Divider */}
@@ -191,7 +191,7 @@ const ChallengeReveal: React.FC<ChallengeRevealProps> = ({
                 }}
               >
                 <p className="text-gray-700 dark:text-gray-300 text-lg">
-                  {challenge.description}
+                  {t(challenge.description)}
                 </p>
               </motion.div>
               

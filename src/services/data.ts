@@ -59,37 +59,54 @@ export const DataService = {
       if (!userId || userId.trim() === '') {
         throw new Error('User ID is required');
       }
+
+      console.log(`Saving Spotify auth for user: ${userId}`);
       
-      // Check if we already have an entry for this user
-      const { data: existingData, error: checkError } = await supabase
+      // First check if we already have an entry for this user
+      const { data: existingAuth, error: checkError } = await supabase
         .from('spotify_auth')
         .select('id')
         .eq('user_id', userId)
         .maybeSingle();
-        
+      
       if (checkError) {
         console.warn('Error checking existing Spotify auth:', checkError);
       }
       
-      // Use upsert with returning to verify success
-      const { data, error } = await supabase
-        .from('spotify_auth')
-        .upsert(
-          {
-            // If we have existing data, include the ID
-            ...(existingData?.id ? { id: existingData.id } : {}),
+      let result;
+      
+      if (existingAuth?.id) {
+        // If we have an existing record, do an update instead of upsert
+        console.log(`Updating existing Spotify auth for user ${userId}`);
+        result = await supabase
+          .from('spotify_auth')
+          .update({
+            access_token: accessToken,
+            refresh_token: refreshToken,
+            expires_at: expiresAt
+          })
+          .eq('user_id', userId)
+          .select();
+      } else {
+        // If no existing record, do a simple insert
+        console.log(`Creating new Spotify auth for user ${userId}`);
+        result = await supabase
+          .from('spotify_auth')
+          .insert({
             user_id: userId,
             access_token: accessToken,
             refresh_token: refreshToken,
-            expires_at: expiresAt,
-          },
-          { onConflict: 'user_id' }
-        )
-        .select()
-        .single();
-
-      if (error) throw error;
+            expires_at: expiresAt
+          })
+          .select();
+      }
       
+      if (result.error) {
+        console.error('Supabase operation error:', result.error);
+        throw result.error;
+      }
+      
+      console.log('Spotify auth saved successfully:', result.data);
       return { success: true };
     } catch (error) {
       console.error('Error saving Spotify auth:', error);
@@ -115,6 +132,8 @@ export const DataService = {
         throw new Error('User ID is required');
       }
       
+      console.log(`Getting Spotify auth for user: ${userId}`);
+      
       // Use maybeSingle() instead of single() to handle "no rows" case without error
       const { data, error } = await supabase
         .from('spotify_auth')
@@ -122,16 +141,22 @@ export const DataService = {
         .eq('user_id', userId)
         .maybeSingle();
 
-      if (error) throw error;
+      if (error) {
+        console.error('Supabase error getting Spotify auth:', error);
+        throw error;
+      }
       
       // If no data found, return success: false with a clear message
       if (!data) {
+        console.log(`No Spotify auth found for user: ${userId}`);
         return {
           success: false,
           error: 'No Spotify authentication data found',
         };
       }
 
+      console.log(`Successfully retrieved Spotify auth for user: ${userId}`);
+      
       return {
         success: true,
         data: {
