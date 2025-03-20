@@ -7,6 +7,11 @@ import LoadingState from '@/components/common/LoadingState';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { playersService, challengesService, gamesService } from '@/services/supabase';
 import { useTranslation } from 'react-i18next';
+import PlayerCard from '@/components/common/PlayerCard';
+import { Player as AppPlayer } from '@/types/Player';
+import PlayerEditForm from '@/components/forms/PlayerEditForm';
+import { useGameActive } from '@/hooks/useGameActive';
+
 interface ServiceResult {
   success: boolean;
   error?: any;
@@ -17,6 +22,8 @@ const Profile: React.FC = () => {
   const { user, spotifyAuth, signOut, isAuthenticated } = useAuth();
   const navigate = useNavigate();
   const { t } = useTranslation();
+  const isGameActive = useGameActive();
+  
   // Check if user is connected to Facebook or Google using identities
   const isConnectedToFacebook = user?.identities?.some(
     (identity) => identity.provider === 'facebook'
@@ -40,6 +47,10 @@ const Profile: React.FC = () => {
   const [challenges, setChallenges] = useState<DBChallenge[]>([]);
   const [games, setGames] = useState<Game[]>([]);
   const [activeTab, setActiveTab] = useState<'players' | 'challenges' | 'games'>('games');
+  
+  // State for player editing modal
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [playerToEdit, setPlayerToEdit] = useState<Player | null>(null);
   
   useEffect(() => {
     // If not authenticated, redirect to login
@@ -82,6 +93,7 @@ const Profile: React.FC = () => {
           if (playersResult) {
             setPlayers(playersResult);
           }
+          setIsLoadingPlayers(false);
         } catch (error) {
           clearTimeout(playersTimeout);
           setIsLoadingPlayers(false);
@@ -163,6 +175,48 @@ const Profile: React.FC = () => {
       hour: '2-digit',
       minute: '2-digit'
     }).format(date);
+  };
+  
+  // Function to handle opening the edit modal
+  const handleEditPlayer = (player: Player, e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent any other click handlers
+    
+    // Prevent editing during active game
+    if (isGameActive) {
+      console.warn('Cannot edit players during an active game');
+      return;
+    }
+    
+    setPlayerToEdit(player);
+    setIsEditModalOpen(true);
+  };
+  
+  // Function to close the edit modal
+  const handleCloseEditModal = () => {
+    setIsEditModalOpen(false);
+    setPlayerToEdit(null);
+  };
+  
+  // Function to save player edits
+  const handleSavePlayerEdit = async (updatedPlayer: Player) => {
+    try {
+      // Update player in database
+      await playersService.updatePlayer(updatedPlayer.id, {
+        name: updatedPlayer.name,
+        image: updatedPlayer.image
+      });
+      
+      // Update player in state
+      setPlayers(prevPlayers => 
+        prevPlayers.map(p => p.id === updatedPlayer.id ? updatedPlayer : p)
+      );
+      
+      // Close modal
+      handleCloseEditModal();
+    } catch (error) {
+      console.error('Error updating player:', error);
+      // You could add error handling/feedback here
+    }
   };
   
   if (!isAuthenticated) {
@@ -306,7 +360,7 @@ const Profile: React.FC = () => {
               : 'text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
           }`}
         >
-          Recent Games
+          {t('profile.games')}
         </button>
         <button
           onClick={() => setActiveTab('players')}
@@ -316,7 +370,7 @@ const Profile: React.FC = () => {
               : 'text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
           }`}
         >
-          Recent Players
+          {t('profile.players')}
         </button>
         <button
           onClick={() => setActiveTab('challenges')}
@@ -326,7 +380,7 @@ const Profile: React.FC = () => {
               : 'text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
           }`}
         >
-          Recent Challenges
+          {t('profile.challenges')}
         </button>
       </div>
       
@@ -336,7 +390,9 @@ const Profile: React.FC = () => {
           {/* Recent Games */}
           {activeTab === 'games' && (
             <div>
-              <h2 className="mb-4 text-xl font-semibold text-gray-900 dark:text-white">Recent Games</h2>
+              <h2 className="mb-4 text-xl font-semibold text-gray-900 dark:text-white">
+                {t('profile.games')}
+              </h2>
               
               <LoadingState
                 isLoading={isLoadingGames}
@@ -401,7 +457,9 @@ const Profile: React.FC = () => {
           {/* Recent Players */}
           {activeTab === 'players' && (
             <div>
-              <h2 className="mb-4 text-xl font-semibold text-gray-900 dark:text-white">Recent Players</h2>
+              <h2 className="mb-4 text-xl font-semibold text-gray-900 dark:text-white">
+                {t('profile.players')}
+              </h2>
               
               <LoadingState
                 isLoading={isLoadingPlayers}
@@ -413,25 +471,55 @@ const Profile: React.FC = () => {
               />
               
               {!isLoadingPlayers && !playersError && players.length > 0 && (
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                  {players.map((player) => (
-                    <div
-                      key={player.id}
-                      className="flex items-center p-4 bg-white rounded-lg shadow dark:bg-gray-700"
-                    >
-                      <div className="flex items-center justify-center w-10 h-10 mr-4 text-white rounded-full bg-pastel-blue">
-                        {player.name.charAt(0).toUpperCase()}
+                <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+                  {players.map((player) => {
+                    // Convert supabase Player type to App Player type
+                    const appPlayer: AppPlayer = {
+                      id: player.id,
+                      name: player.name,
+                      image: player.image || '',
+                      score: player.score
+                    };
+                    
+                    return (
+                      <div key={player.id} className="relative">
+                        <PlayerCard 
+                          player={appPlayer}
+                          showScore={true}
+                          size="md"
+                          className="aspect-square w-full h-auto"
+                        />
+                        {!isGameActive && (
+                          <button
+                            onClick={(e) => handleEditPlayer(player, e)}
+                            className="absolute top-1 right-1 bg-gray-800 bg-opacity-70 text-white rounded-full p-1.5 shadow-md hover:bg-gray-900 transition-colors"
+                            aria-label="Edit player"
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                            </svg>
+                          </button>
+                        )}
                       </div>
-                      <div>
-                        <p className="font-medium text-gray-900 dark:text-white">
-                          {player.name}
-                        </p>
-                        <p className="text-sm text-gray-500 dark:text-gray-400">
-                          Score: {player.score}
-                        </p>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
+                </div>
+              )}
+              
+              {/* Player Edit Modal */}
+              {isEditModalOpen && playerToEdit && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                  <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md w-full mx-4 shadow-xl">
+                    <h3 className="text-xl font-semibold mb-4 text-gray-800 dark:text-white">
+                      {t('player.editPlayer')}
+                    </h3>
+                    <PlayerEditForm 
+                      player={playerToEdit}
+                      onSave={handleSavePlayerEdit}
+                      onCancel={handleCloseEditModal}
+                      isInGame={isGameActive}
+                    />
+                  </div>
                 </div>
               )}
             </div>
@@ -440,7 +528,9 @@ const Profile: React.FC = () => {
           {/* Recent Challenges */}
           {activeTab === 'challenges' && (
             <div>
-              <h2 className="mb-4 text-xl font-semibold text-gray-900 dark:text-white">Recent Challenges</h2>
+              <h2 className="mb-4 text-xl font-semibold text-gray-900 dark:text-white">
+                {t('profile.challenges')}
+              </h2>
               
               <LoadingState
                 isLoading={isLoadingChallenges}

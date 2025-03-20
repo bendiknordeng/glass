@@ -10,9 +10,11 @@ import { fileToDataUrl } from '@/utils/helpers';
 import { getAvatarByName } from '@/utils/avatarUtils';
 import { Player } from '@/types/Player';
 import { playersService } from '@/services/supabase';
-import { useValidatedAuth } from '@/utils/auth-helpers'; // Use validated auth
-import { getAnonymousUserId } from '@/utils/auth-helpers'; // Import anonymous user ID helper
-import { Player as DbPlayer } from '@/types/supabase'; // Import the database Player type
+import { useValidatedAuth } from '@/utils/auth-helpers';
+import { getAnonymousUserId } from '@/utils/auth-helpers';
+import { Player as DbPlayer } from '@/types/supabase';
+import PlayerEditForm from '@/components/forms/PlayerEditForm';
+import { useGameActive } from '@/hooks/useGameActive';
 
 // Maximum number of recent players to store
 const MAX_RECENT_PLAYERS = 10;
@@ -50,10 +52,34 @@ const deleteRecentPlayerLocally = (playerId: string) => {
   }
 };
 
+// Since we're hitting TypeScript compatibility issues, let's create adapter functions
+// to safely convert between different Player types
+const appPlayerToDbPlayer = (player: Player): DbPlayer => ({
+  id: player.id,
+  user_id: 'local',
+  name: player.name,
+  image: player.image,
+  score: player.score,
+  favorite: false,
+  last_played_at: new Date().toISOString(),
+  created_at: new Date().toISOString(),
+  updated_at: new Date().toISOString(),
+  total_games: 0,
+  wins: 0
+});
+
+const dbPlayerToAppPlayer = (dbPlayer: DbPlayer): Player => ({
+  id: dbPlayer.id,
+  name: dbPlayer.name,
+  image: dbPlayer.image || '',
+  score: dbPlayer.score
+});
+
 const PlayerRegistration: React.FC = () => {
   const { t } = useTranslation();
   const { state, dispatch } = useGame();
   const { user, isAuthenticated, getValidUserId } = useValidatedAuth(); // Get the validated user ID function
+  const isGameActive = useGameActive();
   
   const [playerName, setPlayerName] = useState('');
   const [playerImage, setPlayerImage] = useState<File | null>(null);
@@ -75,13 +101,9 @@ const PlayerRegistration: React.FC = () => {
   // Add this after other state declarations in the component
   const prevPlayersRef = useRef<Player[]>([]);
   
-  // Convert DbPlayer to app Player type
-  const dbPlayerToAppPlayer = (dbPlayer: DbPlayer): Player => ({
-    id: dbPlayer.id,
-    name: dbPlayer.name,
-    image: dbPlayer.image || '',
-    score: dbPlayer.score
-  });
+  // Add state for player editing modal
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [playerToEdit, setPlayerToEdit] = useState<DbPlayer | null>(null);
   
   // Load recent players from Supabase or localStorage
   const loadRecentPlayers = async (forceRefresh = false) => {
@@ -489,6 +511,107 @@ const PlayerRegistration: React.FC = () => {
     setPlayerToDelete(null);
   };
   
+  // TypeScript-friendly edit function
+  const handleEditPlayer = (player: Player, e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent any other click handlers
+    
+    if (isGameActive) {
+      console.warn('Cannot edit players during an active game');
+      return;
+    }
+    
+    // For database players, try to find in cache
+    if (isAuthenticated && user) {
+      // Type assertion as DbPlayer[] to help TypeScript understand
+      const dbPlayerArr = dbPlayersCached as DbPlayer[];
+      const dbPlayer = dbPlayerArr.find(p => p.id === player.id);
+      if (dbPlayer) {
+        setPlayerToEdit(dbPlayer);
+        setIsEditModalOpen(true);
+        return;
+      }
+    }
+    
+    // Convert app player to db player
+    const dbPlayer = appPlayerToDbPlayer(player);
+    setPlayerToEdit(dbPlayer);
+    setIsEditModalOpen(true);
+  };
+  
+  // Function to close the edit modal
+  const handleCloseEditModal = () => {
+    setIsEditModalOpen(false);
+    setPlayerToEdit(null);
+  };
+  
+  // TypeScript-friendly save function
+  const handleSavePlayerEdit = async (updatedDbPlayer: DbPlayer) => {
+    try {
+      // Make sure image is never null
+      const safeImage = updatedDbPlayer.image || '';
+      
+      if (isAuthenticated && user) {
+        // Update in database
+        await playersService.updatePlayer(updatedDbPlayer.id, {
+          name: updatedDbPlayer.name,
+          image: updatedDbPlayer.image
+        });
+        
+        // Update cached DB players if this player exists there
+        const newDbPlayersCached = [...dbPlayersCached] as DbPlayer[];
+        const dbPlayerIndex = newDbPlayersCached.findIndex(p => p.id === updatedDbPlayer.id);
+        if (dbPlayerIndex >= 0) {
+          newDbPlayersCached[dbPlayerIndex] = {
+            ...newDbPlayersCached[dbPlayerIndex],
+            name: updatedDbPlayer.name,
+            image: updatedDbPlayer.image
+          };
+          // Cast to Player[] to satisfy TypeScript
+          setDbPlayersCached(newDbPlayersCached as unknown as Player[]);
+        }
+      } else {
+        // Local storage update
+        const localPlayers = getRecentPlayersLocally();
+        const updatedLocalPlayers = localPlayers.map(p => 
+          p.id === updatedDbPlayer.id 
+            ? { ...p, name: updatedDbPlayer.name, image: safeImage } 
+            : p
+        );
+        localStorage.setItem(RECENT_PLAYERS_KEY, JSON.stringify(updatedLocalPlayers));
+      }
+      
+      // Update recent players display
+      const newRecentPlayers = [...recentPlayers];
+      const recentPlayerIndex = newRecentPlayers.findIndex(p => p.id === updatedDbPlayer.id);
+      if (recentPlayerIndex >= 0) {
+        newRecentPlayers[recentPlayerIndex] = {
+          ...newRecentPlayers[recentPlayerIndex],
+          name: updatedDbPlayer.name,
+          image: safeImage
+        };
+        setRecentPlayers(newRecentPlayers);
+      }
+      
+      // Update current game players if this player is in the game
+      const playerInGame = state.players.find(p => p.id === updatedDbPlayer.id);
+      if (playerInGame) {
+        dispatch({
+          type: 'UPDATE_PLAYER_DETAILS',
+          payload: {
+            id: updatedDbPlayer.id,
+            name: updatedDbPlayer.name,
+            image: safeImage
+          }
+        });
+      }
+      
+      // Close modal
+      handleCloseEditModal();
+    } catch (error) {
+      console.error('Error updating player:', error);
+    }
+  };
+  
   return (
     <div className="max-w-4xl mx-auto">
       <h2 className="text-2xl font-bold mb-6 text-gray-800 dark:text-white text-center">
@@ -627,7 +750,14 @@ const PlayerRegistration: React.FC = () => {
                 whileTap={{ scale: 0.95 }}
                 onClick={() => handleAddRecentPlayer(player)}
               >
-                <PlayerCard player={player} showScore={false} size="sm" />
+                <PlayerCard 
+                  player={player} 
+                  showScore={false} 
+                  size="sm" 
+                  onEdit={(e) => handleEditPlayer(player, e)}
+                  showEditButton={!isGameActive}
+                  inGame={isGameActive}
+                />
                 <button
                   className="absolute -top-2 -left-2 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center shadow-md hover:bg-red-600 transition-colors focus:outline-none"
                   onClick={(e) => initiateDeleteRecentPlayer(e, player)}
@@ -672,7 +802,13 @@ const PlayerRegistration: React.FC = () => {
                   transition={{ duration: 0.3 }}
                   className="relative"
                 >
-                  <PlayerCard player={player} showScore={false} />
+                  <PlayerCard 
+                    player={player} 
+                    showScore={true}  
+                    onEdit={(e) => handleEditPlayer(player, e)}
+                    showEditButton={!isGameActive}
+                    inGame={isGameActive}
+                  />
                   <button
                     className="absolute -top-2 -left-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center shadow-md hover:bg-red-600 transition-colors focus:outline-none"
                     onClick={() => handleRemovePlayer(player.id)}
@@ -689,6 +825,23 @@ const PlayerRegistration: React.FC = () => {
           </div>
         )}
       </div>
+      
+      {/* Player Edit Modal */}
+      {isEditModalOpen && playerToEdit && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md w-full mx-4 shadow-xl">
+            <h3 className="text-xl font-semibold mb-4 text-gray-800 dark:text-white">
+              {t('player.editPlayer')}
+            </h3>
+            <PlayerEditForm 
+              player={playerToEdit}
+              onSave={handleSavePlayerEdit}
+              onCancel={handleCloseEditModal}
+              isInGame={isGameActive}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 };

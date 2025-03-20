@@ -72,7 +72,8 @@ type GameAction =
   | { type: 'RESTORE_GAME_STATE'; payload: GameState }
   | { type: 'UPDATE_CHALLENGE_PARTICIPANTS'; payload: { challengeId: string; participantIds: string[] } }
   | { type: 'UPDATE_PLAYER_SCORE'; payload: { playerId: string; points: number } }
-  | { type: 'UPDATE_TEAM_SCORE'; payload: { teamId: string; points: number } };
+  | { type: 'UPDATE_TEAM_SCORE'; payload: { teamId: string; points: number } }
+  | { type: 'UPDATE_PLAYER_DETAILS'; payload: Partial<Player> };
 
 // Create reducer function
 const gameReducer = (state: GameState, action: GameAction): GameState => {
@@ -545,6 +546,16 @@ const gameReducer = (state: GameState, action: GameAction): GameState => {
           team.id === action.payload.teamId 
             ? { ...team, score: team.score + action.payload.points } 
             : team
+        )
+      };
+
+    case 'UPDATE_PLAYER_DETAILS':
+      return {
+        ...state,
+        players: state.players.map(player =>
+          player.id === action.payload.id
+            ? { ...player, ...action.payload }
+            : player
         )
       };
 

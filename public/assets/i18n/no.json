@@ -330,5 +330,19 @@
     "spotifyLoggedInAs": "Logget inn som",
     "spotifyUserProfile": "Spotify-brukerprofil",
     "spotifyCallbackError": "En feil oppstod under autentiseringen"
+  },
+  "profile": {
+    "games": "Nylige spill",
+    "players": "Nylige spillere",
+    "challenges": "Nylige utfordringer"
+  },
+  "player": {
+    "name": "Navn",
+    "image": "Bilde",
+    "score": "Poeng",
+    "edit": "Rediger",
+    "delete": "Slett",
+    "clickToChange": "Klikk for å endre",
+    "editPlayer": "Rediger spiller"
   }
 }

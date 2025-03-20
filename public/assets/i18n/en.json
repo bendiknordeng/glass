@@ -329,5 +329,19 @@
     "spotifyLoggedInAs": "Logged in as",
     "spotifyCallbackError": "Failed to authenticate with Spotify",
     "spotifyUserProfile": "Spotify User Profile"
+  },
+  "profile": {
+    "games": "Recent Games",
+    "players": "Recent Players",
+    "challenges": "Recent Challenges"
+  },
+  "player": {
+    "name": "Name",
+    "image": "Image",
+    "score": "Score",
+    "edit": "Edit",
+    "delete": "Delete",
+    "clickToChange": "Click to change",
+    "editPlayer": "Edit Player"
   }
 }
