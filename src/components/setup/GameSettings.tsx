@@ -71,13 +71,13 @@ const GameSettings: React.FC = () => {
       if (!stored) return [];
 
       const challenges = JSON.parse(stored);
-      // Filter out any challenges that are currently in the game (case insensitive)
+      // Filter out any challenges that are currently in the game (by ID or by title case insensitive)
       return challenges.filter(
         (recentChallenge: Challenge) =>
           !state.customChallenges.some(
             (currentChallenge: Challenge) =>
-              currentChallenge.title.toLowerCase() ===
-              recentChallenge.title.toLowerCase()
+              currentChallenge.id === recentChallenge.id || 
+              currentChallenge.title.toLowerCase() === recentChallenge.title.toLowerCase()
           )
       );
     } catch (error) {
@@ -121,15 +121,25 @@ const GameSettings: React.FC = () => {
         // Combine all challenges (database overrides local with same ID)
         const allChallenges = [...localChallenges];
         
-        // Add database challenges that aren't already in the local list
+        // Add database challenges that aren't already in the local list OR in the current game
         convertedChallenges.forEach(dbChallenge => {
-          const existingIndex = allChallenges.findIndex(c => c.id === dbChallenge.id);
-          if (existingIndex >= 0) {
-            // Replace with database version
-            allChallenges[existingIndex] = dbChallenge;
-          } else {
-            // Add new challenge
-            allChallenges.push(dbChallenge);
+          // Check if this challenge is already in the game
+          const alreadyInGame = state.customChallenges.some(
+            gameChallenge => 
+              gameChallenge.id === dbChallenge.id || 
+              gameChallenge.title.toLowerCase() === dbChallenge.title.toLowerCase()
+          );
+          
+          // Only add if not already in the game
+          if (!alreadyInGame) {
+            const existingIndex = allChallenges.findIndex(c => c.id === dbChallenge.id);
+            if (existingIndex >= 0) {
+              // Replace with database version
+              allChallenges[existingIndex] = dbChallenge;
+            } else {
+              // Add new challenge
+              allChallenges.push(dbChallenge);
+            }
           }
         });
         
@@ -141,7 +151,7 @@ const GameSettings: React.FC = () => {
     } finally {
       setIsLoadingChallenges(false);
     }
-  }, [isAuthenticated, getValidUserId]);
+  }, [isAuthenticated, getValidUserId, state.customChallenges]);
 
   // Load challenges on mount
   React.useEffect(() => {
@@ -152,6 +162,12 @@ const GameSettings: React.FC = () => {
     // Then load database challenges (only once on mount)
     loadChallengesFromDB();
   }, []); // Empty dependency array - only run on mount
+
+  // Update recent challenges when game state changes
+  React.useEffect(() => {
+    // Re-filter recent challenges when custom challenges change
+    setRecentChallenges(getRecentChallenges());
+  }, [state.customChallenges]); // Run effect when custom challenges change
 
   // Auto-save when duration type or value changes
   useEffect(() => {
@@ -175,13 +191,8 @@ const GameSettings: React.FC = () => {
     // Move this challenge to the top of recent challenges
     updateRecentChallenges(challenge);
     
-    // Refresh challenges from localStorage
-    setRecentChallenges(getRecentChallenges());
-    
-    // If we're authenticated, also refresh database challenges
-    if (isAuthenticated) {
-      loadChallengesFromDB();
-    }
+    // No need to manually update recent challenges or reload from database
+    // React effects will handle this automatically when state.customChallenges changes
   };
 
   /**

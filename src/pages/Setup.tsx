@@ -25,6 +25,9 @@ const Setup: React.FC = () => {
   const stateRef = useRef(state);
   const teamCreationRef = useRef<TeamCreationRef>(null);
   
+  // Track if this is the initial page load
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
+  
   // Keep ref updated with latest state
   useEffect(() => {
     stateRef.current = state;
@@ -34,6 +37,15 @@ const Setup: React.FC = () => {
   useEffect(() => {
     localStorage.setItem(SETUP_CURRENT_STEP_KEY, currentStep.toString());
   }, [currentStep]);
+  
+  // Mark initial load as complete after a short delay to ensure state is properly loaded
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setIsInitialLoad(false);
+    }, 300);
+    
+    return () => clearTimeout(timer);
+  }, []);
   
   // Steps for setup process
   const MIN_PLAYERS = 2;
@@ -60,12 +72,13 @@ const Setup: React.FC = () => {
     localStorage.removeItem(SETUP_CURRENT_STEP_KEY);
   };
   
-  // Reset to first step if we don't have enough players
+  // Reset to first step if we don't have enough players, but only after initial load
   useEffect(() => {
-    if (state.players.length < MIN_PLAYERS && currentStep > 0) {
+    // Only validate and potentially reset step after initial loading is complete
+    if (!isInitialLoad && state.players.length < MIN_PLAYERS && currentStep > 0) {
       setCurrentStep(0);
     }
-  }, [state.players.length, currentStep]);
+  }, [state.players.length, currentStep, isInitialLoad]);
 
   const steps = [
     {
