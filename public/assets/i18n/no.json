@@ -90,7 +90,8 @@
     "dragPlayersInstructions": "Dra spillere for å legge dem til lag",
     "teamsRequired": "Vennligst opprett minst 2 lag",
     "allPlayersAssigned": "Alle spillere må være tildelt et lag",
-    "confirmDeletePlayer": "Er du sikker på at du vil slette {{item}}?"
+    "confirmDeletePlayer": "Er du sikker på at du vil slette {{item}}?",
+    "removeAllPlayers": "Fjern alle spillere"
   },
   "game": {
     "round": "Runde {{round}}",
@@ -137,7 +138,19 @@
     "failurePunishmentSips": "Drikk {{count}} slurk(er)!",
     "failurePunishmentCustom": "Tid for straff!",
     "punishmentSips": "{{target}} må drikke {{count}} slurk(er)!",
-    "customPunishment": "Tid for straff!",
+    "customPunishment": "Tilpasset straff",
+    "customPunishmentPlaceholder": "Beskriv straffen (f.eks. 'Gjør 10 push-ups')",
+    "clearAllRecent": "Fjern alle nylige",
+    "deleteAllRecent": "Slett alle nylige utfordringer",
+    "confirmDeleteChallenge": "Er du sikker på at du vil slette \"{{item}}\"?",
+    "allRecentChallenges": "Alle nylige utfordringer",
+    "points": "{{points}} poeng",
+    "type": {
+      "individual": "Individuell",
+      "oneOnOne": "En mot en",
+      "team": "Lag",
+      "allVsAll": "Alle mot alle"
+    },
     "allVsAllDescription": "Alle spillere konkurrerer mot hverandre",
     "allVsAllWinnerDescription": "Velg spilleren som presterte best",
     "playerFromTeam": "Fra {{team}}",
@@ -194,22 +207,12 @@
     "noRecentChallenges": "Ingen nylige utfordringer",
     "recentChallengesDesc": "Utfordringer du har laget tidligere vil vises her for enkel tilgang.",
     "deleteConfirmation": "Er du sikker på at du vil slette denne utfordringen?",
+    "clearAllRecent": "Fjern alle nylige",
     "includePunishment": "Inkluder straff for å mislykkes",
     "punishmentType": "Straffetype",
     "sips": "Slurker",
     "custom": "Egendefinert",
     "numberOfSips": "Antall slurker",
-    "customPunishment": "Egendefinert straff",
-    "customPunishmentPlaceholder": "Beskriv straffen (f.eks. 'Gjør 10 pushups')",
-    "clearAllRecent": "Fjern alle nylige",
-    "deleteAllRecent": "Slett alle nylige utfordringer",
-    "points": "{{points}} poeng",
-    "type": {
-      "individual": "Individuell",
-      "oneOnOne": "En mot en",
-      "team": "Lag",
-      "allVsAll": "Alle mot alle"
-    },
     "standard": {
       "waterOrVodka": {
         "title": "Vann eller Vodka",
@@ -336,7 +339,8 @@
     "timeoutLoadingPlayers": "Tiden utløpte ved innlasting av spillere. Vennligst prøv igjen.",
     "loadingPlayers": "Feil ved innlasting av spillere. Vennligst prøv igjen.",
     "loadingChallenges": "Feil ved innlasting av utfordringer. Vennligst prøv igjen.",
-    "loadingGames": "Feil ved innlasting av spill. Vennligst prøv igjen."
+    "loadingGames": "Feil ved innlasting av spill. Vennligst prøv igjen.",
+    "errorChallengeNotAccessible": "Denne utfordringen er ikke tilgjengelig. En ny versjon vil bli opprettet i stedet."
   },
   "auth": {
     "spotifyConnecting": "Kobler til Spotify",

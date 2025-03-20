@@ -89,7 +89,8 @@
     "dragPlayersInstructions": "Drag players to assign them to teams",
     "teamsRequired": "Please create at least 2 teams",
     "allPlayersAssigned": "All players must be assigned to a team",
-    "confirmDeletePlayer": "Are you sure you want to delete {{item}}?"
+    "confirmDeletePlayer": "Are you sure you want to delete {{item}}?",
+    "removeAllPlayers": "Remove all players"
   },
   "game": {
     "round": "Round {{round}}",
@@ -136,7 +137,38 @@
     "failurePunishmentSips": "Drink {{count}} sip(s)!",
     "failurePunishmentCustom": "Punishment time!",
     "punishmentSips": "{{target}} must drink {{count}} sip(s)!",
-    "customPunishment": "Time for the punishment!",
+    "customPunishment": "Custom Punishment",
+    "customPunishmentPlaceholder": "Describe the punishment (e.g., 'Do 10 pushups')",
+    "clearAllRecent": "Clear All Recent",
+    "deleteAllRecent": "Delete all recent challenges",
+    "confirmDeleteChallenge": "Are you sure you want to delete \"{{item}}\"?",
+    "allRecentChallenges": "All Recent Challenges",
+    "points": "{{points}} points",
+    "type": {
+      "individual": "Individual",
+      "oneOnOne": "One-on-One",
+      "team": "Team",
+      "allVsAll": "All vs All"
+    },
+    "standard": {
+      "waterOrVodka": {
+        "title": "Water or Vodka",
+        "description": "Drink a shot of water or vodka. Have the group guess what you drank."
+      },
+      "categories": {
+        "title": "Categories: {{category}}",
+        "description": "Say words after turn that belong to the category {{category}}. First to fail loses!",
+        "beer-brands": "Beer Brands",
+        "tv-shows": "TV Shows",
+        "cities": "Cities",
+        "animals": "Animals",
+        "fruits": "Fruits",
+        "countries": "Countries",
+        "celebrities": "Celebrities",
+        "movies": "Movies",
+        "sports": "Sports"
+      }
+    },
     "allVsAllDescription": "All players compete against each other",
     "allVsAllWinnerDescription": "Select the player who performed best",
     "playerFromTeam": "From {{team}}",
@@ -193,16 +225,12 @@
     "noRecentChallenges": "No Recent Challenges",
     "recentChallengesDesc": "Challenges you've created before will appear here for easy access.",
     "deleteConfirmation": "Are you sure you want to delete this challenge?",
+    "clearAllRecent": "Clear All Recent",
     "includePunishment": "Include punishment for failing",
     "punishmentType": "Punishment Type",
     "sips": "Sips",
     "custom": "Custom",
     "numberOfSips": "Number of Sips",
-    "customPunishment": "Custom Punishment",
-    "customPunishmentPlaceholder": "Describe the punishment (e.g., 'Do 10 pushups')",
-    "clearAllRecent": "Clear All Recent",
-    "deleteAllRecent": "Delete all recent challenges",
-    "points": "{{points}} points",
     "type": {
       "individual": "Individual",
       "oneOnOne": "One-on-One",
@@ -227,7 +255,9 @@
         "movies": "Movies",
         "sports": "Sports"
       }
-    }
+    },
+    "confirmDeleteChallenge": "Are you sure you want to delete \"{{item}}\"?",
+    "allRecentChallenges": "All Recent Challenges"
   },
   "settings": {
     "title": "Settings",
@@ -335,7 +365,8 @@
     "timeoutLoadingPlayers": "Timeout loading players. Please try again.",
     "loadingPlayers": "Error loading players. Please try again.",
     "loadingChallenges": "Error loading challenges. Please try again.",
-    "loadingGames": "Error loading games. Please try again."
+    "loadingGames": "Error loading games. Please try again.",
+    "errorChallengeNotAccessible": "This challenge is not accessible. A new version will be created instead."
   },
   "auth": {
     "spotifyConnecting": "Connecting to Spotify",

@@ -10,11 +10,17 @@ import TeamCreation, { TeamCreationRef } from '@/components/setup/TeamCreation';
 import GameSettings from '@/components/setup/GameSettings';
 import { GameMode } from '@/types/Team';
 
+const SETUP_CURRENT_STEP_KEY = 'glass_setup_current_step';
+
 const Setup: React.FC = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { state, dispatch } = useGame();
-  const [currentStep, setCurrentStep] = useState(0);
+  // Initialize currentStep from localStorage if available, otherwise start at 0
+  const [currentStep, setCurrentStep] = useState(() => {
+    const savedStep = localStorage.getItem(SETUP_CURRENT_STEP_KEY);
+    return savedStep ? parseInt(savedStep, 10) : 0;
+  });
   const [isLoading, setIsLoading] = useState(false);
   const stateRef = useRef(state);
   const teamCreationRef = useRef<TeamCreationRef>(null);
@@ -23,6 +29,11 @@ const Setup: React.FC = () => {
   useEffect(() => {
     stateRef.current = state;
   }, [state]);
+
+  // Save currentStep to localStorage whenever it changes
+  useEffect(() => {
+    localStorage.setItem(SETUP_CURRENT_STEP_KEY, currentStep.toString());
+  }, [currentStep]);
   
   // Steps for setup process
   const MIN_PLAYERS = 2;
@@ -43,6 +54,18 @@ const Setup: React.FC = () => {
     
     return teamsReadyViaRef || teamsExistInState;
   };
+
+  // Clear the saved step when the game starts
+  const clearSavedStep = () => {
+    localStorage.removeItem(SETUP_CURRENT_STEP_KEY);
+  };
+  
+  // Reset to first step if we don't have enough players
+  useEffect(() => {
+    if (state.players.length < MIN_PLAYERS && currentStep > 0) {
+      setCurrentStep(0);
+    }
+  }, [state.players.length, currentStep]);
 
   const steps = [
     {
@@ -83,11 +106,6 @@ const Setup: React.FC = () => {
     }
   };
 
-  useEffect(() => {
-    const defaultChallenges = generateDefaultChallenges();
-    console.log(defaultChallenges);
-  }, []);
-  
   // Start the game
   const handleStartGame = async () => {
     setIsLoading(true);
@@ -137,6 +155,9 @@ const Setup: React.FC = () => {
       
       // Mark that this is a new game (this will be used in Game.tsx)
       localStorage.setItem('isNewGameStart', 'true');
+      
+      // Clear the saved step when the game starts
+      clearSavedStep();
       
       // Start the game
       dispatch({ type: 'START_GAME' });

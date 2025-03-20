@@ -14,6 +14,7 @@ import Button from '@/components/common/Button';
 import Modal from '@/components/common/Modal';
 import Switch from '@/components/common/Switch';
 import { MusicalNoteIcon, PlayCircleIcon, PlusIcon, MinusIcon, MagnifyingGlassIcon, CheckIcon, XMarkIcon } from '@heroicons/react/24/solid';
+import { v4 as uuidv4 } from 'uuid';
 
 interface SpotifyMusicQuizFormProps {
   isOpen: boolean;
@@ -407,7 +408,7 @@ const SpotifyMusicQuizForm: React.FC<SpotifyMusicQuizFormProps> = ({
       } else {
         // Create a new challenge
         const newChallenge: Challenge = {
-          id: `spotify-music-quiz-${Date.now()}`,
+          id: uuidv4(),
           title: challengeTitle,
           description: t('prebuilt.spotifyMusicQuiz.description', { numberOfSongs, playDurationSeconds }),
           type,

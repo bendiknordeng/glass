@@ -2,13 +2,14 @@ import { Player } from '@/types/Player';
 import { Team, GameMode } from '@/types/Team';
 import { Challenge, ChallengeResult, ChallengeType } from '@/types/Challenge';
 import { getAvatarByName, getRandomAvatar } from './avatarUtils';
+import { v4 as uuidv4 } from 'uuid';
 
 /**
- * Generates a unique ID
- * @returns A unique string ID
+ * Generates a unique ID using UUID v4
+ * @returns A unique UUID string
  */
 export const generateId = (): string => {
-  return Math.random().toString(36).substring(2, 10);
+  return uuidv4();
 };
 
 /**
@@ -168,16 +169,27 @@ export const formatTime = (timeInSeconds: number): string => {
  * @returns Image URL to use
  */
 export const getPlayerImage = (imageUrl: string | undefined, playerName?: string): string => {
-    if (imageUrl) return imageUrl;
-    
-    // If no image is provided, use a random avatar or name-based avatar
-    if (playerName) {
-      return getAvatarByName(playerName).url;
-    }
-    
-    return getRandomAvatar().url;
-  };
+  // If image is undefined or empty, use avatar
+  if (!imageUrl) {
+    return playerName ? getAvatarByName(playerName).url : getRandomAvatar().url;
+  }
   
+  // Handle any avatar references we might get
+  if (imageUrl.startsWith('avatar_ref_')) {
+    try {
+      // Extract player name from reference (format: avatar_ref_id|encodedName)
+      const parts = imageUrl.split('|');
+      const name = parts.length > 1 ? decodeURIComponent(parts[1]) : playerName || '';
+      return getAvatarByName(name).url;
+    } catch (error) {
+      console.error('Error generating avatar from reference:', error);
+      return playerName ? getAvatarByName(playerName).url : getRandomAvatar().url;
+    }
+  }
+  
+  // Return the actual image URL for all other cases
+  return imageUrl;
+};
 
 /**
  * Converts a file to a base64 data URL

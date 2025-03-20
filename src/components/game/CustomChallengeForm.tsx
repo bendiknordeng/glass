@@ -11,6 +11,7 @@ import { XMarkIcon, CheckIcon } from '@heroicons/react/24/solid';
 import { challengesService } from '@/services/supabase';
 import { useValidatedAuth } from '@/utils/auth-helpers'; // Use validated auth
 import { DBChallenge } from '@/types/supabase';
+import { v4 as uuidv4 } from 'uuid'; // Import UUID generator
 
 // Maximum number of recent custom challenges to store
 const MAX_RECENT_CHALLENGES = 10;
@@ -80,6 +81,7 @@ const CustomChallengeForm: React.FC<CustomChallengeFormProps> = ({
           throw new Error('Could not get a valid user ID');
         }
         const dbChallenges = await challengesService.getChallenges(validUserId);
+        console.log('Loaded challenges from database:', dbChallenges ? dbChallenges.length : 0);
       }
     } catch (error) {
       console.error('Error loading challenges:', error);
@@ -128,8 +130,11 @@ const CustomChallengeForm: React.FC<CustomChallengeFormProps> = ({
   
   // Helper function to update recent challenges in local storage
   const updateRecentChallengesLocally = (challenge: Challenge) => {
-    // Remove existing challenge with the same ID if found
-    const filtered = recentChallenges.filter(c => c.id !== challenge.id);
+    // Remove existing challenge with the same ID or title
+    const filtered = recentChallenges.filter(c => 
+      c.id !== challenge.id && 
+      c.title.toLowerCase() !== challenge.title.toLowerCase()
+    );
     
     // Add new challenge to front of array
     const updated = [challenge, ...filtered].slice(0, MAX_RECENT_CHALLENGES);
@@ -193,7 +198,7 @@ const CustomChallengeForm: React.FC<CustomChallengeFormProps> = ({
       let challenge: Challenge;
       
       if (editChallenge) {
-        // Update existing challenge
+        // Update existing challenge - preserve the original ID
         challenge = {
           ...editChallenge,
           title,
@@ -223,8 +228,10 @@ const CustomChallengeForm: React.FC<CustomChallengeFormProps> = ({
             });
             
             if (updated) {
+              // Keep using the same database ID
+              console.log('Challenge updated in database:', updated.id);
             } else {
-              console.warn("Failed to update challenge in Supabase");
+              console.warn('Challenge update failed in database');
             }
           } catch (dbError) {
             console.error("Error updating challenge in Supabase:", dbError);
@@ -237,8 +244,8 @@ const CustomChallengeForm: React.FC<CustomChallengeFormProps> = ({
           payload: challenge
         });
       } else {
-        // Create a new challenge ID
-        const challengeId = Date.now().toString();
+        // Create a new challenge with UUID
+        const challengeId = uuidv4();
         
         // Add new challenge
         challenge = {
@@ -280,6 +287,7 @@ const CustomChallengeForm: React.FC<CustomChallengeFormProps> = ({
             if (dbChallenge) {
               // Use the Supabase-generated ID
               challenge.id = dbChallenge.id;
+              console.log('Challenge saved to database with ID:', dbChallenge.id);
             } else {
               console.warn("Failed to save challenge to Supabase, using local ID");
             }

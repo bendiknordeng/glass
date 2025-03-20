@@ -1,15 +1,15 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useTranslation } from "react-i18next";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import { useGame } from "@/contexts/GameContext";
-import { GameMode } from "@/types/Team";
-import { Challenge, ChallengeType, PrebuiltChallengeType } from "@/types/Challenge";
+import { Challenge, PrebuiltChallengeType, ChallengeType } from "@/types/Challenge";
 import Button from "@/components/common/Button";
-import { ConfirmModal } from "@/components/common/Modal";
 import CustomChallengeForm from "@/components/game/CustomChallengeForm";
-import { useLocalStorage } from "@/hooks/useLocalStorage";
 import PrebuiltChallengeMenu from "@/components/prebuilt/PrebuiltChallengeMenu";
 import SpotifyMusicQuizForm from "../prebuilt/SpotifyMusicQuizForm";
+import { challengesService } from "@/services/supabase";
+import { useValidatedAuth } from "@/utils/auth-helpers";
+import { DBChallenge } from "@/types/supabase";
 
 // Maximum number of recent custom challenges to store
 const MAX_RECENT_CHALLENGES = 10;
@@ -22,9 +22,10 @@ const updateRecentChallenges = (newChallenge: Challenge) => {
       localStorage.getItem(RECENT_CHALLENGES_KEY) || "[]"
     );
 
-    // Remove any existing challenge with the same title (case insensitive)
+    // Remove any existing challenge with the same ID or title
     const filteredChallenges = recentChallenges.filter(
       (challenge: Challenge) =>
+        challenge.id !== newChallenge.id &&
         challenge.title.toLowerCase() !== newChallenge.title.toLowerCase()
     );
 
@@ -46,6 +47,7 @@ const updateRecentChallenges = (newChallenge: Challenge) => {
 const GameSettings: React.FC = () => {
   const { t } = useTranslation();
   const { state, dispatch } = useGame();
+  const { user, isAuthenticated, getValidUserId } = useValidatedAuth();
   const [durationType, setDurationType] = useState(state.gameDuration.type);
   const [durationValue, setDurationValue] = useState(state.gameDuration.value);
   const [showCustomChallengeForm, setShowCustomChallengeForm] = useState(false);
@@ -54,6 +56,13 @@ const GameSettings: React.FC = () => {
     Challenge | undefined
   >(undefined);
   const [recentChallenges, setRecentChallenges] = useState<Challenge[]>([]);
+  const [isLoadingChallenges, setIsLoadingChallenges] = useState(false);
+  const [dbChallenges, setDbChallenges] = useState<Challenge[]>([]);
+  
+  // Delete confirmation state
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [challengeToDelete, setChallengeToDelete] = useState<Challenge | null>(null);
+  const [deleteFromCurrentGame, setDeleteFromCurrentGame] = useState(false);
 
   // Helper function to get recent challenges from local storage
   const getRecentChallenges = (): Challenge[] => {
@@ -77,10 +86,72 @@ const GameSettings: React.FC = () => {
     }
   };
 
-  // Load recent challenges on mount
-  useEffect(() => {
-    setRecentChallenges(getRecentChallenges());
-  }, [state.customChallenges]); // Update when current challenges change
+  /**
+   * Load challenges from the database
+   */
+  const loadChallengesFromDB = useCallback(async () => {
+    if (!isAuthenticated) return;
+    
+    try {
+      setIsLoadingChallenges(true);
+      const userId = getValidUserId();
+      if (!userId) return;
+      
+      const challenges = await challengesService.getChallenges(userId);
+      
+      if (challenges && challenges.length > 0) {
+        // Convert DB challenges to Challenge type
+        const convertedChallenges: Challenge[] = challenges.map((dbChallenge: DBChallenge) => ({
+          id: dbChallenge.id,
+          title: dbChallenge.title,
+          description: dbChallenge.description || "",
+          type: dbChallenge.type as ChallengeType,
+          canReuse: dbChallenge.can_reuse,
+          points: dbChallenge.points,
+          createdBy: dbChallenge.user_id,
+        }));
+        
+        // Store database challenges
+        setDbChallenges(convertedChallenges);
+        console.log(`Loaded ${convertedChallenges.length} challenges from database`);
+        
+        // Get local challenges
+        const localChallenges = getRecentChallenges();
+        
+        // Combine all challenges (database overrides local with same ID)
+        const allChallenges = [...localChallenges];
+        
+        // Add database challenges that aren't already in the local list
+        convertedChallenges.forEach(dbChallenge => {
+          const existingIndex = allChallenges.findIndex(c => c.id === dbChallenge.id);
+          if (existingIndex >= 0) {
+            // Replace with database version
+            allChallenges[existingIndex] = dbChallenge;
+          } else {
+            // Add new challenge
+            allChallenges.push(dbChallenge);
+          }
+        });
+        
+        // Update recent challenges
+        setRecentChallenges(allChallenges);
+      }
+    } catch (error) {
+      console.error("Error in loadChallengesFromDB:", error);
+    } finally {
+      setIsLoadingChallenges(false);
+    }
+  }, [isAuthenticated, getValidUserId]);
+
+  // Load challenges on mount
+  React.useEffect(() => {
+    // Load challenges from localStorage initially
+    const localChallenges = getRecentChallenges();
+    setRecentChallenges(localChallenges);
+    
+    // Then load database challenges (only once on mount)
+    loadChallengesFromDB();
+  }, []); // Empty dependency array - only run on mount
 
   // Auto-save when duration type or value changes
   useEffect(() => {
@@ -95,6 +166,7 @@ const GameSettings: React.FC = () => {
 
   // Add a recent challenge to current game
   const handleAddRecentChallenge = (challenge: Challenge) => {
+    // Add the challenge to the game
     dispatch({
       type: "ADD_CUSTOM_CHALLENGE",
       payload: challenge,
@@ -102,37 +174,149 @@ const GameSettings: React.FC = () => {
 
     // Move this challenge to the top of recent challenges
     updateRecentChallenges(challenge);
+    
+    // Refresh challenges from localStorage
     setRecentChallenges(getRecentChallenges());
-  };
-
-  // Delete a specific recent challenge
-  const handleDeleteRecentChallenge = (challengeId: string) => {
-    try {
-      const stored = localStorage.getItem(RECENT_CHALLENGES_KEY);
-      if (stored) {
-        const challenges = JSON.parse(stored);
-        const filteredChallenges = challenges.filter(
-          (challenge: Challenge) => challenge.id !== challengeId
-        );
-        localStorage.setItem(
-          RECENT_CHALLENGES_KEY,
-          JSON.stringify(filteredChallenges)
-        );
-        setRecentChallenges(getRecentChallenges());
-      }
-    } catch (error) {
-      console.error("Error deleting recent challenge:", error);
+    
+    // If we're authenticated, also refresh database challenges
+    if (isAuthenticated) {
+      loadChallengesFromDB();
     }
   };
 
-  // Delete all recent challenges
-  const handleDeleteAllRecentChallenges = () => {
+  /**
+   * Delete a recent challenge
+   * @param challengeId The ID of the challenge to delete
+   */
+  const handleDeleteRecentChallenge = async (challengeId: string) => {
+    // Get recent challenges from localStorage
+    const storedChallenges = localStorage.getItem(RECENT_CHALLENGES_KEY);
+    if (!storedChallenges) return;
+    
+    // Parse stored challenges
+    const challenges = JSON.parse(storedChallenges) as Challenge[];
+    
+    // Find and delete the challenge with the given ID
+    const updatedChallenges = challenges.filter((c) => c.id !== challengeId);
+    
+    // Update localStorage
+    localStorage.setItem(RECENT_CHALLENGES_KEY, JSON.stringify(updatedChallenges));
+    
+    // Update state
+    setRecentChallenges(updatedChallenges);
+    
+    // Also delete from database if authenticated
+    if (isAuthenticated) {
+      try {
+        const result = await challengesService.deleteChallenge(challengeId);
+        if (result) {
+          console.log(`Challenge ${challengeId} deleted from database`);
+          // Refresh database challenges
+          loadChallengesFromDB();
+        }
+      } catch (error) {
+        console.error("Error deleting challenge from database:", error);
+      }
+    }
+  };
+
+  // Initiate challenge deletion (shows confirmation modal)
+  const initiateDeleteChallenge = (challenge: Challenge, fromCurrentGame = false) => {
+    setChallengeToDelete(challenge);
+    setDeleteFromCurrentGame(fromCurrentGame);
+    setShowDeleteConfirm(true);
+  };
+  
+  /**
+   * Handle cancel delete of a challenge
+   */
+  const handleCancelDelete = () => {
+    setShowDeleteConfirm(false);
+    setChallengeToDelete(null);
+    setDeleteFromCurrentGame(false);
+  };
+
+  /**
+   * Handle confirm delete of a challenge
+   */
+  const handleConfirmDelete = async () => {
+    if (!challengeToDelete) return;
+    
+    // Check if we're deleting all recent challenges
+    if (challengeToDelete.id === 'all') {
+      await handleDeleteAllRecentChallenges();
+    } 
+    // Check if we're deleting from current game challenges
+    else if (deleteFromCurrentGame) {
+      dispatch({
+        type: "REMOVE_CUSTOM_CHALLENGE",
+        payload: challengeToDelete.id
+      });
+    } 
+    // Otherwise, delete from recent challenges
+    else {
+      await handleDeleteRecentChallenge(challengeToDelete.id);
+    }
+    
+    // Clear the modal
+    setShowDeleteConfirm(false);
+    setChallengeToDelete(null);
+    setDeleteFromCurrentGame(false);
+  };
+
+  /**
+   * Delete all recent challenges
+   */
+  const handleDeleteAllRecentChallenges = async () => {
     try {
+      // Clear from localStorage
       localStorage.removeItem(RECENT_CHALLENGES_KEY);
       setRecentChallenges([]);
+      
+      // Also delete from database if authenticated
+      if (isAuthenticated) {
+        // Get all challenges first
+        const userId = getValidUserId();
+        if (!userId) return;
+        
+        const challenges = await challengesService.getChallenges(userId);
+        
+        // Delete each challenge from the database
+        if (challenges && challenges.length > 0) {
+          const deletionPromises = challenges.map(challenge => 
+            challengesService.deleteChallenge(challenge.id)
+          );
+          
+          await Promise.all(deletionPromises);
+          console.log(`Deleted all ${challenges.length} challenges from database`);
+          
+          // Update dbChallenges state
+          setDbChallenges([]);
+        }
+      }
     } catch (error) {
       console.error("Error deleting all recent challenges:", error);
     }
+  };
+
+  /**
+   * Initiate deletion of all recent challenges (with confirmation)
+   */
+  const initiateDeleteAllRecentChallenges = () => {
+    // Create a dummy challenge to represent all recent challenges
+    const allChallenges: Challenge = {
+      id: "all",
+      title: t("allRecentChallenges"),
+      description: "",
+      type: ChallengeType.INDIVIDUAL,
+      canReuse: true,
+      points: 0
+    };
+    
+    // Set up the confirmation modal
+    setChallengeToDelete(allChallenges);
+    setDeleteFromCurrentGame(false);
+    setShowDeleteConfirm(true);
   };
 
   // Helper to open the appropriate edit form based on challenge type
@@ -169,6 +353,11 @@ const GameSettings: React.FC = () => {
     setShowSpotifyMusicQuizForm(false);
     setEditingChallenge(undefined);
     setRecentChallenges(getRecentChallenges());
+  };
+
+  // Function to initiate deleting a challenge from the current game
+  const initiateDeleteCurrentGameChallenge = (challenge: Challenge) => {
+    initiateDeleteChallenge(challenge, true);
   };
 
   return (
@@ -507,12 +696,10 @@ const GameSettings: React.FC = () => {
                           </svg>
                         </button>
                         <button
-                          onClick={() => {
-                            dispatch({
-                              type: "REMOVE_CUSTOM_CHALLENGE",
-                              payload: challenge.id,
-                            });
-                          }}
+                          onClick={() => dispatch({
+                            type: "REMOVE_CUSTOM_CHALLENGE",
+                            payload: challenge.id,
+                          })}
                           className="text-red-500 hover:text-red-600 dark:text-red-400 dark:hover:text-red-300 p-1"
                           title={t("common.delete")}
                         >
@@ -600,7 +787,7 @@ const GameSettings: React.FC = () => {
             </h3>
             {recentChallenges.length > 0 && (
               <button
-                onClick={handleDeleteAllRecentChallenges}
+                onClick={initiateDeleteAllRecentChallenges}
                 className="text-red-500 hover:text-red-600 dark:text-red-400 dark:hover:text-red-300 text-sm font-medium flex items-center gap-1 px-3 py-1 rounded-md hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
                 title={t("challenges.deleteAllRecent")}
               >
@@ -623,94 +810,105 @@ const GameSettings: React.FC = () => {
             )}
           </div>
 
-          {recentChallenges.length > 0 ? (
-            <div className="space-y-3">
-              {recentChallenges.map((challenge) => (
-                <motion.div
-                  key={challenge.id}
-                  className="bg-gray-50 dark:bg-gray-700/50 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg p-3 border border-gray-200 dark:border-gray-600 transition-colors relative group"
-                  whileHover={{ scale: 1.01 }}
-                  whileTap={{ scale: 0.99 }}
+          <div className="mt-6">
+            {isLoadingChallenges && (
+              <div className="flex justify-center items-center p-4">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 dark:border-gray-100"></div>
+                <span className="ml-2">{t("loading")}</span>
+              </div>
+            )}
+            
+            {!isLoadingChallenges && recentChallenges.length === 0 && (
+              <div className="bg-gray-50 dark:bg-gray-700/30 rounded-lg p-8 border border-dashed border-gray-300 dark:border-gray-600 text-center">
+                <svg 
+                  className="w-12 h-12 mx-auto text-gray-400 dark:text-gray-500 mb-4" 
+                  fill="none" 
+                  stroke="currentColor" 
+                  viewBox="0 0 24 24" 
+                  xmlns="http://www.w3.org/2000/svg"
                 >
-                  <div
-                    onClick={() => handleAddRecentChallenge(challenge)}
-                    className="cursor-pointer"
+                  <path 
+                    strokeLinecap="round" 
+                    strokeLinejoin="round" 
+                    strokeWidth={1.5} 
+                    d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+                  />
+                </svg>
+                <h4 className="text-lg font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  {t("challenges.noRecentChallenges")}
+                </h4>
+                <p className="text-sm text-gray-500 dark:text-gray-400 max-w-md mx-auto">
+                  {t("challenges.recentChallengesDesc")}
+                </p>
+              </div>
+            )}
+            
+            {!isLoadingChallenges && recentChallenges.length > 0 && (
+              <div className="space-y-3">
+                {recentChallenges.map((challenge) => (
+                  <motion.div
+                    key={challenge.id}
+                    className="bg-gray-50 dark:bg-gray-700/50 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg p-3 border border-gray-200 dark:border-gray-600 transition-colors relative group"
+                    whileHover={{ scale: 1.01 }}
+                    whileTap={{ scale: 0.99 }}
                   >
-                    <h4 className="font-medium text-gray-800 dark:text-white pr-8">
-                      {challenge.title}
-                    </h4>
-                    <p className="text-sm text-gray-600 dark:text-gray-300 mt-1 line-clamp-1">
-                      {challenge.description}
-                    </p>
-                    <div className="flex gap-2 mt-2">
-                      <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-game-secondary/10 text-game-secondary">
-                        {challenge.type === "individual"
-                          ? t("game.challengeTypes.individual")
-                          : challenge.type === "oneOnOne"
-                          ? t("game.challengeTypes.oneOnOne")
-                          : challenge.type === "allVsAll"
-                          ? t("game.challengeTypes.allVsAll")
-                          : t("game.challengeTypes.team")}
-                      </span>
-                      <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-game-accent/10 text-game-accent">
-                        {challenge.points}{" "}
-                        {challenge.points === 1
-                          ? t("common.point")
-                          : t("common.points")}
-                      </span>
-                    </div>
-                  </div>
-
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleDeleteRecentChallenge(challenge.id);
-                    }}
-                    className="absolute top-3 right-3 text-red-500 hover:text-red-600 dark:text-red-400 dark:hover:text-red-300 p-1 opacity-0 group-hover:opacity-100 transition-opacity"
-                    title={t("common.delete")}
-                  >
-                    <svg
-                      className="w-5 h-5"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                      xmlns="http://www.w3.org/2000/svg"
+                    <div
+                      onClick={() => handleAddRecentChallenge(challenge)}
+                      className="cursor-pointer"
                     >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                      />
-                    </svg>
-                  </button>
-                </motion.div>
-              ))}
-            </div>
-          ) : (
-            <div className="bg-gray-50 dark:bg-gray-700/30 rounded-lg p-8 border border-dashed border-gray-300 dark:border-gray-600 text-center">
-              <svg 
-                className="w-12 h-12 mx-auto text-gray-400 dark:text-gray-500 mb-4" 
-                fill="none" 
-                stroke="currentColor" 
-                viewBox="0 0 24 24" 
-                xmlns="http://www.w3.org/2000/svg"
-              >
-                <path 
-                  strokeLinecap="round" 
-                  strokeLinejoin="round" 
-                  strokeWidth={1.5} 
-                  d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
-                />
-              </svg>
-              <h4 className="text-lg font-medium text-gray-700 dark:text-gray-300 mb-2">
-                {t("challenges.noRecentChallenges")}
-              </h4>
-              <p className="text-sm text-gray-500 dark:text-gray-400 max-w-md mx-auto">
-                {t("challenges.recentChallengesDesc")}
-              </p>
-            </div>
-          )}
+                      <h4 className="font-medium text-gray-800 dark:text-white pr-8">
+                        {challenge.title}
+                      </h4>
+                      <p className="text-sm text-gray-600 dark:text-gray-300 mt-1 line-clamp-1">
+                        {challenge.description}
+                      </p>
+                      <div className="flex gap-2 mt-2">
+                        <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-game-secondary/10 text-game-secondary">
+                          {challenge.type === "individual"
+                            ? t("game.challengeTypes.individual")
+                            : challenge.type === "oneOnOne"
+                            ? t("game.challengeTypes.oneOnOne")
+                            : challenge.type === "allVsAll"
+                            ? t("game.challengeTypes.allVsAll")
+                            : t("game.challengeTypes.team")}
+                        </span>
+                        <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-game-accent/10 text-game-accent">
+                          {challenge.points}{" "}
+                          {challenge.points === 1
+                            ? t("common.point")
+                            : t("common.points")}
+                        </span>
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        initiateDeleteChallenge(challenge);
+                      }}
+                      className="absolute top-3 right-3 text-red-500 hover:text-red-600 dark:text-red-400 dark:hover:text-red-300 p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                      title={t("common.delete")}
+                    >
+                      <svg
+                        className="w-5 h-5"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                        xmlns="http://www.w3.org/2000/svg"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                        />
+                      </svg>
+                    </button>
+                  </motion.div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -737,6 +935,34 @@ const GameSettings: React.FC = () => {
           onChallengeCreated={handleChallengeUpdated}
           editChallenge={editingChallenge}
         />
+      )}
+
+      {/* Challenge delete confirmation modal */}
+      {showDeleteConfirm && challengeToDelete && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md w-full shadow-lg">
+            <h3 className="text-lg font-semibold mb-4">
+              {t("common.confirmDelete")}
+            </h3>
+            <p className="mb-6">
+              {t("confirmDeleteChallenge", { item: challengeToDelete.title })}
+            </p>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={handleCancelDelete}
+                className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md"
+              >
+                {t("common.cancel")}
+              </button>
+              <button
+                onClick={handleConfirmDelete}
+                className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-md"
+              >
+                {t("common.delete")}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

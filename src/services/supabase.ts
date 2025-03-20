@@ -452,6 +452,30 @@ export const challengesService = {
   // Update a challenge
   async updateChallenge(challengeId: string, updates: Partial<Omit<DBChallenge, 'id' | 'created_at'>>) {
     try {
+      // First check if the challenge exists and belongs to the current user
+      const { data: existingChallenge, error: checkError } = await supabase
+        .from('challenges')
+        .select('id, user_id')
+        .eq('id', challengeId)
+        .single();
+      
+      if (checkError) {
+        console.error(`Error checking challenge existence: ${JSON.stringify(checkError)}`);
+        
+        // If row not found, give more specific error message
+        if (checkError.code === 'PGRST116') {
+          console.error(`Challenge with ID ${challengeId} not found. This could be due to:
+            1. The challenge doesn't exist in the database
+            2. The challenge belongs to a different user (RLS restriction)
+            3. The user doesn't have permission to access this challenge`);
+        }
+        
+        throw checkError;
+      }
+      
+      console.log(`Found existing challenge: ${JSON.stringify(existingChallenge)}`);
+      
+      // Now proceed with the update
       const { data, error } = await supabase
         .from('challenges')
         .update({
@@ -463,13 +487,13 @@ export const challengesService = {
         .single();
         
       if (error) {
-        console.error('Error updating challenge:', error);
+        console.error(`Error updating challenge: ${JSON.stringify(error)}`);
         throw error;
       }
       
       return data;
     } catch (error) {
-      console.error('Exception in updateChallenge:', error);
+      console.error(`Exception in updateChallenge: ${JSON.stringify(error)}`);
       return null;
     }
   },
@@ -477,19 +501,48 @@ export const challengesService = {
   // Delete a challenge
   async deleteChallenge(challengeId: string) {
     try {
+      // First check if the challenge exists and belongs to the current user
+      const { data: existingChallenge, error: checkError } = await supabase
+        .from('challenges')
+        .select('id, user_id')
+        .eq('id', challengeId)
+        .single();
+      
+      if (checkError) {
+        console.error(`Error checking challenge existence for deletion: ${JSON.stringify(checkError)}`);
+        
+        // If row not found, give more specific error message
+        if (checkError.code === 'PGRST116') {
+          console.error(`Challenge with ID ${challengeId} not found for deletion. This could be due to:
+            1. The challenge doesn't exist in the database
+            2. The challenge belongs to a different user (RLS restriction)
+            3. The user doesn't have permission to access this challenge`);
+        }
+        
+        // Since we're deleting, if the challenge doesn't exist, that's fine
+        if (checkError.code === 'PGRST116') {
+          return true; // Consider it deleted if it doesn't exist
+        }
+        
+        throw checkError;
+      }
+      
+      console.log(`Found existing challenge for deletion: ${JSON.stringify(existingChallenge)}`);
+      
+      // Now proceed with the delete
       const { error } = await supabase
         .from('challenges')
         .delete()
         .eq('id', challengeId);
         
       if (error) {
-        console.error('Error deleting challenge:', error);
+        console.error(`Error deleting challenge: ${JSON.stringify(error)}`);
         throw error;
       }
       
       return true;
     } catch (error) {
-      console.error('Exception in deleteChallenge:', error);
+      console.error(`Exception in deleteChallenge: ${JSON.stringify(error)}`);
       return false;
     }
   }

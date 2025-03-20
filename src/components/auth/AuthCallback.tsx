@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import supabase from '@/services/supabase';
 import { useAuth } from '@/contexts/AuthContext';
-import LoadingSpinner from '@/components/ui/LoadingSpinner';
+import LoadingSpinner from '@/components/common/LoadingSpinner';
 
 const AuthCallback: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);

@@ -3,7 +3,8 @@ import { Player } from '@/types/Player';
 import { Team, GameMode, GameDuration } from '@/types/Team';
 import { Challenge, ChallengeResult, PrebuiltChallengeType, SpotifyMusicQuizSettings, SpotifySong } from '../types/Challenge';
 import { generateId } from '@/utils/helpers';
-import { challengesService } from '@/services/supabase';
+import { getAvatarByName } from '@/utils/avatarUtils';
+import { challengesService, playersService } from '@/services/supabase';
 import { useAuth } from '@/contexts/AuthContext'; // Assuming you have an auth context
 
 // Define the state shape
@@ -54,6 +55,7 @@ type GameAction =
   | { type: 'SET_GAME_DURATION'; payload: GameDuration }
   | { type: 'ADD_PLAYER'; payload: Omit<Player, 'score'> }
   | { type: 'REMOVE_PLAYER'; payload: string }
+  | { type: 'REMOVE_ALL_PLAYERS' }
   | { type: 'CREATE_TEAMS'; payload: { numTeams: number; teamNames: string[] } }
   | { type: 'RANDOMIZE_TEAMS' }
   | { type: 'LOAD_CHALLENGES'; payload: Challenge[] }
@@ -129,6 +131,13 @@ const gameReducer = (state: GameState, action: GameAction): GameState => {
           ...team,
           playerIds: team.playerIds.filter((id) => id !== action.payload),
         })),
+      };
+
+    case 'REMOVE_ALL_PLAYERS':
+      return {
+        ...state,
+        players: [],
+        teams: state.teams.map(team => ({ ...team, playerIds: [] })),
       };
 
     case 'LOAD_CHALLENGES':
@@ -734,43 +743,111 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       try {
         const parsedState = JSON.parse(savedState) as GameState;
         
-        // Restore the complete game state at once
+        // Only proceed if there's an active game
         if (parsedState.gameStarted && !parsedState.gameFinished) {
-          // Restore player images from separate localStorage items
-          const playersWithImages = parsedState.players.map(player => {
-            // Check if this is a player with a stored image
-            if (player.image && player.image.startsWith('__playerImage_')) {
-              const playerId = player.image.replace('__playerImage_', '');
-              const storedImage = localStorage.getItem(`playerImage_${playerId}`);
-              
+          // Always try to load player data from database for authenticated users
+          if (isAuthenticated && user) {
+            // Get the user ID
+            const userId = user.id;
+            
+            // First load the game state with temporary avatars
+            const tempPlayersWithAvatars = parsedState.players.map(player => {
+              // Generate a temporary avatar as fallback
               return {
                 ...player,
-                // Restore the image if found, otherwise use empty string
-                image: storedImage || ''
+                image: getAvatarByName(player.name).url
               };
-            }
+            });
             
-            return player;
-          });
-          
-          // Only restore if there's an active game
-          dispatch({ 
-            type: 'RESTORE_GAME_STATE', 
-            payload: {
-              ...parsedState,
-              // Use players with restored images
-              players: playersWithImages,
-              // Ensure we keep the same references for complex objects
-              teams: parsedState.teams.map(t => ({ ...t })),
-              challenges: parsedState.challenges.map(c => ({ ...c })),
-              customChallenges: parsedState.customChallenges.map(c => ({ ...c })),
-              results: parsedState.results.map(r => ({ ...r })),
-              currentChallenge: parsedState.currentChallenge ? { ...parsedState.currentChallenge } : null,
-              currentChallengeParticipants: [...parsedState.currentChallengeParticipants],
-              isLoadingChallenges: false,
-              challengeLoadError: null
-            }
-          });
+            // Immediately restore game state with temporary avatars so UI isn't blocked
+            dispatch({ 
+              type: 'RESTORE_GAME_STATE', 
+              payload: {
+                ...parsedState,
+                players: tempPlayersWithAvatars,
+                teams: parsedState.teams.map(t => ({ ...t })),
+                challenges: parsedState.challenges.map(c => ({ ...c })),
+                customChallenges: parsedState.customChallenges.map(c => ({ ...c })),
+                results: parsedState.results.map(r => ({ ...r })),
+                currentChallenge: parsedState.currentChallenge ? { ...parsedState.currentChallenge } : null,
+                currentChallengeParticipants: [...parsedState.currentChallengeParticipants],
+                isLoadingChallenges: false,
+                challengeLoadError: null
+              }
+            });
+            
+            // Then asynchronously fetch real player data from database
+            playersService.getPlayers(userId)
+              .then(dbPlayers => {
+                // Create a map of id -> image for quick lookups
+                const playerImageMap = new Map();
+                dbPlayers.forEach(dbPlayer => {
+                  if (dbPlayer.image) {
+                    playerImageMap.set(dbPlayer.id, dbPlayer.image);
+                  }
+                });
+                
+                // Replace avatars with actual DB images for each player
+                const playersWithRealImages = parsedState.players.map(player => {
+                  // If this player has an image in the database, use it
+                  if (playerImageMap.has(player.id)) {
+                    return {
+                      ...player,
+                      image: playerImageMap.get(player.id)
+                    };
+                  }
+                  
+                  // Fallback to avatar if no DB image exists
+                  return {
+                    ...player,
+                    image: getAvatarByName(player.name).url
+                  };
+                });
+                
+                // Update the game state with real images
+                dispatch({ 
+                  type: 'RESTORE_GAME_STATE', 
+                  payload: {
+                    ...parsedState,
+                    players: playersWithRealImages,
+                    teams: parsedState.teams.map(t => ({ ...t })),
+                    challenges: parsedState.challenges.map(c => ({ ...c })),
+                    customChallenges: parsedState.customChallenges.map(c => ({ ...c })),
+                    results: parsedState.results.map(r => ({ ...r })),
+                    currentChallenge: parsedState.currentChallenge ? { ...parsedState.currentChallenge } : null,
+                    currentChallengeParticipants: [...parsedState.currentChallengeParticipants],
+                    isLoadingChallenges: false,
+                    challengeLoadError: null
+                  }
+                });
+              })
+              .catch(err => {
+                console.error('Failed to load player images from database:', err);
+                // We already have a game state with avatars, so no need to dispatch again
+              });
+          } else {
+            // For non-authenticated users, fall back to avatars
+            const playersWithAvatars = parsedState.players.map(player => ({
+              ...player,
+              image: getAvatarByName(player.name).url
+            }));
+            
+            dispatch({ 
+              type: 'RESTORE_GAME_STATE', 
+              payload: {
+                ...parsedState,
+                players: playersWithAvatars,
+                teams: parsedState.teams.map(t => ({ ...t })),
+                challenges: parsedState.challenges.map(c => ({ ...c })),
+                customChallenges: parsedState.customChallenges.map(c => ({ ...c })),
+                results: parsedState.results.map(r => ({ ...r })),
+                currentChallenge: parsedState.currentChallenge ? { ...parsedState.currentChallenge } : null,
+                currentChallengeParticipants: [...parsedState.currentChallengeParticipants],
+                isLoadingChallenges: false,
+                challengeLoadError: null
+              }
+            });
+          }
         }
       } catch (error) {
         console.error('Error restoring game state:', error);
@@ -794,7 +871,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
             ...player,
             // If image is a data URL (base64), store a flag instead of the full data
             image: player.image.startsWith('data:') 
-              ? `__playerImage_${player.id}` // Just a marker to indicate image exists
+              ? `avatar_ref_${player.id}|${encodeURIComponent(player.name)}` 
               : player.image // Keep external URLs as is
           })),
           // Store only essential Spotify data if present
@@ -826,24 +903,24 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
         // Store the main state data
         localStorage.setItem('glassGameState', JSON.stringify(trimmedState));
 
-        // Store player images separately if they're base64
-        state.players.forEach(player => {
-          if (player.image.startsWith('data:')) {
-            try {
-              localStorage.setItem(`playerImage_${player.id}`, player.image);
-            } catch (imageError) {
-              console.warn(`Could not store image for player ${player.id}, too large for localStorage`);
-              // Fall back to not storing the image
-            }
-          }
-        });
+        // DO NOT store player images in localStorage - it causes errors and bloat
+        // Instead, we'll handle image loading from the database when needed
+        // The PlayerRegistration component already handles this correctly
+        
       } catch (error) {
         console.error('Error saving game state to localStorage:', error);
         // If we hit quota issues, try removing non-essential data completely
         try {
           const minimalState = {
             ...state,
-            players: state.players.map(p => ({ ...p, image: p.image.startsWith('data:') ? '' : p.image })),
+            // Never store image data in localStorage, only store references to them
+            players: state.players.map(p => ({ 
+              ...p, 
+              // Store a reference to generate the avatar later, never store data: URLs
+              image: p.image.startsWith('data:') 
+                ? `avatar_ref_${p.id}|${encodeURIComponent(p.name)}` 
+                : p.image 
+            })),
             challenges: state.challenges.map(c => {
               if (c.prebuiltType === 'spotifyMusicQuiz' && c.prebuiltSettings) {
                 return { ...c, prebuiltSettings: { ...c.prebuiltSettings, selectedSongs: [] } };
@@ -860,10 +937,19 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } else if (state.gameFinished) {
       // Clear saved state when game is finished
       localStorage.removeItem('glassGameState');
-      // Also clear any player images
-      state.players.forEach(player => {
-        localStorage.removeItem(`playerImage_${player.id}`);
-      });
+      
+      // Clean up any legacy player image references that might exist
+      try {
+        // Find and remove any keys starting with playerImage_
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key && key.startsWith('playerImage_')) {
+            localStorage.removeItem(key);
+          }
+        }
+      } catch (error) {
+        console.error('Error cleaning up player image references:', error);
+      }
     }
   }, [state]);
 

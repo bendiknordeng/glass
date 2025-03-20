@@ -11,7 +11,6 @@ import { getAvatarByName } from '@/utils/avatarUtils';
 import { Player } from '@/types/Player';
 import { playersService } from '@/services/supabase';
 import { useValidatedAuth } from '@/utils/auth-helpers';
-import { getAnonymousUserId } from '@/utils/auth-helpers';
 import { Player as DbPlayer } from '@/types/supabase';
 import PlayerEditForm from '@/components/forms/PlayerEditForm';
 import { useGameActive } from '@/hooks/useGameActive';
@@ -56,6 +55,61 @@ const dbPlayerToAppPlayer = (dbPlayer: DbPlayer): Player => ({
   score: dbPlayer.score
 });
 
+// Add a helper function to compress images before upload
+const compressImage = async (file: File, maxWidth = 800, maxHeight = 800, quality = 0.8): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = (event) => {
+      const img = new Image();
+      img.src = event.target?.result as string;
+      
+      img.onload = () => {
+        // Create canvas
+        const canvas = document.createElement('canvas');
+        let width = img.width;
+        let height = img.height;
+        
+        // Calculate new dimensions while maintaining aspect ratio
+        if (width > height) {
+          if (width > maxWidth) {
+            height *= maxWidth / width;
+            width = maxWidth;
+          }
+        } else {
+          if (height > maxHeight) {
+            width *= maxHeight / height;
+            height = maxHeight;
+          }
+        }
+        
+        // Set canvas dimensions and draw image
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          reject(new Error('Could not get canvas context'));
+          return;
+        }
+        
+        ctx.drawImage(img, 0, 0, width, height);
+        
+        // Convert to data URL with compression
+        const compressedDataUrl = canvas.toDataURL('image/jpeg', quality);
+        resolve(compressedDataUrl);
+      };
+      
+      img.onerror = () => {
+        reject(new Error('Failed to load image'));
+      };
+    };
+    
+    reader.onerror = () => {
+      reject(new Error('Failed to read file'));
+    };
+  });
+};
+
 const PlayerRegistration: React.FC = () => {
   const { t } = useTranslation();
   const { state, dispatch } = useGame();
@@ -91,16 +145,16 @@ const PlayerRegistration: React.FC = () => {
     try {
       // For authenticated users, don't store in localStorage (already in Supabase)
       if (isAuthenticated && user) {
-        // Just update the UI state but don't store in localStorage
         return;
       }
       
       const recentPlayers = JSON.parse(localStorage.getItem(RECENT_PLAYERS_KEY) || '[]');
       
-      // Never store images in localStorage, only store player data with image reference
+      // Store only the essential data, no images
       let playerToStore = {
-        ...newPlayer,
-        image: `avatar_ref_${newPlayer.id}|${encodeURIComponent(newPlayer.name)}` // Store name for avatar generation
+        id: newPlayer.id,
+        name: newPlayer.name,
+        score: newPlayer.score
       };
       
       // Add new player to the beginning
@@ -109,10 +163,6 @@ const PlayerRegistration: React.FC = () => {
       localStorage.setItem(RECENT_PLAYERS_KEY, JSON.stringify(updatedPlayers));
     } catch (error) {
       console.error('Error updating recent players locally:', error);
-      // If the error is about localStorage quota, let the user know
-      if (error instanceof DOMException && error.name === 'QuotaExceededError') {
-        console.error('Could not store player data, localStorage quota exceeded');
-      }
     }
   };
   
@@ -126,17 +176,17 @@ const PlayerRegistration: React.FC = () => {
     );
   };
   
-  // Cache players in localStorage - we never store actual images
+  // Cache players in localStorage - only store IDs and names
   const cachePlayers = (players: Player[]) => {
     try {
-      // For all users, store players without images
-      const playersWithoutImages = players.map(player => ({
-        ...player,
-        // Store name reference for avatar generation
-        image: `avatar_ref_${player.id}|${encodeURIComponent(player.name)}`
+      // For all users, store only essential player data
+      const playersToCache = players.map(player => ({
+        id: player.id,
+        name: player.name,
+        score: player.score
       }));
       
-      localStorage.setItem('cachedPlayers', JSON.stringify(playersWithoutImages));
+      localStorage.setItem('cachedPlayers', JSON.stringify(playersToCache));
     } catch (error) {
       console.error('Error caching players:', error);
     }
@@ -166,55 +216,63 @@ const PlayerRegistration: React.FC = () => {
   
   // Load recent players from Supabase or localStorage
   const loadRecentPlayers = async (forceRefresh = false) => {
-    // Don't reload if already loading
+    // Don't reload if we're already loading and not forcing a refresh
     if (isLoadingPlayers && !forceRefresh) return;
+    
+    // Don't reload if it's been less than the cache timeout unless forced
+    const now = Date.now();
+    if (!forceRefresh && now - lastLoadTime < DB_CACHE_TIMEOUT && dbPlayersCached.length > 0) {
+      console.log('Using cached players - skipping database load');
+      // Just filter the cached players to get recent ones
+      const filteredPlayers = filterRecentPlayers(dbPlayersCached);
+      setRecentPlayers(filteredPlayers);
+      return;
+    }
     
     setIsLoadingPlayers(true);
     setLoadError(null);
     
-    // Set a timeout to prevent infinite loading
     const loadingTimeout = setTimeout(() => {
       setIsLoadingPlayers(false);
       setLoadError(t('error.timeoutLoadingPlayers'));
-    }, 5000); // 5 seconds max loading time
+    }, 5000);
     
     try {
-      // Check if we can use cached data (if not forced refresh and cache is fresh)
-      const now = Date.now();
-      const cacheIsFresh = now - lastLoadTime < DB_CACHE_TIMEOUT;
-      
       if (isAuthenticated && user) {
-        // For authenticated users: use cache or fetch from DB
-        if (!forceRefresh && cacheIsFresh && dbPlayersCached.length > 0) {
-          // Use cached data if available and not forcing refresh
-          const filteredPlayers = filterRecentPlayers(dbPlayersCached);
-          setRecentPlayers(filteredPlayers);
-        } else {
-          // Need to load from database
-          const validUserId = getValidUserId();
-          if (!validUserId) {
-            throw new Error('Could not get a valid user ID');
-          }
-
-          // Load from Supabase with user ID filter
-          const dbPlayers = await playersService.getPlayers(validUserId);
-          
-          // Map the database players to app Player format
-          const formattedPlayers = dbPlayers.map(dbPlayerToAppPlayer);
-          
-          // Cache the full set of players for future filtering (with images)
-          setDbPlayersCached(formattedPlayers);
-          setLastLoadTime(now);
-          
-          // Also cache a version without images in localStorage
-          cachePlayers(formattedPlayers);
-          
-          // Filter players already in the game
-          const filteredPlayers = filterRecentPlayers(formattedPlayers);
-          setRecentPlayers(filteredPlayers);
+        const validUserId = getValidUserId();
+        if (!validUserId) {
+          throw new Error('Could not get a valid user ID');
         }
+
+        // Always load fresh from database when authenticated
+        const dbPlayers = await playersService.getPlayers(validUserId);
+        const formattedPlayers = dbPlayers.map(dbPlayerToAppPlayer);
+        
+        // IMPORTANT: Ensure all players have their actual images from the database
+        const playersWithImages = formattedPlayers.map(player => {
+          // If there is no image or it's empty, generate an avatar
+          if (!player.image || player.image === '') {
+            return {
+              ...player,
+              image: getAvatarByName(player.name).url
+            };
+          }
+          // Otherwise keep the actual database image
+          return player;
+        });
+        
+        // Store all database players in memory to ensure we always have the original images
+        setDbPlayersCached(playersWithImages);
+        
+        // Also cache minimal player data (without images)
+        cachePlayers(playersWithImages);
+        
+        const filteredPlayers = filterRecentPlayers(playersWithImages);
+        
+        // Set the filtered players to state
+        setRecentPlayers(filteredPlayers);
       } else {
-        // For non-authenticated users: use localStorage
+        // For non-authenticated users: use localStorage with generated avatars
         const localPlayers = getRecentPlayersLocally();
         const filteredPlayers = filterRecentPlayers(localPlayers);
         setRecentPlayers(filteredPlayers);
@@ -222,13 +280,17 @@ const PlayerRegistration: React.FC = () => {
     } catch (error) {
       console.error('Error loading recent players:', error);
       setLoadError(t('error.loadingPlayers'));
-      // Fallback to localStorage
-      const players = getRecentPlayersLocally();
-      const filteredPlayers = filterRecentPlayers(players);
-      setRecentPlayers(filteredPlayers);
+      // For non-authenticated users, fallback to localStorage
+      if (!isAuthenticated) {
+        const players = getRecentPlayersLocally();
+        const filteredPlayers = filterRecentPlayers(players);
+        setRecentPlayers(filteredPlayers);
+      }
     } finally {
       clearTimeout(loadingTimeout);
       setIsLoadingPlayers(false);
+      // Update the timestamp to track when we last loaded the players
+      setLastLoadTime(Date.now());
     }
   };
   
@@ -344,14 +406,17 @@ const PlayerRegistration: React.FC = () => {
     setIsProcessing(true);
     
     try {
-      // Convert image to data URL if provided
+      // Convert image to data URL if provided, with compression
       let imageDataUrl = '';
       if (playerImage) {
-        imageDataUrl = await fileToDataUrl(playerImage);
-        
-        // Check image size if it seems very large
-        if (imageDataUrl.length > 5000000) { // 5MB
-          console.warn('Image is very large, consider compressing it');
+        try {
+          // Compress the image before upload
+          imageDataUrl = await compressImage(playerImage, 600, 600, 0.85);
+          console.log('Image compressed successfully');
+        } catch (compressionError) {
+          console.error('Error compressing image:', compressionError);
+          // Fall back to original fileToDataUrl if compression fails
+          imageDataUrl = await fileToDataUrl(playerImage);
         }
       } else {
         // If no image uploaded, use the avatar based on player name
@@ -386,6 +451,11 @@ const PlayerRegistration: React.FC = () => {
             // Convert database player to app player type
             const newPlayer = dbPlayerToAppPlayer(newDbPlayer);
 
+            // Add to player cache to ensure we have it for future operations
+            if (dbPlayersCached.length > 0) {
+              setDbPlayersCached(prev => [...prev, newPlayer]);
+            }
+
             // Dispatch action to add player
             dispatch({
               type: 'ADD_PLAYER',
@@ -395,9 +465,6 @@ const PlayerRegistration: React.FC = () => {
                 id: newPlayer.id
               }
             });
-            
-            // Cache player references (without images) in localStorage
-            // This will be updated by loadRecentPlayers later
           } else {
             throw new Error('Failed to add player to database');
           }
@@ -427,6 +494,11 @@ const PlayerRegistration: React.FC = () => {
             if (newDbPlayer) {
               // Convert database player to app player type
               const newPlayer = dbPlayerToAppPlayer(newDbPlayer);
+
+              // Add to player cache to ensure we have it for future operations
+              if (dbPlayersCached.length > 0) {
+                setDbPlayersCached(prev => [...prev, newPlayer]);
+              }
 
               // Dispatch action to add player
               dispatch({
@@ -502,13 +574,23 @@ const PlayerRegistration: React.FC = () => {
   
   // Add a recent player
   const handleAddRecentPlayer = (player: Player) => {
+    // IMPORTANT: Ensure we're using the actual image from the database if it exists
+    // Find the player in our cached DB players to get the original image
+    let playerToAdd = player;
+    if (dbPlayersCached.length > 0) {
+      const cachedPlayer = dbPlayersCached.find(p => p.id === player.id);
+      if (cachedPlayer && cachedPlayer.image) {
+        playerToAdd = { ...player, image: cachedPlayer.image };
+      }
+    }
+
     // Optimistic UI update - immediately add to current players
     dispatch({
       type: 'ADD_PLAYER',
       payload: {
-        name: player.name,
-        image: player.image,
-        id: player.id
+        name: playerToAdd.name,
+        image: playerToAdd.image,
+        id: playerToAdd.id
       }
     });
     
@@ -534,13 +616,23 @@ const PlayerRegistration: React.FC = () => {
     const playersToAdd = [...recentPlayers];
     
     // Optimistic UI update - immediately add all to current players
+    // IMPORTANT: Ensure we're using original images from database
     for (const player of playersToAdd) {
+      // Get the original player from DB cache if available
+      let playerWithOriginalImage = player;
+      if (dbPlayersCached.length > 0) {
+        const cachedPlayer = dbPlayersCached.find(p => p.id === player.id);
+        if (cachedPlayer && cachedPlayer.image) {
+          playerWithOriginalImage = { ...player, image: cachedPlayer.image };
+        }
+      }
+      
       dispatch({
         type: 'ADD_PLAYER',
         payload: {
-          name: player.name,
-          image: player.image,
-          id: player.id
+          name: playerWithOriginalImage.name,
+          image: playerWithOriginalImage.image,
+          id: playerWithOriginalImage.id
         }
       });
     }
@@ -749,69 +841,121 @@ const PlayerRegistration: React.FC = () => {
   // Helper function to get recent players from local storage
   const getRecentPlayersLocally = (): Player[] => {
     try {
-      if (isAuthenticated && user) {
-        // For authenticated users, load cached players
-        const stored = localStorage.getItem('cachedPlayers');
-        if (!stored) return [];
-        
-        const cachedPlayers = JSON.parse(stored);
-        
-        // Process players: if we have real images in memory, use those; otherwise generate avatars
-        const processedPlayers = cachedPlayers.map((cachedPlayer: Player) => {
-          // If we have this player in our memory cache, use that image
-          const dbPlayer = dbPlayersCached.find(p => p.id === cachedPlayer.id);
-          if (dbPlayer) {
-            return {
-              ...cachedPlayer,
-              image: dbPlayer.image
-            };
-          }
-          
-          // Otherwise, if it's a reference, generate an avatar
-          if (cachedPlayer.image && cachedPlayer.image.startsWith('avatar_ref_')) {
-            return {
-              ...cachedPlayer,
-              image: getAvatarFromReference(cachedPlayer.image)
-            };
-          }
-          
-          return cachedPlayer;
-        });
-        
-        // Filter against current game players if needed
-        if (state.players.length > 0) {
-          return filterRecentPlayers(processedPlayers);
-        }
-        return processedPlayers;
-      } else {
-        // For non-authenticated users, just load from localStorage
-        const stored = localStorage.getItem(RECENT_PLAYERS_KEY);
-        if (!stored) return [];
-        
-        const players = JSON.parse(stored);
-        
-        // Process players to generate avatars from references
-        const processedPlayers = players.map((player: Player) => {
-          if (player.image && player.image.startsWith('avatar_ref_')) {
-            return {
-              ...player,
-              image: getAvatarFromReference(player.image)
-            };
-          }
-          return player;
-        });
-        
-        // Filter against current game players if needed
-        if (state.players.length > 0) {
-          return filterRecentPlayers(processedPlayers);
-        }
-        return processedPlayers;
-      }
+      // For non-authenticated users only
+      const stored = localStorage.getItem(RECENT_PLAYERS_KEY);
+      if (!stored) return [];
+      
+      const players = JSON.parse(stored);
+      
+      // Generate avatars for each player
+      return players.map((player: Partial<Player>) => ({
+        id: player.id || '',
+        name: player.name || '',
+        score: player.score || 0,
+        image: getAvatarByName(player.name || '').url
+      }));
     } catch (error) {
       console.error('Error reading recent players from local storage:', error);
       return [];
     }
   };
+  
+  // Add handler for removing all players
+  const handleRemoveAllPlayers = () => {
+    // Get all current players before removing them
+    const playersToRemove = [...state.players];
+    
+    // If we have database cached players, merge them with the current players to ensure we have the correct images
+    if (isAuthenticated && user && dbPlayersCached.length > 0) {
+      for (let i = 0; i < playersToRemove.length; i++) {
+        const player = playersToRemove[i];
+        const cachedPlayer = dbPlayersCached.find(p => p.id === player.id);
+        if (cachedPlayer && cachedPlayer.image) {
+          // Ensure the player has its original image
+          playersToRemove[i] = { ...player, image: cachedPlayer.image };
+        }
+      }
+    }
+    
+    // Remove all players from the game state
+    dispatch({ type: 'REMOVE_ALL_PLAYERS' });
+    
+    // For authenticated users: update timestamps but DON'T reload players
+    if (isAuthenticated && user) {
+      // Update last_played_at for all removed players in the background
+      playersToRemove.forEach(player => 
+        playersService.updatePlayer(player.id, {
+          last_played_at: new Date().toISOString()
+        })
+        .catch(error => {
+          console.error(`Error updating player ${player.name} timestamp:`, error);
+        })
+      );
+      
+      // IMPORTANT: Just update the recent players list with removed players
+      // Do NOT trigger a reload which would cause the list to flash and potentially disappear
+      setRecentPlayers(prevRecentPlayers => {
+        // Combine existing recent players with the just-removed players
+        const combinedPlayers = [...playersToRemove, ...prevRecentPlayers];
+        
+        // Remove any duplicates
+        const uniquePlayers = [...new Map(combinedPlayers.map(p => [p.id, p])).values()];
+        
+        return uniquePlayers;
+      });
+    } else {
+      // For non-authenticated users, update localStorage but DON'T reload
+      for (const player of playersToRemove) {
+        updateRecentPlayersLocally(player);
+      }
+      
+      // Just update the recent players list with removed players
+      setRecentPlayers(prevRecentPlayers => {
+        // Combine existing recent players with the just-removed players
+        const combinedPlayers = [...playersToRemove, ...prevRecentPlayers];
+        
+        // Remove any duplicates
+        const uniquePlayers = [...new Map(combinedPlayers.map(p => [p.id, p])).values()];
+        
+        return uniquePlayers;
+      });
+    }
+  };
+  
+  // Add this effect to load and cache all players on mount
+  useEffect(() => {
+    // Only run for authenticated users
+    if (isAuthenticated && user) {
+      const loadAllPlayersForCache = async () => {
+        try {
+          const validUserId = getValidUserId();
+          if (!validUserId) return;
+          
+          // Fetch all players from the database
+          const dbPlayers = await playersService.getPlayers(validUserId);
+          if (!dbPlayers || dbPlayers.length === 0) return;
+          
+          // Convert to app format
+          const formattedPlayers = dbPlayers.map(dbPlayerToAppPlayer);
+          
+          // Set the cached players
+          setDbPlayersCached(formattedPlayers);
+          
+          // Also cache minimal player data
+          cachePlayers(formattedPlayers);
+          
+          console.log(`Cached ${formattedPlayers.length} players from database`);
+        } catch (error) {
+          console.error('Error pre-loading players for cache:', error);
+        }
+      };
+      
+      // Load all players if the cache is empty
+      if (dbPlayersCached.length === 0) {
+        loadAllPlayersForCache();
+      }
+    }
+  }, [isAuthenticated, user]);
   
   return (
     <div className="max-w-4xl mx-auto">
@@ -973,9 +1117,22 @@ const PlayerRegistration: React.FC = () => {
       
       {/* Player List */}
       <div>
-        <h3 className="text-xl font-semibold mb-4 text-gray-700 dark:text-gray-300">
-          {t('setup.addedPlayers', { count: state.players.length })}
-        </h3>
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="text-xl font-semibold text-gray-700 dark:text-gray-300">
+            {t('setup.addedPlayers', { count: state.players.length })}
+          </h3>
+          
+          {state.players.length > 0 && (
+            <Button
+              variant="danger"
+              size="sm"
+              onClick={handleRemoveAllPlayers}
+              className="ml-4"
+            >
+              {t('setup.removeAllPlayers')}
+            </Button>
+          )}
+        </div>
         
         {state.players.length > 0 ? (
           <motion.div 
