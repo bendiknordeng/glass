@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useTranslation } from "react-i18next";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { useGame } from "@/contexts/GameContext";
 import { Challenge, PrebuiltChallengeType, ChallengeType, QuizSettings, SpotifyMusicQuizSettings } from "@/types/Challenge";
 import Button from "@/components/common/Button";
@@ -152,6 +152,9 @@ const GameSettings: React.FC = () => {
   const [recentChallenges, setRecentChallenges] = useState<Challenge[]>([]);
   const [isLoadingChallenges, setIsLoadingChallenges] = useState(false);
   const [dbChallenges, setDbChallenges] = useState<Challenge[]>([]);
+  
+  // Animation state
+  const [recentlyRemovedChallenge, setRecentlyRemovedChallenge] = useState<string | null>(null);
   
   // Delete confirmation state
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -771,6 +774,14 @@ const GameSettings: React.FC = () => {
     const gameChallenge = state.customChallenges.find(c => c.id === challenge.id);
     
     if (gameChallenge) {
+      // Track this challenge as recently removed for animation
+      setRecentlyRemovedChallenge(challenge.id);
+      
+      // Clear the animation tracking after animation completes
+      setTimeout(() => {
+        setRecentlyRemovedChallenge(null);
+      }, 800); // Slightly longer than the animation duration
+      
       // First, update the challenge in localStorage to mark as unselected
       // We use the updateRecentChallenges helper to ensure it's in localStorage
       updateRecentChallenges({
@@ -1078,10 +1089,19 @@ const GameSettings: React.FC = () => {
           <div className="mb-6">
             {state.customChallenges.length > 0 ? (
               <div className="space-y-4">
+                <AnimatePresence>
                 {state.customChallenges.map((challenge) => (
-                  <div
+                  <motion.div
                     key={challenge.id}
                     className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4 border border-gray-200 dark:border-gray-600"
+                    layoutId={`challenge-${challenge.id}`}
+                    initial={{ opacity: 1, scale: 1 }}
+                    exit={{
+                      opacity: 0,
+                      scale: 0.8,
+                      x: 300,
+                      transition: { duration: 0.3 }
+                    }}
                   >
                     <div className="flex justify-between items-start">
                       <div>
@@ -1157,8 +1177,9 @@ const GameSettings: React.FC = () => {
                         </button>
                       </div>
                     </div>
-                  </div>
+                  </motion.div>
                 ))}
+                </AnimatePresence>
               </div>
             ) : (
               <div className="bg-gray-50 dark:bg-gray-700/30 rounded-lg p-8 border border-dashed border-gray-300 dark:border-gray-600 text-center">
@@ -1282,12 +1303,46 @@ const GameSettings: React.FC = () => {
             
             {!isLoadingChallenges && recentChallenges.length > 0 && (
               <div className="space-y-3">
+                <AnimatePresence>
                 {recentChallenges.map((challenge) => (
                   <motion.div
                     key={challenge.id}
-                    className="bg-gray-50 dark:bg-gray-700/50 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg p-3 border border-gray-200 dark:border-gray-600 transition-colors relative group"
+                    className={`bg-gray-50 dark:bg-gray-700/50 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg p-3 border ${
+                      recentlyRemovedChallenge === challenge.id 
+                        ? 'border-game-accent border-2' 
+                        : 'border-gray-200 dark:border-gray-600'
+                    } transition-colors relative group`}
                     whileHover={{ scale: 1.01 }}
                     whileTap={{ scale: 0.99 }}
+                    layoutId={`challenge-${challenge.id}`}
+                    initial={recentlyRemovedChallenge === challenge.id ? { 
+                      opacity: 0, 
+                      scale: 0.8,
+                      x: -300
+                    } : { opacity: 1, scale: 1 }}
+                    animate={recentlyRemovedChallenge === challenge.id ? {
+                      opacity: 1,
+                      scale: [1, 1.05, 1],
+                      x: 0,
+                      boxShadow: [
+                        '0 0 0 rgba(0, 0, 0, 0)',
+                        '0 0 8px rgba(234, 88, 12, 0.5)',
+                        '0 0 0 rgba(0, 0, 0, 0)',
+                      ],
+                      transition: {
+                        duration: 0.6,
+                        ease: "easeInOut"
+                      }
+                    } : { 
+                      opacity: 1, 
+                      scale: 1, 
+                      x: 0, 
+                      transition: { 
+                        type: "spring", 
+                        stiffness: 500, 
+                        damping: 30 
+                      } 
+                    }}
                   >
                     <div
                       onClick={() => handleAddRecentChallenge(challenge)}
@@ -1343,6 +1398,7 @@ const GameSettings: React.FC = () => {
                     </button>
                   </motion.div>
                 ))}
+                </AnimatePresence>
               </div>
             )}
           </div>

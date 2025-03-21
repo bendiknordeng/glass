@@ -278,7 +278,8 @@
     },
     "allRecentChallenges": "All Recent Challenges",
     "punishment": "Punishment",
-    "lostOrFailed": "Did you lose or fail?"
+    "lostOrFailed": "Did you lose or fail?",
+    "unlimited": "Unlimited"
   },
   "settings": {
     "title": "Settings",

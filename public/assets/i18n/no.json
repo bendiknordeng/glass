@@ -259,7 +259,8 @@
     },
     "punishment": "Straff",
     "allRecentChallenges": "Alle nylige utfordringer",
-    "lostOrFailed": "Tapte du eller mislyktes?"
+    "lostOrFailed": "Tapte du eller mislyktes?",
+    "unlimited": "Ingen begrensning"
   },
   "settings": {
     "title": "Innstillinger",
