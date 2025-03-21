@@ -128,7 +128,7 @@
     "nextPlayer": "Next Player",
     "gameOver": "Game Over!",
     "loadingChallenge": "Loading challenge...",
-    "selectWinner": "Please select a winner",
+    "selectWinner": "Select a winner",
     "selectWinnerInstruction": "Select Winner",
     "participants": "Participants",
     "newChallenge": "New Challenge",
@@ -149,6 +149,8 @@
     "deleteAllRecent": "Delete all recent challenges",
     "confirmDeleteChallenge": "Are you sure you want to delete \"{{item}}\"?",
     "allRecentChallenges": "All Recent Challenges",
+    "nextChallenge": "Next Challenge",
+    "challengeFailed": "Challenge Failed",
     "points": "{{points}} points",
     "type": {
       "individual": "Individual",
@@ -279,7 +281,9 @@
     "allRecentChallenges": "All Recent Challenges",
     "punishment": "Punishment",
     "lostOrFailed": "Did you lose or fail?",
-    "unlimited": "Unlimited"
+    "unlimited": "Unlimited",
+    "deletePermanently": "Delete Challenge",
+    "removeFromGame": "Remove from Game"
   },
   "settings": {
     "title": "Settings",

@@ -11,6 +11,7 @@ import PlayerCard from '@/components/common/PlayerCard';
 import { Player as AppPlayer } from '@/types/Player';
 import PlayerEditForm from '@/components/forms/PlayerEditForm';
 import { useGameActive } from '@/hooks/useGameActive';
+import { supabase } from '@/services/supabase';
 
 interface ServiceResult {
   success: boolean;
@@ -52,6 +53,11 @@ const Profile: React.FC = () => {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [playerToEdit, setPlayerToEdit] = useState<Player | null>(null);
   
+  // Modal states
+  const [showConfirmModal, setShowConfirmModal] = useState<boolean>(false);
+  const [modalAction, setModalAction] = useState<'end' | 'delete' | null>(null);
+  const [selectedGameId, setSelectedGameId] = useState<string | null>(null);
+  
   useEffect(() => {
     // If not authenticated, redirect to login
     if (!isAuthenticated) {
@@ -82,8 +88,8 @@ const Profile: React.FC = () => {
         
         const gamesTimeout = setTimeout(() => {
           setIsLoadingGames(false);
-          setGamesError('Timed out while loading games');
-        }, 5000);
+          setGamesError(t('error.loadingGames'));
+        }, 15000); // Increased from 5000 to 15000 (15 seconds)
         
         try {
           // Load recent players
@@ -118,12 +124,14 @@ const Profile: React.FC = () => {
         }
         
         try {
-          // Load recent games
+          // Load recent games with limited count for better performance
           const gamesResult = await gamesService.getGames(user.id);
           clearTimeout(gamesTimeout);
           
           if (gamesResult) {
-            setGames(gamesResult);
+            // Limit to 10 most recent games for better performance
+            // Need to cast as Game[] to satisfy TypeScript
+            setGames(gamesResult as Game[]);
           }
           setIsLoadingGames(false);
         } catch (error) {
@@ -217,6 +225,68 @@ const Profile: React.FC = () => {
       console.error('Error updating player:', error);
       // You could add error handling/feedback here
     }
+  };
+  
+  // Handle ending an active game
+  const handleEndGame = async (gameId: string) => {
+    try {
+      setIsLoadingGames(true);
+      // Call the complete game function with no winner
+      const result = await gamesService.completeGame(gameId, null);
+      if (result) {
+        // Update the local state by marking the game as completed
+        setGames(games.map(game => 
+          game.id === gameId 
+            ? { ...game, status: 'completed', completed_at: new Date().toISOString() } 
+            : game
+        ));
+      }
+    } catch (error) {
+      console.error('Error ending game:', error);
+      setGamesError('Failed to end game');
+    } finally {
+      setIsLoadingGames(false);
+    }
+  };
+
+  // Handle deleting a game
+  const handleDeleteGame = async (gameId: string) => {
+    try {
+      setIsLoadingGames(true);
+      const result = await gamesService.deleteGame(gameId);
+      if (result) {
+        // Remove the game from the local state
+        setGames(games.filter(game => game.id !== gameId));
+      }
+    } catch (error) {
+      console.error('Error deleting game:', error);
+      setGamesError('Failed to delete game');
+    } finally {
+      setIsLoadingGames(false);
+    }
+  };
+
+  // Confirm modal for end/delete actions
+  const openConfirmModal = (gameId: string, action: 'end' | 'delete') => {
+    setSelectedGameId(gameId);
+    setModalAction(action);
+    setShowConfirmModal(true);
+  };
+
+  // Handle confirm action
+  const handleConfirmAction = async () => {
+    if (!selectedGameId || !modalAction) return;
+    
+    if (modalAction === 'end') {
+      await handleEndGame(selectedGameId);
+    } else if (modalAction === 'delete') {
+      await handleDeleteGame(selectedGameId);
+    }
+    
+    // Close the modal
+    setShowConfirmModal(false);
+    setSelectedGameId(null);
+    setModalAction(null);
   };
   
   if (!isAuthenticated) {
@@ -404,51 +474,434 @@ const Profile: React.FC = () => {
               />
               
               {!isLoadingGames && !gamesError && games.length > 0 && (
-                <div className="overflow-hidden bg-white shadow sm:rounded-md dark:bg-gray-800">
-                  <ul className="divide-y divide-gray-200 dark:divide-gray-700">
-                    {games.map((game) => (
-                      <li key={game.id}>
-                        <div className="flex items-center px-4 py-4 sm:px-6">
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-gray-900 truncate dark:text-white">
-                              {game.game_mode}
-                            </p>
-                            <div className="flex mt-1 text-xs text-gray-500 dark:text-gray-400">
-                              <p>Score: {typeof game.scores === 'object' ? 
-                                Object.values(game.scores).join(' - ') : 
-                                JSON.stringify(game.scores)}
-                              </p>
-                              <span className="mx-1">•</span>
-                              <p>Duration: {game.completed_at && game.started_at ? 
-                                Math.floor((new Date(game.completed_at).getTime() - new Date(game.started_at).getTime()) / 60000) + 'm ' + 
-                                Math.floor(((new Date(game.completed_at).getTime() - new Date(game.started_at).getTime()) % 60000) / 1000) + 's' : 
-                                'In progress'}
-                              </p>
-                              <span className="mx-1">•</span>
-                              <p>Players: {typeof game.players === 'object' ? 
-                                (Array.isArray(game.players) ? 
-                                  game.players.join(', ') : 
-                                  Object.values(game.players)
-                                    .map(player => typeof player === 'object' && player.name ? player.name : String(player))
-                                    .join(', ')) : 
-                                JSON.stringify(game.players)}
-                              </p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {games.map((game) => {
+                    // Format duration for display
+                    const getDuration = () => {
+                      if (game.completed_at && game.started_at) {
+                        const duration = new Date(game.completed_at).getTime() - new Date(game.started_at).getTime();
+                        const minutes = Math.floor(duration / 60000);
+                        const seconds = Math.floor((duration % 60000) / 1000);
+                        return `${minutes}m ${seconds}s`;
+                      }
+                      return 'In progress';
+                    };
+                    
+                    // Get player names
+                    const getPlayerNames = () => {
+                      if (typeof game.players === 'object') {
+                        if (Array.isArray(game.players)) {
+                          return game.players.join(', ');
+                        } else {
+                          return Object.values(game.players)
+                            .map(player => typeof player === 'object' && player.name ? player.name : String(player))
+                            .join(', ');
+                        }
+                      }
+                      return JSON.stringify(game.players);
+                    };
+                    
+                    // Get formatted scores
+                    const getScores = () => {
+                      if (typeof game.scores === 'object') {
+                        return Object.values(game.scores).join(' - ');
+                      }
+                      return JSON.stringify(game.scores);
+                    };
+                    
+                    // Get winner name
+                    const getWinnerName = () => {
+                      if (game.winner_id && typeof game.players === 'object') {
+                        const winner = Object.entries(game.players).find(([id, _]) => id === game.winner_id);
+                        if (winner && winner[1] && typeof winner[1] === 'object' && winner[1].name) {
+                          return winner[1].name;
+                        }
+                        return game.winner_id;
+                      }
+                      return null;
+                    };
+                    
+                    // Check if game is a team game
+                    const isTeamGame = () => {
+                      return game.teams && typeof game.teams === 'object' && Object.keys(game.teams).length > 0;
+                    };
+
+                    // Get players grouped by teams
+                    const getTeamPlayers = () => {
+                      if (!isTeamGame() || !game.teams) return null;
+                      
+                      const teamPlayers: Record<string, { name: string, members: Array<{ id: string, name: string, score?: number }> }> = {};
+                      
+                      // Initialize teams
+                      Object.entries(game.teams as Record<string, any>).forEach(([teamId, team]) => {
+                        teamPlayers[teamId] = {
+                          name: team.name || `Team ${teamId}`,
+                          members: []
+                        };
+                      });
+                      
+                      // Assign players to teams
+                      if (game.players && typeof game.players === 'object') {
+                        Object.entries(game.players as Record<string, any>).forEach(([playerId, player]) => {
+                          const playerData = typeof player === 'object' ? player : { name: String(player) };
+                          // Get the player's team ID from the player data
+                          const teamId = playerData.team_id || 
+                                     (typeof player === 'object' && player.teamId ? player.teamId : null);
+                          
+                          // Find which team the player belongs to if not specified in player data
+                          let assignedTeamId = teamId;
+                          if (!assignedTeamId) {
+                            // Check each team to see if this player is a member
+                            Object.entries(game.teams as Record<string, any>).forEach(([tid, teamData]) => {
+                              if (teamData.members && 
+                                  Array.isArray(teamData.members) && 
+                                  teamData.members.includes(playerId)) {
+                                assignedTeamId = tid;
+                              } else if (teamData.playerIds && 
+                                         Array.isArray(teamData.playerIds) && 
+                                         teamData.playerIds.includes(playerId)) {
+                                assignedTeamId = tid;
+                              }
+                            });
+                          }
+
+                          // If still no team found, place in 'unassigned'
+                          assignedTeamId = assignedTeamId || 'unassigned';
+                          
+                          // Create the 'unassigned' team if it doesn't exist
+                          if (assignedTeamId === 'unassigned' && !teamPlayers['unassigned']) {
+                            teamPlayers['unassigned'] = {
+                              name: 'Unassigned Players',
+                              members: []
+                            };
+                          }
+                          
+                          if (teamPlayers[assignedTeamId]) {
+                            const playerScore = game.scores && game.scores[playerId] 
+                              ? Number(game.scores[playerId]) 
+                              : undefined;
+                              
+                            teamPlayers[assignedTeamId].members.push({
+                              id: playerId,
+                              name: playerData.name || `Player ${playerId}`,
+                              score: playerScore
+                            });
+                          }
+                        });
+                      }
+                      
+                      return teamPlayers;
+                    };
+                    
+                    // Format team scores with more detail
+                    const getTeamScores = () => {
+                      if (!isTeamGame() || !game.scores) return null;
+                      
+                      return Object.entries(game.scores).map(([teamId, score]) => {
+                        // Get team name if available
+                        let teamName = teamId;
+                        let teamPlayerCount = 0;
+                        
+                        // Get team data
+                        if (game.teams && typeof game.teams === 'object') {
+                          const teamData = game.teams[teamId];
+                          if (teamData) {
+                            // Use team name if available
+                            if (teamData.name) {
+                              teamName = teamData.name;
+                            }
+                            
+                            // Count team members
+                            if (teamData.members && Array.isArray(teamData.members)) {
+                              teamPlayerCount = teamData.members.length;
+                            } else if (teamData.playerIds && Array.isArray(teamData.playerIds)) {
+                              teamPlayerCount = teamData.playerIds.length;
+                            }
+                          }
+                        }
+                        
+                        // Find players manually if they're not in the team's member lists
+                        if (teamPlayerCount === 0) {
+                          // Count players that have this team ID
+                          if (game.players && typeof game.players === 'object') {
+                            Object.values(game.players).forEach(player => {
+                              if (typeof player === 'object' && 
+                                  (player.team_id === teamId || player.teamId === teamId)) {
+                                teamPlayerCount++;
+                              }
+                            });
+                          }
+                        }
+                        
+                        return {
+                          id: teamId,
+                          name: teamName,
+                          score: score,
+                          playerCount: teamPlayerCount
+                        };
+                      });
+                    };
+                    
+                    // Get all players for free-for-all games
+                    const getAllPlayers = () => {
+                      if (!game.players || typeof game.players !== 'object') {
+                        return [];
+                      }
+                      
+                      return Object.entries(game.players as Record<string, any>).map(([playerId, player]) => {
+                        const playerName = typeof player === 'object' && player.name 
+                          ? player.name 
+                          : (typeof player === 'string' ? player : `Player ${playerId}`);
+                          
+                        const playerScore = game.scores && game.scores[playerId] 
+                          ? game.scores[playerId] 
+                          : null;
+                          
+                        return {
+                          id: playerId,
+                          name: playerName,
+                          score: playerScore,
+                          isWinner: playerId === game.winner_id
+                        };
+                      }).sort((a, b) => {
+                        // Sort by score (if available) or alphabetically
+                        if (a.score !== null && b.score !== null) {
+                          return Number(b.score) - Number(a.score); // Descending
+                        }
+                        return a.name.localeCompare(b.name);
+                      });
+                    };
+                    
+                    // Get team color based on index
+                    const getTeamColor = (index: number) => {
+                      const teamColors = [
+                        'from-blue-600 to-blue-800',
+                        'from-red-600 to-red-800',
+                        'from-green-600 to-green-800',
+                        'from-purple-600 to-purple-800',
+                        'from-yellow-600 to-yellow-800',
+                        'from-pink-600 to-pink-800',
+                        'from-indigo-600 to-indigo-800',
+                        'from-teal-600 to-teal-800'
+                      ];
+                      return teamColors[index % teamColors.length];
+                    };
+                    
+                    // Get background style based on game mode
+                    const getGameModeStyle = () => {
+                      switch(game.game_mode.toLowerCase()) {
+                        case 'music quiz':
+                          return 'bg-gradient-to-r from-purple-500 to-indigo-600';
+                        case 'trivia':
+                          return 'bg-gradient-to-r from-blue-500 to-teal-400';
+                        case 'challenge':
+                          return 'bg-gradient-to-r from-orange-500 to-pink-500';
+                        default:
+                          return 'bg-gradient-to-r from-gray-700 to-gray-900';
+                      }
+                    };
+
+                    // Get appropriate game mode icon
+                    const getGameModeIcon = () => {
+                      switch(game.game_mode.toLowerCase()) {
+                        case 'music quiz':
+                          return (
+                            <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                              <path d="M18 3a1 1 0 00-1.196-.98l-10 2A1 1 0 006 5v9.114A4.369 4.369 0 005 14c-1.657 0-3 .895-3 2s1.343 2 3 2 3-.895 3-2V7.82l8-1.6v5.894A4.37 4.37 0 0015 12c-1.657 0-3 .895-3 2s1.343 2 3 2 3-.895 3-2V3z" />
+                            </svg>
+                          );
+                        case 'trivia':
+                          return (
+                            <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                              <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-3a1 1 0 00-.867.5 1 1 0 11-1.731-1A3 3 0 0113 8a3.001 3.001 0 01-2 2.83V11a1 1 0 11-2 0v-1a1 1 0 011-1 1 1 0 100-2zm0 8a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
+                            </svg>
+                          );
+                        default:
+                          return (
+                            <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" />
+                            </svg>
+                          );
+                      }
+                    };
+                    
+                    return (
+                      <div 
+                        key={game.id} 
+                        className={`rounded-lg shadow-lg overflow-hidden ${getGameModeStyle()} text-white transform transition-all duration-300 hover:scale-105 hover:shadow-xl`}
+                      >
+                        <div className="px-6 py-4">
+                          <div className="flex justify-between items-start">
+                            <div className="flex items-center">
+                              {getGameModeIcon()}
+                              <h3 className="text-xl font-semibold">{game.game_mode.charAt(0).toUpperCase() + game.game_mode.slice(1)}</h3>
+                              {isTeamGame() && (
+                                <span className="ml-2 bg-blue-600 text-white text-xs px-2 py-0.5 rounded-full flex items-center">
+                                  <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
+                                  </svg>
+                                  {Object.keys(game.teams || {}).length} Team{Object.keys(game.teams || {}).length !== 1 ? 's' : ''}
+                                </span>
+                              )}
                             </div>
-                            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                              {formatDate(game.started_at)}
-                            </p>
+                            {game.status === 'active' ? (
+                              <div className="flex items-center">
+                                <span className="relative flex h-3 w-3 mr-2">
+                                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                                  <span className="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
+                                </span>
+                                <span className="bg-green-400 text-green-900 text-xs font-bold px-3 py-1 rounded-full">
+                                  Active
+                                </span>
+                              </div>
+                            ) : (
+                              <span className="bg-gray-200 text-gray-800 text-xs font-bold px-3 py-1 rounded-full">
+                                Completed
+                              </span>
+                            )}
                           </div>
-                          {game.winner_id && (
-                            <div className="px-2 py-1 ml-2 text-xs font-medium text-green-700 bg-green-100 rounded-full dark:bg-green-900 dark:text-green-300">
-                              Winner: {typeof game.players === 'object' && 
-                                Object.entries(game.players).find(([id, _]) => id === game.winner_id)?.[1]?.name || 
-                                game.winner_id}
+                          <p className="text-sm opacity-90 mt-2">{formatDate(game.started_at)}</p>
+                          <p className="text-sm opacity-80 mt-1">Duration: {getDuration()}</p>
+                          
+                          {/* Game action buttons */}
+                          <div className="flex justify-end space-x-2 mt-2">
+                            {game.status === 'active' && (
+                              <button
+                                onClick={() => openConfirmModal(game.id, 'end')}
+                                className="bg-orange-500 hover:bg-orange-600 text-white text-xs py-1 px-2 rounded"
+                              >
+                                End Game
+                              </button>
+                            )}
+                            <button
+                              onClick={() => openConfirmModal(game.id, 'delete')}
+                              className="bg-red-500 hover:bg-red-600 text-white text-xs py-1 px-2 rounded"
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        </div>
+                        
+                        <div className="px-6 py-3 bg-black bg-opacity-20">
+                          {isTeamGame() ? (
+                            /* Team Game Score Layout */
+                            <div>
+                              <p className="text-gray-300 mb-2 font-medium">Team Scores</p>
+                              <div className="space-y-2">
+                                {getTeamScores()?.map((team, index) => (
+                                  <div key={team.id} className={`flex justify-between items-center rounded px-3 py-2 bg-gradient-to-r ${getTeamColor(index)}`}>
+                                    <div className="flex items-center">
+                                      <span className="text-sm font-bold text-white">{team.name}</span>
+                                      <span className="ml-1 text-xs text-gray-200">({team.playerCount} players)</span>
+                                    </div>
+                                    <span className={`text-sm font-bold px-3 py-1.5 rounded ${
+                                      game.winner_id === team.id ? 'bg-yellow-500 text-yellow-900' : 'bg-white bg-opacity-20 text-white'
+                                    }`}>
+                                      Score: {team.score}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          ) : (
+                            /* Free-for-all Score Layout */
+                            <div className="grid grid-cols-2 gap-4 text-sm">
+                              <div>
+                                <p className="text-gray-300 mb-1">Total Players</p>
+                                <p className="font-medium">{Object.keys(game.players || {}).length}</p>
+                              </div>
+                              <div>
+                                <p className="text-gray-300 mb-1">Top Score</p>
+                                <p className="font-medium">
+                                  {getAllPlayers().length > 0 
+                                    ? (getAllPlayers()[0].score !== null 
+                                        ? getAllPlayers()[0].score 
+                                        : 'No scores') 
+                                    : 'No players'}
+                                </p>
+                              </div>
                             </div>
                           )}
                         </div>
-                      </li>
-                    ))}
-                  </ul>
+                        
+                        <div className="px-6 py-3">
+                          {isTeamGame() ? (
+                            /* Team Players Layout */
+                            <div>
+                              <p className="text-gray-300 text-sm mb-2 font-medium">Team Members</p>
+                              <div className="space-y-3 max-h-48 overflow-y-auto pr-1">
+                                {Object.entries(getTeamPlayers() || {}).map(([teamId, team], index) => {
+                                  // Skip empty teams
+                                  if (team.members.length === 0) return null;
+                                  
+                                  return (
+                                    <div key={teamId} className={`bg-gradient-to-r ${getTeamColor(index)} rounded-md p-2`}>
+                                      <div className="flex justify-between items-center mb-2">
+                                        <div className="flex items-center">
+                                          <p className="text-sm font-medium text-white">{team.name}</p>
+                                        </div>
+                                        {game.winner_id === teamId && (
+                                          <span className="bg-yellow-500 text-yellow-900 text-xs px-2 py-0.5 rounded-full font-bold">
+                                            Winner
+                                          </span>
+                                        )}
+                                      </div>
+                                      
+                                      <div className="flex flex-wrap gap-1.5">
+                                        {team.members.map(player => (
+                                          <span key={player.id} className="inline-flex items-center bg-black bg-opacity-30 px-2 py-1 rounded text-xs text-white">
+                                            {player.name}
+                                          </span>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          ) : (
+                            /* Free-for-all Players Layout */
+                            <div>
+                              <p className="text-gray-300 text-sm mb-2">Players</p>
+                              <div className="max-h-32 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-700 scrollbar-track-transparent pr-2">
+                                <div className="space-y-1">
+                                  {getAllPlayers().map(player => (
+                                    <div 
+                                      key={player.id} 
+                                      className={`flex justify-between items-center px-2 py-1 rounded ${
+                                        player.isWinner ? 'bg-yellow-500 bg-opacity-20' : 'bg-black bg-opacity-20'
+                                      }`}
+                                    >
+                                      <span className="text-sm font-medium flex items-center">
+                                        {player.isWinner && (
+                                          <svg className="w-3 h-3 text-yellow-500 mr-1" viewBox="0 0 20 20" fill="currentColor">
+                                            <path fillRule="evenodd" d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                                          </svg>
+                                        )}
+                                        {player.name}
+                                      </span>
+                                      {player.score !== null && (
+                                        <span className="text-sm text-gray-300">{player.score}</span>
+                                      )}
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                        
+                        <div className="px-6 py-3 bg-black bg-opacity-10 flex justify-between items-center text-xs">
+                          <span>Game ID: {game.id.substring(0, 8)}...</span>
+                          {game.settings && (
+                            <span className="bg-white bg-opacity-20 px-2 py-1 rounded-full">
+                              Custom settings
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -575,10 +1028,44 @@ const Profile: React.FC = () => {
               )}
             </div>
           )}
+          
+          {/* Confirmation Modal */}
+          {showConfirmModal && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+              <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 max-w-sm w-full">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+                  {modalAction === 'end' ? 'End Game' : 'Delete Game'}
+                </h3>
+                <p className="text-gray-700 dark:text-gray-300 mb-6">
+                  {modalAction === 'end' 
+                    ? 'Are you sure you want to end this game?' 
+                    : 'Are you sure you want to delete this game? This action cannot be undone.'}
+                </p>
+                <div className="flex justify-end space-x-4">
+                  <button
+                    className="px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
+                    onClick={() => setShowConfirmModal(false)}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    className={`px-4 py-2 rounded ${
+                      modalAction === 'end'
+                        ? 'bg-orange-500 hover:bg-orange-600 text-white'
+                        : 'bg-red-500 hover:bg-red-600 text-white'
+                    }`}
+                    onClick={handleConfirmAction}
+                  >
+                    {modalAction === 'end' ? 'End Game' : 'Delete Game'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
   );
 };
 
-export default Profile; 
+export default Profile;

@@ -560,19 +560,26 @@ export const challengesService = {
  */
 export const gamesService = {
   // Get all games for the current user
-  async getGames(userId?: string) {
+  async getGames(userId?: string, limit?: number) {
     try {
       const validatedUserId = ensureUuid(userId);
       
-      // Build the query
+      // Build the query with only necessary fields for improved performance
       let query = supabase
         .from('games')
-        .select('*')
+        .select('id, user_id, game_mode, status, started_at, completed_at, players, scores, winner_id, settings')
         .order('started_at', { ascending: false });
         
       // Apply user_id filter if provided
       if (validatedUserId) {
         query = query.eq('user_id', validatedUserId);
+      }
+      
+      // Apply limit if provided (default to 10 for better performance)
+      if (limit !== undefined) {
+        query = query.limit(limit);
+      } else {
+        query = query.limit(10); // Default limit to prevent loading too many games
       }
       
       const { data, error } = await query;
@@ -692,6 +699,27 @@ export const gamesService = {
     } catch (error) {
       console.error('Exception in completeGame:', error);
       return null;
+    }
+  },
+  
+  // Delete a game
+  async deleteGame(gameId: string) {
+    try {
+      const { error, data } = await supabase
+        .from('games')
+        .delete()
+        .eq('id', gameId)
+        .select();
+        
+      if (error) {
+        console.error('Error deleting game:', error);
+        throw error;
+      }
+      
+      return data && data.length > 0 ? true : false;
+    } catch (error) {
+      console.error('Exception in deleteGame:', error);
+      return false;
     }
   }
 };

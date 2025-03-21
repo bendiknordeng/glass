@@ -4,7 +4,7 @@ import { Team, GameMode, GameDuration } from '@/types/Team';
 import { Challenge, ChallengeResult, PrebuiltChallengeType, SpotifyMusicQuizSettings, SpotifySong } from '../types/Challenge';
 import { generateId } from '@/utils/helpers';
 import { getAvatarByName } from '@/utils/avatarUtils';
-import { challengesService, playersService } from '@/services/supabase';
+import { challengesService, playersService, gamesService } from '@/services/supabase';
 import { useAuth } from '@/contexts/AuthContext'; // Assuming you have an auth context
 
 // Define the state shape
@@ -25,6 +25,7 @@ export interface GameState {
   currentChallengeParticipants: string[]; // IDs of players or teams participating
   isLoadingChallenges: boolean;
   challengeLoadError: string | null;
+  gameId: string | null; // ID of the current game in Supabase
 }
 
 // Define initial state
@@ -44,7 +45,8 @@ const initialState: GameState = {
   currentChallenge: null,
   currentChallengeParticipants: [],
   isLoadingChallenges: false,
-  challengeLoadError: null
+  challengeLoadError: null,
+  gameId: null
 };
 
 // Define action types
@@ -76,7 +78,8 @@ type GameAction =
   | { type: 'UPDATE_CHALLENGE_PARTICIPANTS'; payload: { challengeId: string; participantIds: string[] } }
   | { type: 'UPDATE_PLAYER_SCORE'; payload: { playerId: string; points: number } }
   | { type: 'UPDATE_TEAM_SCORE'; payload: { teamId: string; points: number } }
-  | { type: 'UPDATE_PLAYER_DETAILS'; payload: Partial<Player> };
+  | { type: 'UPDATE_PLAYER_DETAILS'; payload: Partial<Player> }
+  | { type: 'SET_GAME_ID'; payload: string };
 
 // Create reducer function
 const gameReducer = (state: GameState, action: GameAction): GameState => {
@@ -95,6 +98,12 @@ const gameReducer = (state: GameState, action: GameAction): GameState => {
       return {
         ...state,
         gameFinished: true,
+      };
+
+    case 'SET_GAME_ID':
+      return {
+        ...state,
+        gameId: action.payload,
       };
 
     case 'SET_GAME_MODE':
@@ -788,6 +797,8 @@ interface GameContextType {
   state: GameState;
   dispatch: React.Dispatch<GameAction>;
   loadChallenges: () => Promise<void>;
+  saveGameToSupabase: () => Promise<string | null>;
+  updateGameInSupabase: () => Promise<boolean>;
 }
 
 const GameContext = createContext<GameContextType | undefined>(undefined);
@@ -1188,8 +1199,212 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, [state]);
 
+  // Function to save game state to Supabase
+  const saveGameToSupabase = async (): Promise<string | null> => {
+    // Skip if not authenticated or no user
+    if (!isAuthenticated || !user) {
+      console.log('Not saving game to Supabase: User not authenticated');
+      return null;
+    }
+
+    try {
+      // If we already have a game ID, return it
+      if (state.gameId) {
+        return state.gameId;
+      }
+
+      // Check if the current challenge ID is a UUID (for Supabase foreign key constraint)
+      let currentChallengeId = state.currentChallenge?.id || null;
+      
+      // UUID format validation
+      const isUuid = (id: string): boolean => {
+        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+        return uuidRegex.test(id);
+      };
+      
+      // If current challenge ID is not a UUID, set to null for Supabase (foreign key constraint)
+      if (currentChallengeId && !isUuid(currentChallengeId)) {
+        console.log('Current challenge ID is not a UUID, setting to null for Supabase:', currentChallengeId);
+        currentChallengeId = null;
+      }
+
+      // Prepare game data for Supabase
+      const gameData = {
+        user_id: user.id,
+        game_mode: state.gameMode,
+        status: 'active' as const,
+        completed_at: null,
+        players: state.players.reduce((acc, player) => {
+          acc[player.id] = {
+            name: player.name,
+            image: player.image,
+            score: player.score,
+          };
+          return acc;
+        }, {} as Record<string, any>),
+        teams: state.gameMode === GameMode.TEAMS 
+          ? state.teams.reduce((acc, team) => {
+              acc[team.id] = {
+                name: team.name,
+                color: team.color,
+                playerIds: team.playerIds,
+                score: team.score,
+              };
+              return acc;
+            }, {} as Record<string, any>)
+          : null,
+        current_challenge: currentChallengeId,
+        completed_challenges: state.results.map(result => ({
+          id: result.challengeId,
+          completed: result.completed,
+          winnerId: result.winnerId,
+          participantIds: result.participantIds,
+          timestamp: result.timestamp,
+        })),
+        scores: state.players.reduce((acc, player) => {
+          acc[player.id] = player.score;
+          return acc;
+        }, {} as Record<string, any>),
+        winner_id: null,
+        settings: {
+          gameDuration: state.gameDuration,
+        },
+      };
+
+      // Create game in Supabase
+      const createdGame = await gamesService.createGame(gameData);
+      
+      if (createdGame) {
+        // Update local state with game ID
+        dispatch({ type: 'SET_GAME_ID', payload: createdGame.id });
+        console.log('Game saved to Supabase with ID:', createdGame.id);
+        return createdGame.id;
+      } else {
+        console.error('Failed to save game to Supabase');
+        return null;
+      }
+    } catch (error) {
+      console.error('Error saving game to Supabase:', error);
+      return null;
+    }
+  };
+
+  // Function to update game state in Supabase
+  const updateGameInSupabase = async (): Promise<boolean> => {
+    // Skip if not authenticated, no user, or no gameId
+    if (!isAuthenticated || !user || !state.gameId) {
+      console.log('Not updating game in Supabase: User not authenticated or no game ID');
+      return false;
+    }
+
+    try {
+      // Check if the current challenge ID is a UUID (for Supabase foreign key constraint)
+      let currentChallengeId = state.currentChallenge?.id || null;
+      
+      // UUID format validation
+      const isUuid = (id: string): boolean => {
+        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+        return uuidRegex.test(id);
+      };
+      
+      // If current challenge ID is not a UUID, set to null for Supabase (foreign key constraint)
+      if (currentChallengeId && !isUuid(currentChallengeId)) {
+        console.log('Current challenge ID is not a UUID, setting to null for Supabase:', currentChallengeId);
+        currentChallengeId = null;
+      }
+      
+      // Prepare updates
+      const gameUpdates: {
+        players: Record<string, any>;
+        teams: Record<string, any> | null;
+        current_challenge: string | null;
+        completed_challenges: {
+          id: string;
+          completed: boolean;
+          winnerId: string | undefined;
+          participantIds: string[];
+          timestamp: number;
+        }[];
+        scores: Record<string, any>;
+        status: 'completed' | 'active';
+        completed_at: string | null;
+        winner_id?: string | null;
+      } = {
+        players: state.players.reduce((acc, player) => {
+          acc[player.id] = {
+            name: player.name,
+            image: player.image,
+            score: player.score,
+          };
+          return acc;
+        }, {} as Record<string, any>),
+        teams: state.gameMode === GameMode.TEAMS 
+          ? state.teams.reduce((acc, team) => {
+              acc[team.id] = {
+                name: team.name,
+                color: team.color,
+                playerIds: team.playerIds,
+                score: team.score,
+              };
+              return acc;
+            }, {} as Record<string, any>)
+          : null,
+        current_challenge: currentChallengeId,
+        completed_challenges: state.results.map(result => ({
+          id: result.challengeId,
+          completed: result.completed,
+          winnerId: result.winnerId,
+          participantIds: result.participantIds,
+          timestamp: result.timestamp,
+        })),
+        scores: state.players.reduce((acc, player) => {
+          acc[player.id] = player.score;
+          return acc;
+        }, {} as Record<string, any>),
+        status: state.gameFinished ? 'completed' as const : 'active' as const,
+        completed_at: state.gameFinished ? new Date().toISOString() : null,
+      };
+
+      // If game is finished, determine winner
+      if (state.gameFinished) {
+        // Find player with highest score
+        let highestScore = -1;
+        let winnerId: string | null = null;
+
+        state.players.forEach(player => {
+          if (player.score > highestScore) {
+            highestScore = player.score;
+            winnerId = player.id;
+          }
+        });
+
+        gameUpdates.winner_id = winnerId;
+      }
+
+      // Update game in Supabase
+      const updatedGame = await gamesService.updateGame(state.gameId, gameUpdates);
+      
+      if (updatedGame) {
+        console.log('Game updated in Supabase, ID:', updatedGame.id);
+        return true;
+      } else {
+        console.error('Failed to update game in Supabase');
+        return false;
+      }
+    } catch (error) {
+      console.error('Error updating game in Supabase:', error);
+      return false;
+    }
+  };
+
   return (
-    <GameContext.Provider value={{ state, dispatch, loadChallenges }}>
+    <GameContext.Provider value={{ 
+      state, 
+      dispatch, 
+      loadChallenges, 
+      saveGameToSupabase,
+      updateGameInSupabase 
+    }}>
       {children}
     </GameContext.Provider>
   );

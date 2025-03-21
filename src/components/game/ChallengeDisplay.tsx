@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
+import { toast } from 'react-hot-toast';
 import { Challenge, ChallengeType, Punishment } from '@/types/Challenge';
 import { Player } from '@/types/Player';
 import { Team, GameMode } from '@/types/Team';
@@ -207,9 +208,19 @@ const ChallengeDisplay: React.FC<ChallengeDisplayProps> = ({
       } else if (selectedWinner) {
         // For one-on-one, team, or all vs all challenges, use the selected winner
         onComplete(true, selectedWinner);
-      } else {
-        // No winner selected for a competitive challenge
-        alert(t('game.selectWinner'));
+      } else if (challenge.type === ChallengeType.ONE_ON_ONE || 
+                challenge.type === ChallengeType.TEAM || 
+                challenge.type === ChallengeType.ALL_VS_ALL) {
+        // Show toast notification when no winner is selected for competitive challenges
+        toast.error(t('game.selectWinner'), {
+          icon: '⚠️',
+          style: {
+            borderRadius: '10px',
+            background: '#333',
+            color: '#fff',
+          },
+        });
+        return; // Don't proceed until a winner is selected
       }
     } else {
       // Challenge failed/skipped - show punishment if available
@@ -383,8 +394,8 @@ const ChallengeDisplay: React.FC<ChallengeDisplayProps> = ({
             </div>
           )}
           
-          {/* Show all players for all vs all challenges */}
-          {challenge.type === ChallengeType.ALL_VS_ALL && (
+          {/* Show all players for all vs all challenges - ONLY if in FREE_FOR_ALL mode to avoid duplication */}
+          {challenge.type === ChallengeType.ALL_VS_ALL && gameMode === GameMode.FREE_FOR_ALL && (
             <div className="flex flex-wrap justify-center gap-4">
               {getAllPlayers().map((player) => {
                 const isSelected = selectedWinner === player.id;
@@ -397,63 +408,54 @@ const ChallengeDisplay: React.FC<ChallengeDisplayProps> = ({
                       size="sm"
                       onClick={() => handleSelectWinner(player.id)}
                     />
-                    {gameMode === GameMode.TEAMS && getTeamForPlayer(player.id) && (
-                      <div className="mt-1 text-xs font-medium text-game-primary">
-                        {getTeamForPlayer(player.id)?.name}
-                      </div>
-                    )}
                   </div>
                 );
               })}
             </div>
           )}
           
-          {/* Show teams for team challenges */}
+          {/* Show teams for team challenges - ONLY when in TEAMS mode */}
           {challenge.type === ChallengeType.TEAM && gameMode === GameMode.TEAMS && (
-            <div className="mb-6">
-              <div className="flex flex-wrap justify-center gap-4">
-                {teams.map((team) => (
-                  <div key={team.id} className="flex flex-col items-center">
-                    <TeamCard 
-                      team={team}
-                      players={players.filter(p => team.playerIds.includes(p.id))}
-                      size="sm"
-                      compact={true}
-                      isSelected={selectedWinner === team.id}
-                      onClick={() => handleSelectWinner(team.id)}
-                    />
-                  </div>
-                ))}
-              </div>
+            <div className="flex flex-wrap justify-center gap-4">
+              {teams.map((team) => (
+                <div key={team.id} className="flex flex-col items-center">
+                  <TeamCard 
+                    team={team}
+                    players={players.filter(p => team.playerIds.includes(p.id))}
+                    size="md"
+                    compact={true}
+                    isSelected={selectedWinner === team.id}
+                    onClick={() => handleSelectWinner(team.id)}
+                  />
+                </div>
+              ))}
             </div>
           )}
         </div>
         
-        <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-5 mb-6">
-          {/* Show punishment info if available */}
-          {challenge.punishment && (
-            <div>
-              <div className="flex items-center text-amber-600 dark:text-amber-400 font-medium mb-2">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
-                  <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                </svg>
-                <span>
-                  {t('challenges.lostOrFailed')}
-                </span>
-              </div>
-              <p className="text-sm text-gray-600 dark:text-gray-400">
-                {challenge.punishment.type === 'sips' 
-                  ? t('game.failurePunishmentSips', { count: challenge.punishment.value }) 
-                  : t('game.failurePunishmentCustom')}
-                {challenge.punishment.type === 'custom' && challenge.punishment.customDescription && (
-                  <span className="ml-1 italic">
-                    "{challenge.punishment.customDescription}"
-                  </span>
-                )}
-              </p>
+        {/* Show punishment info if available */}
+        {challenge.punishment && (
+          <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-5 mb-6">
+            <div className="flex items-center text-amber-600 dark:text-amber-400 font-medium mb-2">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+              </svg>
+              <span>
+                {t('challenges.lostOrFailed')}
+              </span>
             </div>
-          )}
-        </div>
+            <p className="text-sm text-gray-600 dark:text-gray-400">
+              {challenge.punishment.type === 'sips' 
+                ? t('game.failurePunishmentSips', { count: challenge.punishment.value }) 
+                : t('game.failurePunishmentCustom')}
+              {challenge.punishment.type === 'custom' && challenge.punishment.customDescription && (
+                <span className="ml-1 italic">
+                  "{challenge.punishment.customDescription}"
+                </span>
+              )}
+            </p>
+          </div>
+        )}
         
         {/* Winner Selection for competitive challenges */}
         {(challenge.type === ChallengeType.ONE_ON_ONE || 
@@ -461,12 +463,12 @@ const ChallengeDisplay: React.FC<ChallengeDisplayProps> = ({
           challenge.type === ChallengeType.ALL_VS_ALL) && 
           winnerOptions.length > 0 && (
           <div className="mb-6">
-            <h3 className="text-lg font-medium text-gray-700 dark:text-gray-300 mb-3">
+            <h3 className="text-lg font-medium text-center text-gray-700 dark:text-gray-300 mb-3">
               {t('game.selectWinnerPrompt')}
             </h3>
             
             {challenge.type === ChallengeType.ALL_VS_ALL && (
-              <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
+              <p className="text-sm text-gray-600 dark:text-gray-400 text-center mb-3">
                 {t('game.allVsAllWinnerDescription')}
               </p>
             )}
@@ -508,19 +510,19 @@ const ChallengeDisplay: React.FC<ChallengeDisplayProps> = ({
         {/* Challenge Controls */}
         <div className="flex flex-col sm:flex-row items-center justify-center gap-3 mt-8">
           <Button 
-            variant="primary"
-            onClick={() => handleCompleteChallenge(true)}
-            className="w-full sm:w-auto"
+            variant="danger"
+            onClick={() => handleCompleteChallenge(false)}
+            className="w-full sm:w-auto order-1 sm:order-1"
           >
-            {t('game.completeChallenge')}
+            {t('game.challengeFailed')}
           </Button>
           
           <Button 
-            variant="danger"
-            onClick={() => handleCompleteChallenge(false)}
-            className="w-full sm:w-auto"
+            variant="success"
+            onClick={() => handleCompleteChallenge(true)}
+            className="w-full sm:w-auto order-2 sm:order-2"
           >
-            {t('game.failChallenge')}
+            {t('game.nextChallenge')}
           </Button>
         </div>
       </div>

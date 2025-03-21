@@ -221,9 +221,14 @@ const Game: React.FC = () => {
       // This helps with reused challenges
       const playerSelectionsPerChallenge: Record<string, Record<string, number>> = {};
       
-      // Initialize all players with a count of 0
+      // 3. Track how recently each player was selected (lower = more recent)
+      const playerRecency: Record<string, number> = {};
+      
+      // Initialize all players with a count of 0 and max recency (least recently used)
+      const maxRecency = state.results.length + 1; // Set initial recency to beyond any existing result
       state.players.forEach(player => {
         playerSelectionCounts[player.id] = 0;
+        playerRecency[player.id] = maxRecency;
         
         // Initialize player counts for this challenge if needed
         if (!playerSelectionsPerChallenge[currentChallengeId]) {
@@ -233,13 +238,22 @@ const Game: React.FC = () => {
       });
       
       // Analyze past results to count how many times each player has been selected
-      state.results.forEach(result => {
+      // Also track when they were last selected (recency)
+      state.results.forEach((result, resultIndex) => {
         const challenge = state.challenges.find(c => c.id === result.challengeId);
         if (challenge?.type === ChallengeType.ONE_ON_ONE && result.participantIds) {
           // For overall counts, tally all one-on-one participation
           state.players.forEach(player => {
             if (result.participantIds.includes(player.id) || player.id === result.winnerId) {
+              // Count participation
               playerSelectionCounts[player.id] = (playerSelectionCounts[player.id] || 0) + 1;
+              
+              // Track recency (smaller index = more recent selection)
+              const recencyValue = state.results.length - resultIndex;
+              // Only update if this is more recent than existing value
+              if (recencyValue < playerRecency[player.id]) {
+                playerRecency[player.id] = recencyValue;
+              }
               
               // Also track per challenge ID counts
               if (result.challengeId === currentChallengeId) {
@@ -259,6 +273,9 @@ const Game: React.FC = () => {
       
       // Specifically track pairs for this exact challenge ID
       const playerPairHistoryForChallenge: Set<string> = new Set();
+      
+      // Track frequency of pairs (how many times they've faced each other)
+      const pairFrequency: Record<string, number> = {};
       
       // Fill these from the results
       state.results.forEach(result => {
@@ -293,6 +310,9 @@ const Game: React.FC = () => {
             
             // Add to general history
             playerPairHistory.add(pairKey);
+            
+            // Track frequency
+            pairFrequency[pairKey] = (pairFrequency[pairKey] || 0) + 1;
             
             // Also track specifically for this challenge ID
             if (result.challengeId === currentChallengeId) {
@@ -331,75 +351,102 @@ const Game: React.FC = () => {
         let bestCandidates = eligiblePlayers;
         
         if (selectedPlayers.length > 0) {
-          // First prioritize candidates who haven't played against our existing selections
-          // specifically for this challenge (most important for reused challenges)
-          if (state.currentChallenge?.canReuse) {
-            const unseenCandidatesForChallenge = eligiblePlayers.filter(candidate => {
-              return !selectedPlayers.some(selectedPlayer => {
-                const pairKey = [candidate.id, selectedPlayer.id].sort().join('_vs_');
-                return playerPairHistoryForChallenge.has(pairKey);
-              });
+          // Get candidates who have faced the current selections the least number of times
+          const candidatesWithPairCounts = eligiblePlayers.map(candidate => {
+            let totalPairCount = 0;
+            selectedPlayers.forEach(selectedPlayer => {
+              const pairKey = [candidate.id, selectedPlayer.id].sort().join('_vs_');
+              totalPairCount += pairFrequency[pairKey] || 0;
             });
-            
-            if (unseenCandidatesForChallenge.length > 0) {
-              bestCandidates = unseenCandidatesForChallenge;
-            }
-          } 
-          // For non-reusable challenges or if we couldn't find any unseen candidates for this challenge,
-          // try to find players who haven't faced each other in any challenge
-          else {
-            const unseenCandidates = eligiblePlayers.filter(candidate => {
-              return !selectedPlayers.some(selectedPlayer => {
-                const pairKey = [candidate.id, selectedPlayer.id].sort().join('_vs_');
-                return playerPairHistory.has(pairKey);
-              });
-            });
-            
-            if (unseenCandidates.length > 0) {
-              bestCandidates = unseenCandidates;
-            }
+            return { player: candidate, pairCount: totalPairCount };
+          });
+          
+          // Find the minimum pair count
+          const minPairCount = Math.min(...candidatesWithPairCounts.map(c => c.pairCount));
+          
+          // Filter to only include candidates with the minimum pair count
+          const leastFrequentPairs = candidatesWithPairCounts
+            .filter(c => c.pairCount === minPairCount)
+            .map(c => c.player);
+          
+          if (leastFrequentPairs.length > 0) {
+            bestCandidates = leastFrequentPairs;
           }
         }
         
-        // Now prioritize by selection counts, based on whether the challenge is reusable
-        if (state.currentChallenge?.canReuse) {
-          // For reusable challenges, prioritize players who have been used less often
-          // for THIS SPECIFIC CHALLENGE
-          bestCandidates.sort((a, b) => {
-            const aCount = playerSelectionsPerChallenge[currentChallengeId]?.[a.id] || 0;
-            const bCount = playerSelectionsPerChallenge[currentChallengeId]?.[b.id] || 0;
-            return aCount - bCount;
-          });
-        } else {
-          // For non-reusable challenges, just sort by overall selection count
-          bestCandidates.sort((a, b) => 
-            (playerSelectionCounts[a.id] || 0) - (playerSelectionCounts[b.id] || 0)
-          );
+        // Calculate a weighted score for each candidate based on:
+        // 1. Selection count (lower is better)
+        // 2. Recency (higher is better - we want players who haven't been selected recently)
+        // 3. Challenge-specific count (lower is better for reusable challenges)
+        const scoredCandidates = bestCandidates.map(player => {
+          // Base weight from selection count (inverse, so less used = higher score)
+          const countScore = 1 / (playerSelectionCounts[player.id] + 1);
+          
+          // Recency score (higher = longer since last used)
+          const recencyScore = playerRecency[player.id] / maxRecency;
+          
+          // Challenge-specific score (if applicable)
+          const challengeSpecificScore = state.currentChallenge?.canReuse 
+            ? 1 / (playerSelectionsPerChallenge[currentChallengeId]?.[player.id] + 1)
+            : 1;
+          
+          // Calculate total score (higher is better)
+          // Recency is weighted heaviest to avoid the same player being picked repeatedly
+          const totalScore = (countScore * 1) + (recencyScore * 2) + (challengeSpecificScore * 1);
+          
+          return { player, score: totalScore };
+        });
+        
+        // Sort by total score (highest first)
+        scoredCandidates.sort((a, b) => b.score - a.score);
+        
+        // Use exponential weighting to favor higher scores while still allowing some randomness
+        // This creates a probability distribution heavily favoring players who haven't been selected recently
+        const totalWeight = scoredCandidates.reduce((sum, candidate, index) => {
+          // Exponential decay based on position (lower index = higher weight)
+          const weight = Math.exp(-0.5 * index);
+          return sum + weight;
+        }, 0);
+        
+        // Generate a random value between 0 and totalWeight
+        let randomValue = Math.random() * totalWeight;
+        let selectedPlayer: Player | null = null;
+        
+        // Select based on weighted probability
+        for (let i = 0; i < scoredCandidates.length; i++) {
+          const weight = Math.exp(-0.5 * i);
+          randomValue -= weight;
+          
+          if (randomValue <= 0) {
+            selectedPlayer = scoredCandidates[i].player;
+            break;
+          }
         }
         
-        // To add some randomness while still favoring less-used players, 
-        // we'll select randomly from the N least used players
-        const selectionPoolSize = Math.min(Math.max(2, Math.ceil(bestCandidates.length / 2)), bestCandidates.length);
-        const selectionPool = bestCandidates.slice(0, selectionPoolSize);
+        // Fallback to the highest scored player if something went wrong with the weighting
+        if (!selectedPlayer && scoredCandidates.length > 0) {
+          selectedPlayer = scoredCandidates[0].player;
+        }
         
-        // Random selection from the pool
-        const randomIndex = Math.floor(Math.random() * selectionPool.length);
-        const selectedPlayer = selectionPool[randomIndex];
-        
-        selectedPlayers.push(selectedPlayer);
-        selectedPlayerIds.add(selectedPlayer.id);
+        if (selectedPlayer) {
+          selectedPlayers.push(selectedPlayer);
+          selectedPlayerIds.add(selectedPlayer.id);
+        }
       }
     } else {
       // For individual mode, select players directly from the participants
       // We'll still try to ensure diversity in matchups
       
-      // Create maps to track selection counts
+      // Create maps to track selection counts and recency
       const playerSelectionCounts: Record<string, number> = {};
       const playerSelectionsPerChallenge: Record<string, Record<string, number>> = {};
+      const playerRecency: Record<string, number> = {};
       
-      // Initialize all players with a count of 0
+      // Initialize all players with a count of 0 and max recency
+      const maxRecency = state.results.length + 1; 
       state.players.forEach(player => {
         playerSelectionCounts[player.id] = 0;
+        playerRecency[player.id] = maxRecency;
         
         // Initialize player counts for this challenge if needed
         if (!playerSelectionsPerChallenge[currentChallengeId]) {
@@ -408,14 +455,20 @@ const Game: React.FC = () => {
         playerSelectionsPerChallenge[currentChallengeId][player.id] = 0;
       });
       
-      // Count how many times each player has participated
-      state.results.forEach(result => {
+      // Count how many times each player has participated and track recency
+      state.results.forEach((result, resultIndex) => {
         const challenge = state.challenges.find(c => c.id === result.challengeId);
         if (challenge?.type === ChallengeType.ONE_ON_ONE && result.participantIds) {
           result.participantIds.forEach(id => {
             if (playerSelectionCounts[id] !== undefined) {
               // Track overall count
               playerSelectionCounts[id]++;
+              
+              // Track recency
+              const recencyValue = state.results.length - resultIndex;
+              if (recencyValue < playerRecency[id]) {
+                playerRecency[id] = recencyValue;
+              }
               
               // Track per-challenge count
               if (result.challengeId === currentChallengeId) {
@@ -439,22 +492,76 @@ const Game: React.FC = () => {
         .filter((p): p is Player => p !== undefined);
       
       if (availablePlayers.length > 0) {
-        // Sort by the appropriate selection count
-        if (state.currentChallenge?.canReuse) {
-          // For reusable challenges, prefer players who have been used less for this specific challenge
-          availablePlayers.sort((a, b) => {
-            const aCount = playerSelectionsPerChallenge[currentChallengeId]?.[a.id] || 0;
-            const bCount = playerSelectionsPerChallenge[currentChallengeId]?.[b.id] || 0;
-            return aCount - bCount;
-          });
-        } else {
-          // For non-reusable challenges, sort by overall selection count
-          availablePlayers.sort((a, b) => 
-            (playerSelectionCounts[a.id] || 0) - (playerSelectionCounts[b.id] || 0)
-          );
+        // Calculate a weighted score for each player
+        const scoredPlayers = availablePlayers.map(player => {
+          // Base score from overall selection count (inverse)
+          const countScore = 1 / (playerSelectionCounts[player.id] + 1);
+          
+          // Recency score (higher = longer since last used)
+          const recencyScore = playerRecency[player.id] / maxRecency;
+          
+          // Challenge-specific score
+          const challengeSpecificScore = state.currentChallenge?.canReuse 
+            ? 1 / (playerSelectionsPerChallenge[currentChallengeId]?.[player.id] + 1)
+            : 1;
+          
+          // Calculate total score (higher is better)
+          const totalScore = (countScore * 1) + (recencyScore * 2) + (challengeSpecificScore * 1);
+          
+          return { player, score: totalScore };
+        });
+        
+        // Sort by score (highest first)
+        scoredPlayers.sort((a, b) => b.score - a.score);
+        
+        // Select using a weighted probability distribution
+        // Higher scores get exponentially higher probability of selection
+        const weightedSelection: Player[] = [];
+        
+        // First, ensure the top scoring players are always included
+        const numToIncludeDirectly = Math.min(2, scoredPlayers.length);
+        for (let i = 0; i < numToIncludeDirectly; i++) {
+          weightedSelection.push(scoredPlayers[i].player);
         }
         
-        selectedPlayers = availablePlayers;
+        // For any remaining selections, use weighted probability
+        if (scoredPlayers.length > numToIncludeDirectly) {
+          const remainingPlayers = scoredPlayers.slice(numToIncludeDirectly);
+          
+          // Calculate total weight
+          const totalWeight = remainingPlayers.reduce((sum, scored, index) => {
+            const weight = Math.exp(-0.5 * index);
+            return sum + weight;
+          }, 0);
+          
+          // Select remaining players
+          const numToSelect = Math.min(2 - weightedSelection.length, remainingPlayers.length);
+          
+          for (let i = 0; i < numToSelect; i++) {
+            let randomValue = Math.random() * totalWeight;
+            let selectedIndex = -1;
+            
+            for (let j = 0; j < remainingPlayers.length; j++) {
+              const weight = Math.exp(-0.5 * j);
+              randomValue -= weight;
+              
+              if (randomValue <= 0) {
+                selectedIndex = j;
+                break;
+              }
+            }
+            
+            if (selectedIndex >= 0) {
+              weightedSelection.push(remainingPlayers[selectedIndex].player);
+              remainingPlayers.splice(selectedIndex, 1);
+            } else if (remainingPlayers.length > 0) {
+              weightedSelection.push(remainingPlayers[0].player);
+              remainingPlayers.splice(0, 1);
+            }
+          }
+        }
+        
+        selectedPlayers = weightedSelection;
       }
     }
     

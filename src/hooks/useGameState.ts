@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useGame } from '@/contexts/GameContext';
 import { getNextChallenge } from '@/utils/challengeGenerator';
-import { ChallengeType } from '@/types/Challenge';
+import { Challenge, ChallengeType } from '@/types/Challenge';
 import { GameMode } from '@/types/Team';
 import { generateId, getParticipantById } from '@/utils/helpers';
 import { getCurrentParticipantId } from '@/utils/gameHelpers';
@@ -10,7 +10,7 @@ import { getCurrentParticipantId } from '@/utils/gameHelpers';
  * Custom hook for game state management and logic
  */
 export const useGameState = () => {
-  const { state, dispatch } = useGame();
+  const { state, dispatch, updateGameInSupabase, saveGameToSupabase } = useGame();
   
   // Game timer state (for time-limited games)
   const [timeRemaining, setTimeRemaining] = useState<number | null>(null);
@@ -120,25 +120,36 @@ export const useGameState = () => {
    * Verify participants are properly assigned for the current challenge
    * and assign proper participants if needed
    */
-  const verifyParticipantsAssigned = useCallback(() => {
+  const verifyParticipantsAssigned = useCallback((challengeToVerify?: Challenge) => {
+    // We can use either the provided challenge or the one from state
+    const challenge = challengeToVerify || state.currentChallenge;
+    
+    // Debug: Log the entire state relevant to participant assignment
+    console.log('DEBUG: Game state before participant verification:', {
+      gameMode: state.gameMode,
+      playerCount: state.players.length,
+      teamCount: state.teams.length,
+      currentChallengeId: state.currentChallenge?.id,
+      challengeToVerifyId: challengeToVerify?.id,
+      currentParticipants: state.currentChallengeParticipants
+    });
+    
     // If no challenge, can't verify participants
-    if (!state.currentChallenge) {
+    if (!challenge) {
+      console.log('No challenge to verify participants for');
       return false;
     }
     
-    // Check if we have valid participants assigned
-    const hasValidParticipants = state.currentChallengeParticipants?.length > 0 && 
-      state.currentChallengeParticipants.every(id => {
-        return state.gameMode === GameMode.TEAMS
-          ? state.teams.some(t => t.id === id)
-          : state.players.some(p => p.id === id);
-      });
-      
-    
-    // If participants are already valid, nothing to do
-    if (hasValidParticipants) {
-      return true;
-    }
+    // Debug logs to help identify issues
+    console.log('Verifying participants for challenge:', {
+      id: challenge.id,
+      title: challenge.title,
+      type: challenge.type,
+      gameMode: state.gameMode,
+      currentParticipants: state.currentChallengeParticipants,
+      teamsAvailable: state.teams.length,
+      playersAvailable: state.players.length
+    });
     
     // Assign appropriate participants based on challenge type and game mode
     let participantIds: string[] = [];
@@ -151,107 +162,42 @@ export const useGameState = () => {
       console.error("No players available in free-for-all mode");
       return false;
     }
-    
+
+    // DIRECT ASSIGNMENT: assign all teams or players
     if (state.gameMode === GameMode.TEAMS) {
-      // In team mode, select team(s) as participants
-      const currentTurnTeam = state.teams[state.currentTurnIndex % state.teams.length];
-      
-      if (state.currentChallenge.type === ChallengeType.ONE_ON_ONE) {
-        // For one-on-one in team mode, we should include all teams, not just two
-        if (state.teams.length >= 2) {
-          // If there are at least 2 teams, include all teams
-          participantIds = state.teams.map(team => team.id);
-        } else {
-          // If there's only one team, just use that team
-          participantIds = [currentTurnTeam.id];
-        }
-      } else if (state.currentChallenge.type === ChallengeType.TEAM) {
-        // For team challenges, include all teams
-        participantIds = state.teams.map(team => team.id);
-      } else if (state.currentChallenge.type === ChallengeType.ALL_VS_ALL) {
-        // For all vs all challenges in team mode, include all teams but players will compete individually
-        participantIds = state.teams.map(team => team.id);
-        
-        // Also include player IDs from all teams to allow individual selection in UI
-        const playerIds = state.teams.flatMap(team => team.playerIds);
-        if (playerIds.length > 0) {
-          participantIds = [...participantIds, ...playerIds];
-        }
-      } else {
-        // For individual challenges, select the current team
-        participantIds = [currentTurnTeam.id];
-        
-        // Also select a player from this team for individual challenges
-        if (currentTurnTeam.playerIds.length > 0) {
-          const playerIndex = state.currentRound % currentTurnTeam.playerIds.length;
-          const playerId = currentTurnTeam.playerIds[playerIndex];
-          dispatch({ 
-            type: 'UPDATE_CHALLENGE_PARTICIPANTS', 
-            payload: {
-              challengeId: state.currentChallenge.id,
-              participantIds: [playerId]
-            }
-          });
-          return true;
-        }
-      }
+      // In team mode, just use all teams
+      participantIds = state.teams.map(team => team.id);
+      console.log('Simplified assignment: using all teams:', participantIds);
     } else {
-      // In free-for-all mode, select player(s) as participants
-      const currentTurnPlayer = state.players[state.currentTurnIndex % state.players.length];
-      
-      if (state.currentChallenge.type === ChallengeType.ONE_ON_ONE && state.players.length >= 2) {
-        // For one-on-one in free-for-all, include all players if possible
-        if (state.players.length > 2) {
-          // If we have more than 2 players, select two that are not the same
-          // Start with the current player
-          const player1 = currentTurnPlayer;
-          participantIds = [player1.id];
-          
-          // Gather a set of players to face off against the current player
-          // Try to include all players if reasonable
-          const maxOpponents = Math.min(state.players.length - 1, 3); // Limit to 3 opponents max
-          for (let i = 1; i <= maxOpponents; i++) {
-            const playerIndex = (state.currentTurnIndex + i) % state.players.length;
-            if (playerIndex !== state.currentTurnIndex % state.players.length) {
-              participantIds.push(state.players[playerIndex].id);
-            }
-          }
-        } else {
-          // If exactly 2 players, select both
-          participantIds = state.players.map(p => p.id);
-        }
-        
-      } else if (state.currentChallenge.type === ChallengeType.ALL_VS_ALL) {
-        // For all vs all challenges in free-for-all mode, include all players
-        participantIds = state.players.map(p => p.id);
-      } else {
-        // For other challenge types, select the current player
-        participantIds = [currentTurnPlayer.id];
-      }
+      // In free-for-all mode, just use all players
+      participantIds = state.players.map(player => player.id);
+      console.log('Simplified assignment: using all players:', participantIds);
     }
     
     // Update the participants in state if we have valid ones
     if (participantIds.length > 0) {
+      console.log('Updating challenge participants with IDs:', participantIds);
+      
       dispatch({ 
         type: 'UPDATE_CHALLENGE_PARTICIPANTS', 
         payload: {
-          challengeId: state.currentChallenge.id,
+          challengeId: challenge.id,
           participantIds
         }
       });
+      
       return true;
     }
     
     // If we got here, we couldn't assign valid participants
+    console.error('Failed to assign participants after all attempts');
     return false;
   }, [
-    state.currentChallenge, 
-    state.currentChallengeParticipants, 
     state.gameMode, 
     state.teams, 
-    state.players, 
-    state.currentTurnIndex,
-    state.currentRound,
+    state.players,
+    state.currentChallenge,
+    state.currentChallengeParticipants,
     dispatch
   ]);
 
@@ -261,8 +207,11 @@ export const useGameState = () => {
   const selectNextChallenge = useCallback(() => {
     // Prevent multiple calls to selectNextChallenge
     if (isChallengeTransitionInProgressRef.current) {
+      console.log('Challenge transition already in progress, skipping selectNextChallenge call');
       return;
     }
+    
+    console.log('Starting challenge selection process...');
     
     // Reset the participant selection attempts counter
     participantSelectionAttempts.current = 0;
@@ -280,10 +229,8 @@ export const useGameState = () => {
     // Reset the nextTurnCalled flag
     nextTurnCalled.current = false;
 
-    // First advance to next player's turn and wait for state update
+    // First advance to next player's turn
     dispatch({ type: 'NEXT_TURN' });
-    
-    // We'll use this flag to track if we've called NEXT_TURN
     nextTurnCalled.current = true;
 
     // Wait for turn update before proceeding
@@ -321,50 +268,90 @@ export const useGameState = () => {
 
       if (!canHaveParticipants) {
         console.error('No valid participants available for the game mode');
-        setIsRevealingChallenge(true);
         isChallengeTransitionInProgressRef.current = false;
+        
+        // Force proceed with reveal anyway
+        startRevealSequence();
         return;
       }
       
-      // Select the challenge in state
-      dispatch({ type: 'SELECT_CHALLENGE', payload: challenge });
-
-      // Wait for challenge selection update before proceeding
+      // IMPORTANT: Create a local challenge copy to avoid reference issues
+      const challengeCopy = { ...challenge };
+      
+      // CRITICAL CHANGE: Assign participants BEFORE dispatching to state
+      // This ensures participants are assigned even if state updates are delayed
+      const participantsAssigned = verifyParticipantsAssigned(challengeCopy);
+      
+      if (!participantsAssigned) {
+        console.warn('Failed to assign participants before state update, will try again after...');
+      } else {
+        console.log('Successfully assigned participants before state update');
+      }
+      
+      // Now dispatch the challenge to state
+      dispatch({ type: 'SELECT_CHALLENGE', payload: challengeCopy });
+      
+      // Wait briefly before proceeding
       setTimeout(() => {
-        // Make sure participants were properly assigned
-        const participantsValid = verifyParticipantsAssigned();
+        // Update game in Supabase (regardless of participant assignment status)
+        updateGameInSupabase().catch(error => {
+          console.error('Error updating game in Supabase after selecting challenge:', error);
+        });
         
-        if (participantsValid) {
-          // After the challenge and participants are set up, directly proceed to revealing
-          
-          // Let the Game component handle the reveal sequence
-          // The Game component will check the isNewGameStart flag and
-          // determine whether to skip the player reveal for the first challenge
+        // If participants were already assigned successfully, we can proceed
+        if (participantsAssigned) {
+          console.log('Challenge is ready with participants, proceeding to reveal');
+          startRevealSequence();
+          isChallengeTransitionInProgressRef.current = false;
+          return;
+        }
+        
+        // If participants weren't assigned initially, try one more time
+        // This is a fallback in case state update is needed
+        console.log('Trying participant assignment one more time after state update');
+        const retryAssignment = verifyParticipantsAssigned(challengeCopy);
+        
+        if (retryAssignment) {
+          console.log('Participant assignment succeeded on retry');
           startRevealSequence();
           isChallengeTransitionInProgressRef.current = false;
         } else {
-          participantSelectionAttempts.current += 1;
+          // If still failing, use the emergency approach with force assignment
+          console.warn('Force assigning participants as final fallback');
+          const forceAssignedIds: string[] = [];
           
-          if (participantSelectionAttempts.current > 3) {
-            // If we've tried multiple times and still failed, skip to challenge reveal
-            console.error("Failed to assign participants after multiple attempts, skipping to challenge reveal");
-            setIsRevealingChallenge(true);
-            isChallengeTransitionInProgressRef.current = false;
-          } else {
-            // Try once more after a longer delay
-            setTimeout(() => {
-              const retrySuccessful = verifyParticipantsAssigned();
-              if (retrySuccessful) {
-                startRevealSequence();
-              } else {
-                setIsRevealingChallenge(true);
-              }
-              isChallengeTransitionInProgressRef.current = false;
-            }, 300); // Increased delay for better state synchronization
+          if (state.gameMode === GameMode.TEAMS && state.teams.length > 0) {
+            // In team mode, use all teams
+            forceAssignedIds.push(...state.teams.map(t => t.id));
+          } else if (state.players.length > 0) {
+            // In free-for-all, use all players
+            forceAssignedIds.push(...state.players.map(p => p.id));
           }
+          
+          if (forceAssignedIds.length > 0) {
+            console.log('Force assigning participants as fallback:', forceAssignedIds);
+            
+            // Update challenge participants directly 
+            dispatch({
+              type: 'UPDATE_CHALLENGE_PARTICIPANTS',
+              payload: {
+                challengeId: challengeCopy.id,
+                participantIds: forceAssignedIds
+              }
+            });
+            
+            // One final Supabase update after force assignment
+            updateGameInSupabase().catch(error => {
+              console.error('Error updating game in Supabase after force assignment:', error);
+            });
+          }
+          
+          // Proceed with reveal regardless
+          startRevealSequence();
+          isChallengeTransitionInProgressRef.current = false;
         }
-      }, 200); // Increased delay for better state synchronization
-    }, 200); // Increased delay for better state synchronization
+      }, 200);
+    }, 200);
   }, [
     state.challenges,
     state.usedChallenges,
@@ -374,7 +361,8 @@ export const useGameState = () => {
     state.customChallenges,
     dispatch,
     verifyParticipantsAssigned,
-    startRevealSequence
+    startRevealSequence,
+    updateGameInSupabase
   ]);
 
   /**
@@ -398,10 +386,15 @@ export const useGameState = () => {
       // Reset the ref after state update
       startGameCalledRef.current = false;
       
+      // Save game to Supabase
+      saveGameToSupabase().catch(error => {
+        console.error('Error saving game to Supabase on start:', error);
+      });
+      
       // Move to the next challenge
       selectNextChallenge();
     }, 300); // Increased delay for better state synchronization
-  }, [dispatch, selectNextChallenge]);
+  }, [dispatch, selectNextChallenge, saveGameToSupabase]);
 
   /**
    * Completes the current challenge
@@ -470,6 +463,11 @@ export const useGameState = () => {
       }
     });
 
+    // Update game in Supabase
+    updateGameInSupabase().catch(error => {
+      console.error('Error updating game in Supabase after challenge completion:', error);
+    });
+
     // Add a small delay to ensure state update is processed
     setTimeout(() => {
       isChallengeTransitionInProgressRef.current = false;
@@ -480,7 +478,7 @@ export const useGameState = () => {
       // Move to the next challenge, which will trigger the reveal sequence
       selectNextChallenge();
     }, 300); // Increased delay for better state synchronization
-  }, [state.currentChallenge, state.currentChallengeParticipants, state.players, state.teams, dispatch, selectNextChallenge, setIsRevealingChallenge]);
+  }, [state.currentChallenge, state.currentChallengeParticipants, state.players, state.teams, dispatch, selectNextChallenge, setIsRevealingChallenge, updateGameInSupabase]);
 
   return {
     gameState: state,

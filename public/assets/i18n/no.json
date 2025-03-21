@@ -129,7 +129,7 @@
     "nextPlayer": "Neste spiller",
     "gameOver": "Spillet er over!",
     "loadingChallenge": "Laster utfordring...",
-    "selectWinner": "Vennligst velg en vinner",
+    "selectWinner": "Velg en vinner",
     "selectWinnerInstruction": "Velg vinner",
     "participants": "Deltakere",
     "newChallenge": "Ny utfordring",
@@ -150,6 +150,8 @@
     "deleteAllRecent": "Slett alle nylige utfordringer",
     "confirmDeleteChallenge": "Er du sikker på at du vil slette \"{{item}}\"?",
     "allRecentChallenges": "Alle nylige utfordringer",
+    "nextChallenge": "Neste utfordring",
+    "challengeFailed": "Utfordring mislyktes",
     "points": "{{points}} poeng",
     "type": {
       "individual": "Individuell",
@@ -260,7 +262,9 @@
     "punishment": "Straff",
     "allRecentChallenges": "Alle nylige utfordringer",
     "lostOrFailed": "Tapte du eller mislyktes?",
-    "unlimited": "Ingen begrensning"
+    "unlimited": "Ingen begrensning",
+    "deletePermanently": "Slett utfordring",
+    "removeFromGame": "Fjern fra spill"
   },
   "settings": {
     "title": "Innstillinger",

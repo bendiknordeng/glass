@@ -9,13 +9,14 @@ import PlayerRegistration from '@/components/setup/PlayerRegistration';
 import TeamCreation, { TeamCreationRef } from '@/components/setup/TeamCreation';
 import GameSettings from '@/components/setup/GameSettings';
 import { GameMode } from '@/types/Team';
+import { Challenge } from '@/types/Challenge';
 
 const SETUP_CURRENT_STEP_KEY = 'glass_setup_current_step';
 
 const Setup: React.FC = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { state, dispatch } = useGame();
+  const { state, dispatch, saveGameToSupabase } = useGame();
   // Initialize currentStep from localStorage if available, otherwise start at 0
   const [currentStep, setCurrentStep] = useState(() => {
     const savedStep = localStorage.getItem(SETUP_CURRENT_STEP_KEY);
@@ -210,13 +211,7 @@ const Setup: React.FC = () => {
         await new Promise<void>((resolve) => {
           dispatch({
             type: 'LOAD_CHALLENGES',
-            payload: defaultChallenges.map(challenge => ({
-              ...challenge,
-              punishment: {
-                ...challenge.punishment,
-                type: challenge.punishment.type as "custom" | "sips"
-              }
-            }))
+            payload: defaultChallenges as unknown as Challenge[]
           });
           
           // Create an interval to check state updates
@@ -251,6 +246,9 @@ const Setup: React.FC = () => {
       
       // Start the game
       dispatch({ type: 'START_GAME' });
+      
+      // Save game to Supabase
+      await saveGameToSupabase();
       
       // Navigate to game screen
       navigate('/game');
