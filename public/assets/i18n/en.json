@@ -284,7 +284,10 @@
     "lostOrFailed": "Did you lose or fail?",
     "unlimited": "Unlimited",
     "deletePermanently": "Delete Challenge",
-    "removeFromGame": "Remove from Game"
+    "removeFromGame": "Remove from Game",
+    "teamPoints": "Team Points",
+    "teamPointsHelp": "Points for the winning team",
+    "customTeamPoints": "Set custom points"
   },
   "settings": {
     "title": "Settings",

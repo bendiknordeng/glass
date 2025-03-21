@@ -72,6 +72,7 @@ const QuizForm: React.FC<QuizFormProps> = ({
   ]);
   const [type, setType] = useState<ChallengeType>(ChallengeType.ALL_VS_ALL);
   const [points, setPoints] = useState(1);
+  const [teamPoints, setTeamPoints] = useState(10); // New state for team points
   const [canReuse, setCanReuse] = useState(false);
   const [maxReuseCount, setMaxReuseCount] = useState<number | undefined>(undefined);
   const [showMaxReuseCount, setShowMaxReuseCount] = useState(false); // Track if we should show the max reuse count option
@@ -110,6 +111,7 @@ const QuizForm: React.FC<QuizFormProps> = ({
       setQuestions(settings.questions || [createEmptyQuestion()]);
       setType(editChallenge.type);
       setPoints(editChallenge.points);
+      setTeamPoints(editChallenge.points || 10);
       setCanReuse(editChallenge.canReuse || false);
       setMaxReuseCount(editChallenge.maxReuseCount);
       setShowMaxReuseCount(editChallenge.canReuse || false);
@@ -419,6 +421,13 @@ const QuizForm: React.FC<QuizFormProps> = ({
       errors.description = t("validation.descriptionRequired");
     }
 
+    // Validate team points when in team mode
+    if (type === ChallengeType.TEAM) {
+      if (!teamPoints || teamPoints < 1 || teamPoints > 100) {
+        errors.teamPoints = t("validation.teamPointsInvalid") || "Team points must be between 1 and 100";
+      }
+    }
+
     // Validate questions
     const questionErrors: string[] = [];
     questions.forEach((q, index) => {
@@ -566,7 +575,7 @@ const QuizForm: React.FC<QuizFormProps> = ({
           type,
           canReuse,
           maxReuseCount: canReuse ? maxReuseCount : undefined,
-          points,
+          points: type === ChallengeType.TEAM ? teamPoints : points,
           isPrebuilt: true,
           prebuiltType: PrebuiltChallengeType.QUIZ,
           prebuiltSettings: quizSettings,
@@ -588,7 +597,7 @@ const QuizForm: React.FC<QuizFormProps> = ({
               title,
               description,
               type: type.toString(),
-              points,
+              points: type === ChallengeType.TEAM ? teamPoints : points,
               can_reuse: canReuse,
               max_reuse_count: canReuse ? (maxReuseCount ?? null) : null,
               punishment: punishmentToDbFormat(punishment),
@@ -637,7 +646,7 @@ const QuizForm: React.FC<QuizFormProps> = ({
           type,
           canReuse,
           maxReuseCount: canReuse ? maxReuseCount : undefined,
-          points,
+          points: type === ChallengeType.TEAM ? teamPoints : points,
           isPrebuilt: true,
           prebuiltType: PrebuiltChallengeType.QUIZ,
           prebuiltSettings: quizSettings,
@@ -658,7 +667,7 @@ const QuizForm: React.FC<QuizFormProps> = ({
             title,
             description,
             type: type.toString(),
-            points,
+            points: type === ChallengeType.TEAM ? teamPoints : points,
             can_reuse: canReuse,
             max_reuse_count: canReuse ? (maxReuseCount ?? null) : null,
             punishment: punishmentToDbFormat(punishment),
@@ -887,6 +896,91 @@ const QuizForm: React.FC<QuizFormProps> = ({
                 </button>
               </div>
             </div>
+
+            {/* Team Points - Only shown for team mode */}
+            <AnimatePresence>
+              {type === ChallengeType.TEAM && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  transition={{ duration: 0.3 }}
+                  className="overflow-hidden"
+                >
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      {t("challenges.teamPoints") || "Team Points"} <span className="text-sm font-normal text-gray-500 dark:text-gray-400">(1-100)</span>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                        {t("challenges.teamPointsHelp") || "Total points for the team that wins this challenge"}
+                      </p>
+                    </label>
+                    
+                    {/* Preset buttons for quick selection */}
+                    <div className="grid grid-cols-5 gap-2 mb-2">
+                      {[5, 10, 15, 20, 25].map((value) => (
+                        <button
+                          key={value}
+                          type="button"
+                          onClick={() => setTeamPoints(value)}
+                          className={`py-2 px-3 rounded-md flex items-center justify-center text-sm font-medium transition-colors ${
+                            teamPoints === value
+                              ? "bg-blue-100 text-blue-700 dark:bg-blue-800/40 dark:text-blue-300 border border-blue-300 dark:border-blue-700"
+                              : "bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600"
+                          }`}
+                        >
+                          {value}
+                        </button>
+                      ))}
+                    </div>
+                    
+                    {/* Custom input for any value */}
+                    <div className="mt-3">
+                      <label htmlFor="custom-team-points" className="block text-xs font-medium text-gray-700 dark:text-gray-400 mb-1">
+                        {t("challenges.customTeamPoints") || "Custom Points Value"}
+                      </label>
+                      <div className="flex items-center">
+                        <input
+                          id="custom-team-points"
+                          type="number"
+                          min="1"
+                          max="100"
+                          value={teamPoints}
+                          onChange={(e) => {
+                            const value = parseInt(e.target.value, 10);
+                            if (!isNaN(value) && value > 0) {
+                              setTeamPoints(value);
+                            }
+                          }}
+                          className="w-24 px-3 py-2 border rounded-md border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+                        />
+                        <div className="ml-3 flex space-x-2">
+                          <button
+                            type="button"
+                            onClick={() => setTeamPoints(Math.max(1, teamPoints - 1))}
+                            className="p-2 rounded-md bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300"
+                          >
+                            <MinusIcon className="h-4 w-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setTeamPoints(Math.min(100, teamPoints + 1))}
+                            className="p-2 rounded-md bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300"
+                          >
+                            <PlusIcon className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {formErrors.teamPoints && (
+                      <p className="mt-1 text-sm text-red-600 dark:text-red-400">
+                        {formErrors.teamPoints}
+                      </p>
+                    )}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
 
             {/* Can Reuse Switch */}
             <div className="flex items-center space-x-2">

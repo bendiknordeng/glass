@@ -265,7 +265,10 @@
     "lostOrFailed": "Tapte du eller mislyktes?",
     "unlimited": "Ingen begrensning",
     "deletePermanently": "Slett utfordring",
-    "removeFromGame": "Fjern fra spill"
+    "removeFromGame": "Fjern fra spill",
+    "teamPoints": "Lagpoeng",
+    "teamPointsHelp": "Poeng til det vinnende laget",
+    "customTeamPoints": "Sett egendefinert poengsum"
   },
   "settings": {
     "title": "Innstillinger",

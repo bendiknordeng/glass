@@ -141,6 +141,33 @@ const isPrebuiltChallenge = (challenge: Challenge, type?: PrebuiltChallengeType)
   return true;
 };
 
+// Helper function to check if a challenge is in the current game
+const isChallengeInGame = (challenge: Challenge, currentChallenges: Challenge[]): boolean => {
+  if (!challenge || !currentChallenges || currentChallenges.length === 0) {
+    return false;
+  }
+  
+  // Check by ID first (most reliable)
+  if (challenge.id && currentChallenges.some(c => c.id === challenge.id)) {
+    return true;
+  }
+  
+  // Then check by title (case insensitive)
+  if (challenge.title && currentChallenges.some(c => 
+    c.title && c.title.toLowerCase() === challenge.title.toLowerCase()
+  )) {
+    return true;
+  }
+  
+  return false;
+};
+
+// Helper to get a unique identifier for a challenge, considering both ID and title
+const getChallengeUniqueIdentifier = (challenge: Challenge): string => {
+  if (!challenge) return '';
+  return `${challenge.id || ''}-${(challenge.title || '').toLowerCase()}`;
+};
+
 const GameSettings: React.FC = () => {
   const { t } = useTranslation();
   const { state, dispatch } = useGame();
@@ -168,32 +195,6 @@ const GameSettings: React.FC = () => {
   // Keep track of challenges count to detect removals
   const [prevChallengesCount, setPrevChallengesCount] = useState(state.customChallenges.length);
   
-  // Monitor changes to the custom challenges array
-  React.useEffect(() => {
-    // If challenges were removed from the game, we need to refresh the recent challenges list
-    // to potentially show them again (only if they're still in localStorage)
-    if (state.customChallenges.length < prevChallengesCount || state.customChallenges.length === 0 || deleteFromCurrentGame) {
-      console.log('Challenges count changed, refreshing UI');
-      
-      // Reset the deleteFromCurrentGame flag after processing
-      if (deleteFromCurrentGame) {
-        // Use setTimeout to avoid state update during render
-        setTimeout(() => {
-          setDeleteFromCurrentGame(false);
-        }, 0);
-      }
-      
-      // Sync challenges with localStorage first
-      syncChallengesWithLocalStorage();
-      
-      // Update recent challenges
-      setRecentChallenges(getRecentChallenges());
-    }
-    
-    // Update the previous count
-    setPrevChallengesCount(state.customChallenges.length);
-  }, [state.customChallenges, state.customChallenges.length, prevChallengesCount, deleteFromCurrentGame]);
-
   // Track standard challenges for updates
   const [prevStandardChallengesCount, setPrevStandardChallengesCount] = useState(state.challenges.length);
   
@@ -212,6 +213,60 @@ const GameSettings: React.FC = () => {
     // Update the previous count
     setPrevStandardChallengesCount(state.challenges.length);
   }, [state.challenges.length, prevStandardChallengesCount]);
+
+  // Add an effect to refresh the recent challenges whenever relevant state changes
+  React.useEffect(() => {
+    // Reset the deleteFromCurrentGame flag if it's set
+    if (deleteFromCurrentGame) {
+      // Use setTimeout to avoid state update during render
+      setTimeout(() => {
+        setDeleteFromCurrentGame(false);
+      }, 0);
+    }
+
+    // This will ensure the recent challenges list is always up-to-date
+    // and doesn't contain any challenges that are in the current game
+    const updatedRecentChallenges = getRecentChallenges();
+    
+    // Only update state if there are differences to avoid unnecessary rerenders
+    // Use both ID and title for uniqueness
+    const currentIdentifiers = new Set(
+      recentChallenges.map(getChallengeUniqueIdentifier)
+    );
+    const updatedIdentifiers = new Set(
+      updatedRecentChallenges.map(getChallengeUniqueIdentifier)
+    );
+    
+    // Double-check for any challenges that might be in the current game
+    const hasOverlap = updatedRecentChallenges.some(challenge => 
+      isChallengeInGame(challenge, state.customChallenges)
+    );
+    
+    // Check if the lists are different or if there's an overlap with current game
+    if (currentIdentifiers.size !== updatedIdentifiers.size || 
+        recentChallenges.some(c => !updatedIdentifiers.has(getChallengeUniqueIdentifier(c))) ||
+        updatedRecentChallenges.some(c => !currentIdentifiers.has(getChallengeUniqueIdentifier(c))) ||
+        hasOverlap) {
+      console.log('Recent challenges list needs refresh');
+      
+      // Make one final filter to ensure no overlaps
+      const filteredChallenges = hasOverlap 
+        ? updatedRecentChallenges.filter(c => !isChallengeInGame(c, state.customChallenges))
+        : updatedRecentChallenges;
+        
+      setRecentChallenges(filteredChallenges);
+    }
+    
+    // Update the previous counts
+    setPrevChallengesCount(state.customChallenges.length);
+  }, [
+    // Update when any of these change
+    state.customChallenges, 
+    state.challenges,
+    deleteFromCurrentGame
+    // Avoid infinite loop by not including recentChallenges in dependencies
+    // We compare them manually inside the effect
+  ]);
 
   // Load challenges on mount
   React.useEffect(() => {
@@ -245,21 +300,17 @@ const GameSettings: React.FC = () => {
       console.log(`getRecentChallenges: Found ${parsedChallenges.length} challenges in localStorage`);
       
       // Get the current challenges in the game for filtering
-      const currentGameChallengeIds = state.customChallenges.map(c => c.id);
-      const currentGameChallengeTitles = state.customChallenges.map(c => 
-        c.title.toLowerCase()
-      );
+      const currentGameChallenges = state.customChallenges;
       
-      // Construct updated challenges array
+      // Construct updated challenges array - only including challenges NOT in the current game
       const updatedChallenges: Challenge[] = [];
       
       // Process each challenge in localStorage
       for (const storedChallenge of parsedChallenges) {
         // Check if this challenge is currently in the game
-        const isInGame = currentGameChallengeIds.includes(storedChallenge.id) || 
-                        currentGameChallengeTitles.includes(storedChallenge.title.toLowerCase());
+        const isInGame = isChallengeInGame(storedChallenge, currentGameChallenges);
         
-        // If challenge selection state is out of sync with game state, update it
+        // If challenge selection state is out of sync with game state, update it in localStorage
         if (isInGame !== (storedChallenge.isSelected || false)) {
           console.log(`getRecentChallenges: Updating selection state for ${storedChallenge.title} to ${isInGame}`);
           updateRecentChallenges({
@@ -336,22 +387,15 @@ const GameSettings: React.FC = () => {
           allChallenges.map(challenge => [challenge.id, challenge])
         );
         
-        // Get a set of challenge IDs already in the game for faster lookups
-        const gameChallengeTitlesLower = new Set(
-          state.customChallenges.map(c => c.title.toLowerCase())
-        );
-        const gameChallengeIds = new Set(
-          state.customChallenges.map(c => c.id)
-        );
+        // Get the current challenges in the game for filtering
+        const currentGameChallenges = state.customChallenges;
         
         // Process all DB challenges at once and collect new/updated challenges
         const updatedChallenges: Challenge[] = [];
         
         convertedChallenges.forEach(dbChallenge => {
           // Check if this challenge is already in the game
-          const alreadyInGame = 
-            gameChallengeIds.has(dbChallenge.id) || 
-            gameChallengeTitlesLower.has(dbChallenge.title.toLowerCase());
+          const alreadyInGame = isChallengeInGame(dbChallenge, currentGameChallenges);
           
           // Only add if not already in the game
           if (!alreadyInGame) {
@@ -372,8 +416,10 @@ const GameSettings: React.FC = () => {
           ...updatedChallenges
         ];
         
-        // Update recent challenges
-        setRecentChallenges(mergedChallenges);
+        // Update recent challenges - make sure to filter out any that might be in the game
+        setRecentChallenges(mergedChallenges.filter(challenge => 
+          !isChallengeInGame(challenge, currentGameChallenges)
+        ));
       }
     } catch (error) {
       console.error("Error in loadChallengesFromDB:", error);
@@ -395,14 +441,12 @@ const GameSettings: React.FC = () => {
       
       const storedChallenges = JSON.parse(stored) as Challenge[];
       
-      // Get IDs and lowercase titles of challenges in the current game
-      const gameIds = state.customChallenges.map(c => c.id);
-      const gameTitles = state.customChallenges.map(c => c.title.toLowerCase());
+      // Get the current challenges in the game for comparison
+      const currentGameChallenges = state.customChallenges;
       
       // Update each challenge in localStorage with correct selection state
       const updatedChallenges = storedChallenges.map(challenge => {
-        const isInGame = gameIds.includes(challenge.id) || 
-                        gameTitles.includes((challenge.title || '').toLowerCase());
+        const isInGame = isChallengeInGame(challenge, currentGameChallenges);
         
         // Only update if the selection state is different
         if (isInGame !== (challenge.isSelected || false)) {
@@ -423,10 +467,8 @@ const GameSettings: React.FC = () => {
       // Check for challenges in the game that might not be in localStorage yet
       // This can happen when adding a challenge directly without going through the recent list
       state.customChallenges.forEach(gameChallenge => {
-        const existsInStorage = updatedChallenges.some(
-          storedChallenge => 
-            storedChallenge.id === gameChallenge.id || 
-            storedChallenge.title.toLowerCase() === gameChallenge.title.toLowerCase()
+        const existsInStorage = updatedChallenges.some(storedChallenge => 
+          isChallengeInGame(storedChallenge, [gameChallenge])
         );
         
         // If it's not in localStorage, add it
@@ -452,6 +494,20 @@ const GameSettings: React.FC = () => {
 
   // Add a recent challenge to current game
   const handleAddRecentChallenge = (challenge: Challenge) => {
+    // Check if the challenge is already in the game to avoid duplicates
+    if (isChallengeInGame(challenge, state.customChallenges)) {
+      console.log(`Challenge ${challenge.title} is already in the current game, not adding again`);
+      
+      // Still remove from recent challenges to avoid confusion
+      setRecentChallenges(prevRecentChallenges => 
+        prevRecentChallenges.filter(recentChallenge => 
+          recentChallenge.id !== challenge.id && 
+          recentChallenge.title.toLowerCase() !== challenge.title.toLowerCase()
+        )
+      );
+      return;
+    }
+    
     // Use the utility function to ensure prebuilt properties are preserved
     const preservedChallenge = ensurePrebuiltPropertiesPreserved(challenge);
     
@@ -475,7 +531,7 @@ const GameSettings: React.FC = () => {
       payload: preservedChallenge,
     });
     
-    // Manually update the recent challenges state to filter out the one just added
+    // Immediately remove it from the recent challenges list
     setRecentChallenges(prevRecentChallenges => 
       prevRecentChallenges.filter(recentChallenge => 
         recentChallenge.id !== preservedChallenge.id && 
@@ -858,7 +914,7 @@ const GameSettings: React.FC = () => {
       // Force immediate synchronization with localStorage
       syncChallengesWithLocalStorage();
       
-      // Add the challenge directly to the recentChallenges state
+      // Add the challenge directly to the recentChallenges state if it doesn't exist
       setRecentChallenges(prevChallenges => {
         // Check if it already exists in the list
         const exists = prevChallenges.some(
@@ -872,6 +928,7 @@ const GameSettings: React.FC = () => {
           return prevChallenges;
         }
         
+        // Create a new array with the removed challenge at the beginning
         console.log(`Adding challenge ${challengeCopy.title} to recent challenges list`);
         return [challengeCopy, ...prevChallenges];
       });
@@ -1176,7 +1233,7 @@ const GameSettings: React.FC = () => {
                 <AnimatePresence>
                 {state.customChallenges.map((challenge) => (
                   <motion.div
-                    key={challenge.id}
+                    key={`selected-challenge-${challenge.id}`}
                     className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4 border border-gray-200 dark:border-gray-600 group"
                     layoutId={`challenge-${challenge.id}`}
                     initial={{ opacity: 1, scale: 1 }}
@@ -1413,7 +1470,7 @@ const GameSettings: React.FC = () => {
                 <AnimatePresence>
                 {recentChallenges.map((challenge) => (
                   <motion.div
-                    key={challenge.id}
+                    key={`recent-challenge-${challenge.id}`}
                     className={`bg-gray-50 dark:bg-gray-700/50 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg p-3 border ${
                       recentlyRemovedChallenge === challenge.id 
                         ? 'border-game-accent border-2' 
@@ -1421,7 +1478,7 @@ const GameSettings: React.FC = () => {
                     } transition-colors relative group`}
                     whileHover={{ scale: 1.01 }}
                     whileTap={{ scale: 0.99 }}
-                    layoutId={`challenge-${challenge.id}`}
+                    layoutId={`recent-${challenge.id}`}
                     initial={recentlyRemovedChallenge === challenge.id ? { 
                       opacity: 0, 
                       scale: 0.8,
