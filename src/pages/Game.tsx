@@ -35,6 +35,23 @@ const Game: React.FC = () => {
     verifyParticipantsAssigned
   } = useGameState();
   
+  // Add state for skip confirmation dialog
+  const [showSkipConfirm, setShowSkipConfirm] = useState(false);
+  
+  // Debug logging for current challenge changes
+  useEffect(() => {
+    if (state.currentChallenge) {
+      console.log('Game component - currentChallenge updated:', {
+        id: state.currentChallenge.id,
+        title: state.currentChallenge.title,
+        type: state.currentChallenge.type,
+        isPrebuilt: state.currentChallenge.isPrebuilt,
+        prebuiltType: state.currentChallenge.prebuiltType,
+        hasPrebuiltSettings: !!state.currentChallenge.prebuiltSettings
+      });
+    }
+  }, [state.currentChallenge]);
+  
   // States for reveal flow
   const [isRevealingPlayer, setIsRevealingPlayer] = useState(false);
   const [isRevealingMultiPlayers, setIsRevealingMultiPlayers] = useState(false);
@@ -57,7 +74,9 @@ const Game: React.FC = () => {
   const participantRetryCount = useRef(0);
   const isNewGameStartRef = useRef<boolean>(false);
   
-  // Initialize the new game flag on first render
+  // Track if we've already loaded challenges
+  const hasAttemptedChallengeLoad = useRef(false);
+  
   useEffect(() => {
     // Check localStorage only once on mount
     const isNewGame = localStorage.getItem('isNewGameStart') === 'true';
@@ -66,11 +85,24 @@ const Game: React.FC = () => {
     isNewGameStartRef.current = isNewGame;
     setIsFirstChallengeInNewGame(isNewGame);
 
-    // Load challenges on mount if needed
-    if (state.challenges.length === 0 && !state.isLoadingChallenges) {
-      loadChallenges();
+    // Load challenges on mount if needed - but only once
+    if (!hasAttemptedChallengeLoad.current) {
+      hasAttemptedChallengeLoad.current = true;
+      
+      // Only load if we have no challenges at all (standard or custom)
+      if (state.challenges.length === 0 && 
+          state.customChallenges.length === 0 && 
+          !state.isLoadingChallenges) {
+        console.log('Game component: Initial challenge load triggered');
+        loadChallenges();
+      }
     }
-  }, [state.challenges.length, state.isLoadingChallenges, loadChallenges]);
+    
+    // Reset the flag when unmounting
+    return () => {
+      hasAttemptedChallengeLoad.current = false;
+    };
+  }, []); // Empty dependency array ensures this runs only once on mount
   
   // Redirect to home if no game started
   useEffect(() => {
@@ -89,44 +121,44 @@ const Game: React.FC = () => {
   // Handle game initialization in a separate effect
   useEffect(() => {
     // Only run game initialization if not already done and prerequisites are met
-    if (!gameInitializedRef.current && state.players.length > 0 && !state.gameFinished) {
-      gameInitializedRef.current = true;
-      
-      // Check if this is a direct continuation from setup
-      const isNewGameStart = localStorage.getItem('isNewGameStart') === 'true';
-      
-      // Save to both ref and state for redundancy
-      isNewGameStartRef.current = isNewGameStart;
-      setIsFirstChallengeInNewGame(isNewGameStart);
-      
-      // Ensure challenges are loaded before proceeding
-      if (state.challenges.length === 0 && !state.isLoadingChallenges) {
-        loadChallenges();
-        // We'll continue initialization after challenges are loaded
-        return;
-      }
-      
-      if (isNewGameStart) {
-        // We'll keep the flag - it will be cleared in startRevealSequence
-        
-        // For fresh games coming directly from setup, just select the next challenge normally
-        // The startRevealSequence function will handle the special first challenge logic
-        selectNextChallenge();
-        
-        // Add a small delay to ensure the challenge is selected before starting the reveal
-        setTimeout(() => {
-          startRevealSequence();
-        }, 100);
-      }
-      // For continued games, just select the next challenge with normal reveal flow
-      else if (state.results.length > 0) {
-        selectNextChallenge();
-      } else {
-        // For new games not coming from setup, start with full animation flow
-        startGame();
-      }
+    if (gameInitializedRef.current) {
+      return;
     }
-  }, [state.players.length, state.results.length, state.gameFinished, state.challenges.length, state.isLoadingChallenges, startGame, selectNextChallenge, loadChallenges]);
+    
+    // Check if we have the minimum required state to initialize
+    if (!state.players.length || state.gameFinished) {
+      return;
+    }
+    
+    console.log('Initializing game - setting gameInitializedRef to true');
+    gameInitializedRef.current = true;
+    
+    // Check if this is a direct continuation from setup
+    const isNewGameStart = localStorage.getItem('isNewGameStart') === 'true';
+    
+    // Save to both ref and state for redundancy
+    isNewGameStartRef.current = isNewGameStart;
+    setIsFirstChallengeInNewGame(isNewGameStart);
+    
+    // For new game starts coming from setup, handle specially
+    if (isNewGameStart) {
+      // For fresh games coming directly from setup, just select the next challenge normally
+      // The startRevealSequence function will handle the special first challenge logic
+      selectNextChallenge();
+      
+      // Add a small delay to ensure the challenge is selected before starting the reveal
+      setTimeout(() => {
+        startRevealSequence();
+      }, 100);
+    }
+    // For continued games, just select the next challenge with normal reveal flow
+    else if (state.results.length > 0) {
+      selectNextChallenge();
+    } else {
+      // For new games not coming from setup, start with full animation flow
+      startGame();
+    }
+  }, [state.players.length, state.gameFinished, state.results.length]); // Minimal dependencies
   
   // Get current participant
   const currentParticipant = getCurrentParticipant();
@@ -719,6 +751,28 @@ const Game: React.FC = () => {
                          !isTransitioning &&
                          showContentAfterReveal;
   
+  // Handler for skipping the current challenge
+  const handleSkipChallenge = () => {
+    // Close the confirmation dialog
+    setShowSkipConfirm(false);
+    
+    // Reset animation states
+    setIsRevealingPlayer(false);
+    setIsRevealingMultiPlayers(false);
+    setIsRevealingTeamVsTeam(false);
+    setIsRevealingChallenge(false);
+    setShowContentAfterReveal(false);
+    animationInProgressRef.current = false;
+    
+    // Select next challenge
+    selectNextChallenge();
+    
+    // Start reveal sequence for new challenge after a slight delay
+    setTimeout(() => {
+      startRevealSequence();
+    }, 100);
+  };
+
   return (
     <div>
       <div className="max-w-6xl mx-auto">
@@ -770,7 +824,7 @@ const Game: React.FC = () => {
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
-                  className="rounded-lg shadow-md p-6"
+                  className="rounded-lg shadow-md p-6 md:mt-20 lg:mt-24"
                 >
                   <LoadingState
                     isLoading={state.isLoadingChallenges}
@@ -820,6 +874,52 @@ const Game: React.FC = () => {
             </AnimatePresence>
           </div>
         </div>
+        
+        {/* Skip Challenge Button */}
+        {state.currentChallenge && (
+          <div className="fixed bottom-6 right-6 z-10">
+            <Button
+              onClick={() => setShowSkipConfirm(true)}
+              variant="secondary"
+              size="sm"
+              className="bg-gray-200 hover:bg-gray-300 text-gray-700 dark:bg-gray-700 dark:hover:bg-gray-600 dark:text-gray-300 rounded-full p-3 shadow-md transition-colors"
+            >
+              {t('game.skipChallenge')}
+            </Button>
+          </div>
+        )}
+
+        {/* Skip Confirmation Dialog */}
+        {showSkipConfirm && (
+          <div className="fixed inset-0 flex items-center justify-center z-50 bg-black bg-opacity-50">
+            <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-sm mx-auto shadow-xl">
+              <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">
+                {t('game.confirmSkip')}
+              </h3>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
+                {t('game.skipChallengeConfirmation')}
+              </p>
+              <div className="flex justify-end space-x-3">
+                <Button
+                  onClick={() => setShowSkipConfirm(false)}
+                  variant="primary"
+                  size="sm"
+                  className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-800 dark:bg-gray-700 dark:hover:bg-gray-600 dark:text-gray-200 rounded-md"
+                >
+                  {t('common.cancel')}
+                </Button>
+                <Button
+                  onClick={handleSkipChallenge}
+                  variant="secondary"
+                  size="sm"
+                  className="px-4 py-2 bg-game-secondary hover:bg-game-secondary/80 text-white rounded-md"
+                >
+                  {t('common.skip')}
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
       
       {/* Animations */}

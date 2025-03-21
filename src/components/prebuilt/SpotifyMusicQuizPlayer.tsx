@@ -26,10 +26,11 @@ import {
   UserGroupIcon,
   TrophyIcon
 } from '@heroicons/react/24/solid';
+import { getParticipantById } from '@/utils/helpers';
 
 interface SpotifyMusicQuizPlayerProps {
   challenge: Challenge;
-  onComplete: (completed: boolean, winnerId?: string) => void;
+  onComplete: (completed: boolean, winnerId?: string, scores?: Record<string, number>) => void;
   selectedParticipantPlayers?: Player[];
   forceRefreshSongs?: boolean;
 }
@@ -719,22 +720,21 @@ const SpotifyMusicQuizPlayer: React.FC<SpotifyMusicQuizPlayerProps> = ({
   
   // Move to the next song
   const nextSong = () => {
-    pauseSong(); // Pause the current song
-    
-    // Save current song points if a winner was selected
+    // If a winner was selected, add to the running tallies
     if (selectedWinnerId) {
-      const currentSongId = songs[currentSongIndex].id;
+      // Record which participant got the point for this song
       setSongPoints(prev => ({
         ...prev,
-        [currentSongId]: selectedWinnerId
+        [currentSong?.id || '']: selectedWinnerId
       }));
       
-      // Award points immediately to the selected winner
-      if (state.gameMode === GameMode.TEAMS) {
-        // Find the team and update its score
-        const team = state.teams.find(t => t.id === selectedWinnerId);
-        if (team) {
-          // Update team score
+      // Add points to the selected player/team
+      const participant = getParticipantById(selectedWinnerId, state.players, state.teams);
+      if (participant) {
+        console.log(`Awarding ${challenge.points} points to ${participant.name} for song ${currentSongIndex + 1}`);
+        
+        if ('teamColor' in participant) {
+          // It's a team
           dispatch({
             type: 'UPDATE_TEAM_SCORE',
             payload: {
@@ -742,16 +742,16 @@ const SpotifyMusicQuizPlayer: React.FC<SpotifyMusicQuizPlayerProps> = ({
               points: challenge.points
             }
           });
+        } else {
+          // It's a player
+          dispatch({
+            type: 'UPDATE_PLAYER_SCORE',
+            payload: {
+              playerId: selectedWinnerId,
+              points: challenge.points
+            }
+          });
         }
-      } else {
-        // Award points to individual player
-        dispatch({
-          type: 'UPDATE_PLAYER_SCORE',
-          payload: {
-            playerId: selectedWinnerId,
-            points: challenge.points
-          }
-        });
       }
     }
     
@@ -762,8 +762,27 @@ const SpotifyMusicQuizPlayer: React.FC<SpotifyMusicQuizPlayerProps> = ({
       setHasStarted(false); // Reset hasStarted for the next song
       setSelectedWinnerId(null); // Reset selected winner
     } else {
-      // Complete the challenge
-      onComplete(true);
+      // Calculate final scores based on songPoints
+      const finalScores: Record<string, number> = {};
+      
+      // Convert songPoints into a proper scores object
+      Object.values(songPoints).forEach(participantId => {
+        finalScores[participantId] = (finalScores[participantId] || 0) + challenge.points;
+      });
+      
+      // Find the winner with the highest score
+      let maxScore = 0;
+      let winnerId: string | undefined = undefined;
+      
+      Object.entries(finalScores).forEach(([id, score]) => {
+        if (score > maxScore) {
+          maxScore = score;
+          winnerId = id;
+        }
+      });
+      
+      // Complete the challenge with scores
+      onComplete(true, winnerId, finalScores);
     }
   };
   
@@ -826,6 +845,15 @@ const SpotifyMusicQuizPlayer: React.FC<SpotifyMusicQuizPlayerProps> = ({
   const currentSong = songs.length > 0 && currentSongIndex < songs.length 
     ? songs[currentSongIndex] 
     : null;
+  
+  // Cancel the quiz early
+  const handleCancelQuiz = () => {
+    // Stop any playing audio
+    pauseSong();
+    
+    // Notify parent component that the quiz was cancelled
+    onComplete(false, undefined, {});
+  };
   
   if (loading) {
     return (

@@ -17,7 +17,7 @@ interface ChallengeDisplayProps {
   players: Player[];
   teams: Team[];
   gameMode: GameMode;
-  onComplete: (completed: boolean, winnerId?: string) => void;
+  onComplete: (completed: boolean, winnerId?: string, scores?: Record<string, number>) => void;
   selectedParticipantPlayers?: Player[]; // For one-on-one challenges: the specific players selected from teams
 }
 
@@ -196,9 +196,12 @@ const ChallengeDisplay: React.FC<ChallengeDisplayProps> = ({
   const winnerOptions = getWinnerOptions();
   
   // Handle challenge completion
-  const handleCompleteChallenge = (completed: boolean) => {
+  const handleCompleteChallenge = (completed: boolean, winnerId?: string, scores?: Record<string, number>) => {
     if (completed) {
-      if (challenge.type === ChallengeType.INDIVIDUAL) {
+      if (winnerId) {
+        // If a winner ID is provided (from prebuilt challenges), use it
+        onComplete(true, winnerId, scores);
+      } else if (challenge.type === ChallengeType.INDIVIDUAL) {
         // For individual challenges, the participant is automatically the winner
         onComplete(true, participants[0]);
       } else if (selectedWinner) {
@@ -274,8 +277,29 @@ const ChallengeDisplay: React.FC<ChallengeDisplayProps> = ({
   
   // Render the challenge content based on challenge type
   const renderChallengeContent = () => {
+    // Enhanced debugging for challenge rendering
+    console.log('ChallengeDisplay rendering challenge:', {
+      id: challenge.id,
+      title: challenge.title,
+      type: challenge.type,
+      isPrebuilt: challenge.isPrebuilt,
+      prebuiltType: challenge.prebuiltType,
+      hasSettings: !!challenge.prebuiltSettings
+    });
+    
     // For prebuilt challenges, render the appropriate player component
     if (challenge.isPrebuilt) {
+      console.log('Using PrebuiltChallengePlayer for challenge:', challenge.id);
+      
+      // Double-check we have the required prebuilt properties
+      if (!challenge.prebuiltType) {
+        console.error('Prebuilt challenge missing prebuiltType:', challenge.id);
+      }
+      
+      if (!challenge.prebuiltSettings) {
+        console.error('Prebuilt challenge missing prebuiltSettings:', challenge.id);
+      }
+      
       return (
         <PrebuiltChallengePlayer 
           challenge={challenge}
@@ -286,6 +310,7 @@ const ChallengeDisplay: React.FC<ChallengeDisplayProps> = ({
     }
     
     // For regular challenges, render the standard challenge content
+    console.log('Using standard challenge display for challenge:', challenge.id);
     return (
       <div>
         {/* Challenge Type Indicator */}
@@ -527,6 +552,9 @@ const ChallengeDisplay: React.FC<ChallengeDisplayProps> = ({
             onAnimationComplete={handlePunishmentAnimationComplete}
           >
             <div className="text-center mb-6">
+              <p className="text-gray-600 dark:text-gray-400 mb-4">
+                {t('challenges.didntDoOrFailed')}
+              </p>
               <motion.div
                 className="inline-block bg-red-500 text-white px-6 py-4 rounded-lg mb-4 text-xl font-bold"
                 variants={shake}

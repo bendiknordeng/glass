@@ -45,6 +45,7 @@ export enum ChallengeType {
     participantIds: string[];  // IDs of players or teams involved
     timestamp: number;
     punishment?: Punishment;   // Punishment applied for failed challenge
+    participantScores?: Record<string, number>; // Maps participant ID to their score (for quiz challenges)
   }
   
   /**
@@ -66,13 +67,14 @@ export enum ChallengeType {
    */
   export enum PrebuiltChallengeType {
     SPOTIFY_MUSIC_QUIZ = 'spotifyMusicQuiz',
+    QUIZ = 'quiz', // Custom quiz challenge
     // Add more prebuilt challenge types here as they are developed
   }
 
   /**
    * Settings for prebuilt challenges
    */
-  export type PrebuiltChallengeSettings = SpotifyMusicQuizSettings | Record<string, unknown>;
+  export type PrebuiltChallengeSettings = SpotifyMusicQuizSettings | QuizSettings | Record<string, unknown>;
 
   /**
    * Settings for Spotify Music Quiz challenge
@@ -101,4 +103,47 @@ export enum ChallengeType {
     albumArt: string;          // Album art URL
     isRevealed?: boolean;      // Whether the song has been revealed
     isPlaying?: boolean;       // Whether the song is currently playing
+  }
+
+  /**
+   * Media item interface for questions and answers
+   */
+  export interface MediaItem {
+    type: 'image';
+    url: string;
+    alt?: string;
+  }
+
+  /**
+   * Quiz question interface
+   */
+  export interface QuizQuestion {
+    id: string;
+    text: string;
+    images?: MediaItem[];
+    options: QuizOption[];
+    currentIndex?: number;
+    isRevealed?: boolean;
+    showOptions?: boolean;     // Whether to display multiple choice options or just a single answer
+    points?: number;           // Points for this specific question, overrides challenge points
+  }
+
+  /**
+   * Quiz answer option interface
+   */
+  export interface QuizOption {
+    id: string;
+    text: string;
+    isCorrect: boolean;
+    images?: MediaItem[];
+  }
+
+  /**
+   * Settings for Quiz challenge
+   */
+  export interface QuizSettings {
+    questions: QuizQuestion[];
+    currentQuestionIndex?: number;
+    questionPoints?: Record<string, string[]>; // Maps question ID to player/team IDs that got it right
+    finalScores?: Record<string, number>; // Maps participant ID to their final score
   }

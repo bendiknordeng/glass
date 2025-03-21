@@ -303,6 +303,16 @@ export const useGameState = () => {
         return;
       }
 
+      // Log the selected challenge for debugging
+      console.log('Selected next challenge:', {
+        id: challenge.id,
+        title: challenge.title,
+        type: challenge.type,
+        isPrebuilt: challenge.isPrebuilt,
+        prebuiltType: challenge.prebuiltType,
+        hasPrebuiltSettings: !!challenge.prebuiltSettings
+      });
+
       // First, ensure we have valid participants for this challenge type
       const canHaveParticipants = (
         (state.gameMode === GameMode.TEAMS && state.teams.length > 0) ||
@@ -396,7 +406,7 @@ export const useGameState = () => {
   /**
    * Completes the current challenge
    */
-  const completeChallenge = useCallback((completed: boolean, winnerId?: string) => {
+  const completeChallenge = useCallback((completed: boolean, winnerId?: string, participantScores?: Record<string, number>) => {
     if (!state.currentChallenge) return;
     
     // Prevent duplicate calls while processing
@@ -409,6 +419,45 @@ export const useGameState = () => {
     // Reset animation flags for next challenge
     setIsRevealingChallenge(false);
     
+    // If we received participant scores from a quiz or other prebuilt challenge
+    // make sure to update all participants' scores in the game state
+    if (participantScores && Object.keys(participantScores).length > 0) {
+      console.log('Updating scores for all participants:', participantScores);
+      
+      // Process each participant and their score
+      Object.entries(participantScores).forEach(([participantId, score]) => {
+        // Skip participants with zero points
+        if (score <= 0) return;
+        
+        // Find the participant in players or teams
+        const participant = getParticipantById(participantId, state.players, state.teams);
+        if (participant) {
+          if ('teamColor' in participant) {
+            // It's a team - update team score
+            dispatch({
+              type: 'UPDATE_TEAM_SCORE',
+              payload: {
+                teamId: participantId,
+                // Don't add anything here as points were already added during the quiz
+                points: 0
+              }
+            });
+          } else {
+            // It's a player - update player score
+            dispatch({
+              type: 'UPDATE_PLAYER_SCORE',
+              payload: {
+                playerId: participantId,
+                // Don't add anything here as points were already added during the quiz
+                points: 0
+              }
+            });
+          }
+          console.log(`Registered final score for ${participant.name}: ${score}`);
+        }
+      });
+    }
+    
     // Record the result and wait for state update before proceeding
     dispatch({
       type: 'RECORD_CHALLENGE_RESULT',
@@ -416,7 +465,8 @@ export const useGameState = () => {
         challengeId: state.currentChallenge.id,
         completed,
         winnerId,
-        participantIds: state.currentChallengeParticipants
+        participantIds: state.currentChallengeParticipants,
+        participantScores // Store the scores in the challenge result
       }
     });
 
@@ -430,7 +480,7 @@ export const useGameState = () => {
       // Move to the next challenge, which will trigger the reveal sequence
       selectNextChallenge();
     }, 300); // Increased delay for better state synchronization
-  }, [state.currentChallenge, state.currentChallengeParticipants, dispatch, selectNextChallenge, setIsRevealingChallenge]);
+  }, [state.currentChallenge, state.currentChallengeParticipants, state.players, state.teams, dispatch, selectNextChallenge, setIsRevealingChallenge]);
 
   return {
     gameState: state,

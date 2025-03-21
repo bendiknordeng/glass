@@ -63,7 +63,7 @@ const Header: React.FC<HeaderProps> = ({ showHomeButton = false, isSidebar = fal
           <Dropdown
             trigger={
               <button
-                className="inline-flex items-center justify-center w-9 h-9 rounded-full bg-gradient-to-br from-game-primary to-purple-500 dark:from-game-primary-dark dark:to-purple-600 text-white hover:bg-opacity-90 transition-colors shadow-sm"
+                className="z-10 inline-flex items-center justify-center w-9 h-9 rounded-full bg-gradient-to-br from-game-primary to-purple-500 dark:from-game-primary-dark dark:to-purple-600 text-white hover:bg-opacity-90 transition-colors shadow-sm"
                 aria-label="User menu"
               >
                 {user?.user_metadata?.avatar_url ? (
@@ -117,7 +117,7 @@ const Header: React.FC<HeaderProps> = ({ showHomeButton = false, isSidebar = fal
   if (isSidebar) {
     return (
       <>
-        <div className="flex flex-col h-full space-y-8">
+        <div className="z-10 flex flex-col h-full space-y-8">
           {/* App title/logo */}
           <div className="mt-4 mb-4 text-center">
             <div className="flex items-center justify-center mb-4">
@@ -256,7 +256,7 @@ const Header: React.FC<HeaderProps> = ({ showHomeButton = false, isSidebar = fal
   // Original header for non-sidebar use - now only used internally in desktop view
   return (
     <>
-      <div className="flex items-center justify-end">
+      <div className="z-10 flex items-center justify-end">
         {isInActiveGame && (
           <Button
             variant="danger"

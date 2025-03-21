@@ -114,7 +114,7 @@ const TeamCard: React.FC<TeamCardProps> = ({
       
       {/* Player Count */}
       {!compact && (
-        <div className="text-sm text-gray-700 dark:text-gray-300 mt-2">
+        <div className="text-sm text-gray-700 dark:text-gray-800 mt-2">
           {teamPlayers.length} player{teamPlayers.length !== 1 ? 's' : ''}
         </div>
       )}

@@ -15,6 +15,10 @@ import Modal from '@/components/common/Modal';
 import Switch from '@/components/common/Switch';
 import { MusicalNoteIcon, PlayCircleIcon, PlusIcon, MinusIcon, MagnifyingGlassIcon, CheckIcon, XMarkIcon } from '@heroicons/react/24/solid';
 import { v4 as uuidv4 } from 'uuid';
+import { useAuth } from '@/contexts/AuthContext';
+import { challengesService } from '@/services/supabase';
+import { DBChallenge } from '@/types/supabase';
+import { toast } from 'react-hot-toast';
 
 interface SpotifyMusicQuizFormProps {
   isOpen: boolean;
@@ -33,6 +37,7 @@ const SpotifyMusicQuizForm: React.FC<SpotifyMusicQuizFormProps> = ({
 }) => {
   const { t } = useTranslation();
   const { state } = useGame();
+  const { isAuthenticated, user } = useAuth();
   
   // Spotify authentication state
   const [isSpotifyAuthenticated, setIsSpotifyAuthenticated] = useState(false);
@@ -284,6 +289,15 @@ const SpotifyMusicQuizForm: React.FC<SpotifyMusicQuizFormProps> = ({
   
   // Handle Spotify login
   const handleSpotifyLogin = () => {
+    // Check if Spotify credentials are configured before attempting to authenticate
+    if (!hasCredentialsConfigured) {
+      toast.error(t("prebuilt.spotifyMusicQuiz.credentialsNotConfigured") || "Spotify API credentials are not configured", {
+        duration: 3000,
+        position: "top-center",
+      });
+      return;
+    }
+    
     window.location.href = spotifyService.getLoginUrl();
   };
   
@@ -358,6 +372,41 @@ const SpotifyMusicQuizForm: React.FC<SpotifyMusicQuizFormProps> = ({
     return punishment;
   };
   
+  // Convert punishment to the format expected by the database
+  const punishmentToDbFormat = (punishment: Punishment | undefined): Record<string, any> | null => {
+    if (!punishment) return null;
+    
+    const dbPunishment: Record<string, any> = {
+      type: punishment.type,
+      value: punishment.value
+    };
+    
+    if (punishment.customDescription) {
+      dbPunishment.customDescription = punishment.customDescription;
+    }
+    
+    return dbPunishment;
+  };
+  
+  // Get a valid UUID for the user ID
+  const getValidUserId = (): string | null => {
+    if (!user || !user.id) return null;
+    
+    // Check if it's already a valid UUID
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (uuidRegex.test(user.id)) {
+      return user.id;
+    }
+    
+    // If not a UUID, hash it consistently to create a deterministic UUID
+    const hash = Array.from(user.id)
+      .reduce((acc, char) => (acc << 5) - acc + char.charCodeAt(0), 0)
+      .toString(16);
+    
+    // Create a UUID v4 format from the hash
+    return `${hash.substring(0, 8)}-${hash.substring(8, 12)}-4${hash.substring(13, 16)}-${hash.substring(16, 20)}-${hash.substring(20, 32)}`;
+  };
+  
   // Handle submission
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -390,9 +439,11 @@ const SpotifyMusicQuizForm: React.FC<SpotifyMusicQuizFormProps> = ({
           : undefined
       };
       
+      let newChallenge: Challenge;
+      
       if (editChallenge) {
         // Update existing challenge
-        const updatedChallenge: Challenge = {
+        newChallenge = {
           ...editChallenge,
           title: challengeTitle,
           description: t('prebuilt.spotifyMusicQuiz.description', { numberOfSongs, playDurationSeconds }),
@@ -403,12 +454,52 @@ const SpotifyMusicQuizForm: React.FC<SpotifyMusicQuizFormProps> = ({
           prebuiltSettings: challengeSettings
         };
         
-        // Call the callback with the updated challenge
-        onChallengeCreated(updatedChallenge);
+        // Update in database if authenticated
+        if (isAuthenticated && user) {
+          console.log("Updating Spotify challenge in database:", newChallenge.id);
+          
+          try {
+            const updateData = {
+              title: challengeTitle,
+              description: t('prebuilt.spotifyMusicQuiz.description', { numberOfSongs, playDurationSeconds }),
+              type: type.toString(),
+              points,
+              can_reuse: canReuse,
+              punishment: punishmentToDbFormat(getPunishment()),
+              is_prebuilt: true,
+              prebuilt_type: PrebuiltChallengeType.SPOTIFY_MUSIC_QUIZ.toString(),
+              prebuilt_settings: challengeSettings
+            };
+            
+            const updated = await challengesService.updateChallenge(newChallenge.id, updateData);
+            
+            if (updated) {
+              console.log('Spotify challenge updated in database:', updated);
+              toast.success(t("challenges.challengeUpdated"), {
+                duration: 3000,
+                position: "top-center",
+              });
+            } else {
+              console.warn('Spotify challenge update failed in database');
+              toast.error(t("challenges.updateFailed"), {
+                duration: 3000,
+                position: "top-center",
+              });
+            }
+          } catch (dbError) {
+            console.error("Error updating Spotify challenge in database:", dbError);
+            toast.error(t("error.savingChallenge"), {
+              duration: 3000,
+              position: "top-center",
+            });
+          }
+        }
       } else {
         // Create a new challenge
-        const newChallenge: Challenge = {
-          id: uuidv4(),
+        const challengeId = uuidv4();
+        
+        newChallenge = {
+          id: challengeId,
           title: challengeTitle,
           description: t('prebuilt.spotifyMusicQuiz.description', { numberOfSongs, playDurationSeconds }),
           type,
@@ -421,9 +512,63 @@ const SpotifyMusicQuizForm: React.FC<SpotifyMusicQuizFormProps> = ({
           prebuiltSettings: challengeSettings
         };
         
-        // Call the callback with the new challenge
-        onChallengeCreated(newChallenge);
+        // Save to database if authenticated
+        if (isAuthenticated && user) {
+          // Get a valid UUID format user ID
+          const validUserId = getValidUserId();
+          if (!validUserId) {
+            console.error("Could not get valid user ID");
+            throw new Error('Could not get a valid user ID');
+          }
+          
+          const dbChallengeData: Omit<DBChallenge, 'id' | 'created_at' | 'updated_at' | 'times_played'> = {
+            user_id: validUserId,
+            title: challengeTitle,
+            description: t('prebuilt.spotifyMusicQuiz.description', { numberOfSongs, playDurationSeconds }),
+            type: type.toString(),
+            points,
+            can_reuse: canReuse,
+            punishment: punishmentToDbFormat(getPunishment()),
+            is_prebuilt: true,
+            is_favorite: false,
+            category: 'Music',
+            prebuilt_type: PrebuiltChallengeType.SPOTIFY_MUSIC_QUIZ.toString(),
+            prebuilt_settings: challengeSettings
+          };
+          
+          console.log("Saving Spotify challenge to database:", dbChallengeData);
+          try {
+            const dbChallenge = await challengesService.addChallenge(dbChallengeData);
+            
+            if (dbChallenge) {
+              // Use the Supabase-generated ID
+              newChallenge.id = dbChallenge.id;
+              console.log('Spotify challenge saved to database with ID:', dbChallenge.id);
+              toast.success(t("challenges.challengeCreated"), {
+                duration: 3000,
+                position: "top-center",
+              });
+            } else {
+              console.warn("Failed to save Spotify challenge to database, using local ID");
+              toast.error(t("challenges.saveFailed"), {
+                duration: 3000,
+                position: "top-center",
+              });
+            }
+          } catch (dbError) {
+            console.error("Error saving Spotify challenge to database:", dbError);
+            toast.error(t("error.savingChallenge"), {
+              duration: 3000,
+              position: "top-center",
+            });
+          }
+        } else {
+          console.log("Not saving to database - not authenticated", { isAuthenticated, user });
+        }
       }
+      
+      // Call the callback with the challenge
+      onChallengeCreated(newChallenge);
       
       // Reset form and close modal
       resetForm();
@@ -433,6 +578,10 @@ const SpotifyMusicQuizForm: React.FC<SpotifyMusicQuizFormProps> = ({
       setFormErrors({
         ...formErrors,
         general: t('error.general')
+      });
+      toast.error(t("common.errorOccurred"), {
+        duration: 3000,
+        position: "top-center",
       });
     } finally {
       setIsSubmitting(false);
@@ -665,7 +814,16 @@ const SpotifyMusicQuizForm: React.FC<SpotifyMusicQuizFormProps> = ({
                 if (isSpotifyAuthenticated) {
                   setActiveTab('playlists');
                 } else {
-                  handleSpotifyLogin();
+                  // Only attempt login if credentials are configured
+                  if (hasCredentialsConfigured) {
+                    handleSpotifyLogin();
+                  } else {
+                    // Display a toast error instead of redirecting
+                    toast.error(t("prebuilt.spotifyMusicQuiz.credentialsNotConfigured") || "Spotify API credentials are not configured", {
+                      duration: 3000,
+                      position: "top-center",
+                    });
+                  }
                 }
               }}
               className={`py-2 px-4 text-sm font-medium rounded-t-md focus:outline-none ${
@@ -832,56 +990,68 @@ const SpotifyMusicQuizForm: React.FC<SpotifyMusicQuizFormProps> = ({
               type="button"
               onClick={() => setType(ChallengeType.INDIVIDUAL)}
               className={`
-                px-4 py-2 rounded-md text-sm font-medium transition-colors
+                px-2 py-3 rounded-md text-sm font-medium transition-colors h-full
+                flex items-center justify-center text-center
                 ${type === ChallengeType.INDIVIDUAL 
                   ? 'bg-pastel-blue text-gray-800 border-2 border-pastel-blue' 
                   : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-2 border-transparent hover:bg-pastel-blue/20'}
               `}
               disabled={isSubmitting}
             >
-              {t('game.challengeTypes.individual')}
+              <span className="line-clamp-2">
+                {t('game.challengeTypes.individual')}
+              </span>
             </button>
             
             <button
               type="button"
               onClick={() => setType(ChallengeType.ONE_ON_ONE)}
               className={`
-                px-4 py-2 rounded-md text-sm font-medium transition-colors
+                px-2 py-3 rounded-md text-sm font-medium transition-colors h-full
+                flex items-center justify-center text-center
                 ${type === ChallengeType.ONE_ON_ONE 
                   ? 'bg-pastel-orange text-gray-800 border-2 border-pastel-orange' 
                   : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-2 border-transparent hover:bg-pastel-orange/20'}
               `}
               disabled={isSubmitting}
             >
-              {t('game.challengeTypes.oneOnOne')}
+              <span className="line-clamp-2">
+                {t('game.challengeTypes.oneOnOne')}
+              </span>
             </button>
             
             <button
               type="button"
               onClick={() => setType(ChallengeType.TEAM)}
               className={`
-                px-4 py-2 rounded-md text-sm font-medium transition-colors
+                px-2 py-3 rounded-md text-sm font-medium transition-colors h-full
+                flex items-center justify-center text-center
                 ${type === ChallengeType.TEAM 
                   ? 'bg-pastel-green text-gray-800 border-2 border-pastel-green' 
                   : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-2 border-transparent hover:bg-pastel-green/20'}
               `}
               disabled={isSubmitting}
             >
-              {t('game.challengeTypes.team')}
+              <span className="line-clamp-2">
+                {t('game.challengeTypes.team')}
+              </span>
             </button>
             
             <button
               type="button"
               onClick={() => setType(ChallengeType.ALL_VS_ALL)}
               className={`
-                px-4 py-2 rounded-md text-sm font-medium transition-colors
+                px-2 py-3 rounded-md text-sm font-medium transition-colors h-full
+                flex items-center justify-center text-center
                 ${type === ChallengeType.ALL_VS_ALL 
                   ? 'bg-pastel-purple text-gray-800 border-2 border-pastel-purple' 
                   : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-2 border-transparent hover:bg-pastel-purple/20'}
               `}
               disabled={isSubmitting}
             >
-              {t('game.challengeTypes.allVsAll')}
+              <span className="line-clamp-2">
+                {t('game.challengeTypes.allVsAll')}
+              </span>
             </button>
           </div>
           <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">

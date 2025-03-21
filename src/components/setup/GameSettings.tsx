@@ -10,6 +10,7 @@ import SpotifyMusicQuizForm from "../prebuilt/SpotifyMusicQuizForm";
 import { challengesService } from "@/services/supabase";
 import { useValidatedAuth } from "@/utils/auth-helpers";
 import { DBChallenge } from "@/types/supabase";
+import QuizForm from "@/components/prebuilt/QuizForm";
 
 // Maximum number of recent custom challenges to store
 const MAX_RECENT_CHALLENGES = 10;
@@ -29,8 +30,17 @@ const updateRecentChallenges = (newChallenge: Challenge) => {
         challenge.title.toLowerCase() !== newChallenge.title.toLowerCase()
     );
 
+    // Ensure we preserve all prebuilt properties
+    const challengeToStore = {
+      ...newChallenge,
+      // Explicitly preserve these crucial properties
+      isPrebuilt: newChallenge.isPrebuilt,
+      prebuiltType: newChallenge.prebuiltType,
+      prebuiltSettings: newChallenge.prebuiltSettings,
+    };
+
     // Add new challenge to the beginning
-    const updatedChallenges = [newChallenge, ...filteredChallenges].slice(
+    const updatedChallenges = [challengeToStore, ...filteredChallenges].slice(
       0,
       MAX_RECENT_CHALLENGES
     );
@@ -44,6 +54,31 @@ const updateRecentChallenges = (newChallenge: Challenge) => {
   }
 };
 
+// Helper function to ensure prebuilt properties are preserved
+const ensurePrebuiltPropertiesPreserved = (challenge: Challenge): Challenge => {
+  // Create a new challenge object with preserved properties
+  const challengeWithPreservedProps = {
+    ...challenge,
+    // Explicitly preserve these crucial properties
+    isPrebuilt: challenge.isPrebuilt,
+    prebuiltType: challenge.prebuiltType,
+    prebuiltSettings: challenge.prebuiltSettings,
+  };
+  
+  // Log if this is a prebuilt challenge with details
+  if (challengeWithPreservedProps.isPrebuilt) {
+    console.log('GameSettings: Preserving prebuilt properties for challenge:', {
+      id: challengeWithPreservedProps.id,
+      title: challengeWithPreservedProps.title,
+      isPrebuilt: challengeWithPreservedProps.isPrebuilt,
+      prebuiltType: challengeWithPreservedProps.prebuiltType,
+      hasPrebuiltSettings: !!challengeWithPreservedProps.prebuiltSettings
+    });
+  }
+  
+  return challengeWithPreservedProps;
+};
+
 const GameSettings: React.FC = () => {
   const { t } = useTranslation();
   const { state, dispatch } = useGame();
@@ -52,6 +87,7 @@ const GameSettings: React.FC = () => {
   const [durationValue, setDurationValue] = useState(state.gameDuration.value);
   const [showCustomChallengeForm, setShowCustomChallengeForm] = useState(false);
   const [showSpotifyMusicQuizForm, setShowSpotifyMusicQuizForm] = useState(false);
+  const [showQuizForm, setShowQuizForm] = useState(false);
   const [editingChallenge, setEditingChallenge] = useState<
     Challenge | undefined
   >(undefined);
@@ -70,7 +106,17 @@ const GameSettings: React.FC = () => {
       const stored = localStorage.getItem(RECENT_CHALLENGES_KEY);
       if (!stored) return [];
 
-      const challenges = JSON.parse(stored);
+      const parsedChallenges = JSON.parse(stored);
+      
+      // Make sure prebuilt properties are preserved for each challenge
+      const challenges = parsedChallenges.map((challenge: Challenge) => ({
+        ...challenge,
+        // Explicitly preserve prebuilt properties
+        isPrebuilt: challenge.isPrebuilt,
+        prebuiltType: challenge.prebuiltType,
+        prebuiltSettings: challenge.prebuiltSettings,
+      }));
+      
       // Filter out any challenges that are currently in the game (by ID or by title case insensitive)
       return challenges.filter(
         (recentChallenge: Challenge) =>
@@ -182,14 +228,28 @@ const GameSettings: React.FC = () => {
 
   // Add a recent challenge to current game
   const handleAddRecentChallenge = (challenge: Challenge) => {
+    // Use the utility function to ensure prebuilt properties are preserved
+    const preservedChallenge = ensurePrebuiltPropertiesPreserved(challenge);
+    
+    // Log prebuilt challenge details
+    if (preservedChallenge.isPrebuilt) {
+      console.log('Adding prebuilt challenge from recent challenges:', {
+        id: preservedChallenge.id,
+        title: preservedChallenge.title,
+        isPrebuilt: preservedChallenge.isPrebuilt,
+        prebuiltType: preservedChallenge.prebuiltType,
+        hasPrebuiltSettings: !!preservedChallenge.prebuiltSettings
+      });
+    }
+    
     // Add the challenge to the game
     dispatch({
       type: "ADD_CUSTOM_CHALLENGE",
-      payload: challenge,
+      payload: preservedChallenge,
     });
 
     // Move this challenge to the top of recent challenges
-    updateRecentChallenges(challenge);
+    updateRecentChallenges(preservedChallenge);
     
     // No need to manually update recent challenges or reload from database
     // React effects will handle this automatically when state.customChallenges changes
@@ -200,12 +260,18 @@ const GameSettings: React.FC = () => {
    * @param challengeId The ID of the challenge to delete
    */
   const handleDeleteRecentChallenge = async (challengeId: string) => {
+    console.log("Deleting recent challenge with ID:", challengeId);
+    
     // Get recent challenges from localStorage
     const storedChallenges = localStorage.getItem(RECENT_CHALLENGES_KEY);
     if (!storedChallenges) return;
     
     // Parse stored challenges
     const challenges = JSON.parse(storedChallenges) as Challenge[];
+    
+    // Find the challenge to delete for logging
+    const challengeToDelete = challenges.find(c => c.id === challengeId);
+    console.log("Challenge to delete:", challengeToDelete);
     
     // Find and delete the challenge with the given ID
     const updatedChallenges = challenges.filter((c) => c.id !== challengeId);
@@ -218,16 +284,21 @@ const GameSettings: React.FC = () => {
     
     // Also delete from database if authenticated
     if (isAuthenticated) {
+      console.log("Deleting challenge from Supabase DB with ID:", challengeId);
       try {
         const result = await challengesService.deleteChallenge(challengeId);
         if (result) {
           console.log(`Challenge ${challengeId} deleted from database`);
           // Refresh database challenges
           loadChallengesFromDB();
+        } else {
+          console.error(`Failed to delete challenge ${challengeId} from database`);
         }
       } catch (error) {
         console.error("Error deleting challenge from database:", error);
       }
+    } else {
+      console.log("Not deleting from Supabase - not authenticated");
     }
   };
 
@@ -280,29 +351,34 @@ const GameSettings: React.FC = () => {
    */
   const handleDeleteAllRecentChallenges = async () => {
     try {
+      // Get the current list of recent challenges before clearing
+      const currentRecentChallenges = [...recentChallenges];
+      
       // Clear from localStorage
       localStorage.removeItem(RECENT_CHALLENGES_KEY);
       setRecentChallenges([]);
       
-      // Also delete from database if authenticated
+      // Also delete from database if authenticated, but only the ones in the recent list
       if (isAuthenticated) {
-        // Get all challenges first
         const userId = getValidUserId();
         if (!userId) return;
         
-        const challenges = await challengesService.getChallenges(userId);
+        // Get the IDs of recent challenges
+        const recentChallengeIds = currentRecentChallenges.map(challenge => challenge.id);
         
-        // Delete each challenge from the database
-        if (challenges && challenges.length > 0) {
-          const deletionPromises = challenges.map(challenge => 
-            challengesService.deleteChallenge(challenge.id)
+        // Only delete challenges that are in the recent list
+        if (recentChallengeIds.length > 0) {
+          console.log(`Deleting ${recentChallengeIds.length} recent challenges from database`);
+          
+          const deletionPromises = recentChallengeIds.map(challengeId => 
+            challengesService.deleteChallenge(challengeId)
           );
           
           await Promise.all(deletionPromises);
-          console.log(`Deleted all ${challenges.length} challenges from database`);
+          console.log(`Deleted ${recentChallengeIds.length} recent challenges from database`);
           
-          // Update dbChallenges state
-          setDbChallenges([]);
+          // Update dbChallenges state by removing the deleted challenges
+          setDbChallenges(prev => prev.filter(challenge => !recentChallengeIds.includes(challenge.id)));
         }
       }
     } catch (error) {
@@ -317,7 +393,7 @@ const GameSettings: React.FC = () => {
     // Create a dummy challenge to represent all recent challenges
     const allChallenges: Challenge = {
       id: "all",
-      title: t("allRecentChallenges"),
+      title: t("game.allRecentChallenges"),
       description: "",
       type: ChallengeType.INDIVIDUAL,
       canReuse: true,
@@ -332,13 +408,27 @@ const GameSettings: React.FC = () => {
 
   // Helper to open the appropriate edit form based on challenge type
   const openEditForm = (challenge: Challenge) => {
-    setEditingChallenge(challenge);
+    // Use utility function to ensure prebuilt properties are preserved
+    const preservedChallenge = ensurePrebuiltPropertiesPreserved(challenge);
+    
+    setEditingChallenge(preservedChallenge);
     
     // Check if the challenge is a prebuilt challenge
-    if (challenge.isPrebuilt && challenge.prebuiltType) {
-      switch (challenge.prebuiltType) {
+    if (preservedChallenge.isPrebuilt && preservedChallenge.prebuiltType) {
+      console.log('Opening edit form for prebuilt challenge:', {
+        id: preservedChallenge.id,
+        title: preservedChallenge.title,
+        isPrebuilt: preservedChallenge.isPrebuilt,
+        prebuiltType: preservedChallenge.prebuiltType,
+        hasPrebuiltSettings: !!preservedChallenge.prebuiltSettings
+      });
+      
+      switch (preservedChallenge.prebuiltType) {
         case PrebuiltChallengeType.SPOTIFY_MUSIC_QUIZ:
           setShowSpotifyMusicQuizForm(true);
+          break;
+        case PrebuiltChallengeType.QUIZ:
+          setShowQuizForm(true);
           break;
         default:
           // Fallback to custom challenge form for unknown prebuilt types
@@ -350,18 +440,40 @@ const GameSettings: React.FC = () => {
     }
     
     // Add to recent challenges when edited
-    updateRecentChallenges(challenge);
+    updateRecentChallenges(preservedChallenge);
   };
 
   // Handle challenge updated from prebuilt forms
   const handleChallengeUpdated = (updatedChallenge: Challenge) => {
+    // Log updated challenge
+    if (updatedChallenge.isPrebuilt) {
+      console.log('Handling updated prebuilt challenge:', {
+        id: updatedChallenge.id,
+        title: updatedChallenge.title,
+        isPrebuilt: updatedChallenge.isPrebuilt,
+        prebuiltType: updatedChallenge.prebuiltType,
+        hasPrebuiltSettings: !!updatedChallenge.prebuiltSettings
+      });
+    }
+    
+    // Ensure prebuilt properties are preserved
+    const challengeToUpdate = {
+      ...updatedChallenge,
+      // Explicitly preserve prebuilt properties
+      isPrebuilt: updatedChallenge.isPrebuilt,
+      prebuiltType: updatedChallenge.prebuiltType,
+      prebuiltSettings: updatedChallenge.prebuiltSettings,
+    };
+    
     dispatch({
       type: "UPDATE_CUSTOM_CHALLENGE",
-      payload: updatedChallenge
+      payload: challengeToUpdate,
     });
+
     // Close all forms
     setShowCustomChallengeForm(false);
     setShowSpotifyMusicQuizForm(false);
+    setShowQuizForm(false);
     setEditingChallenge(undefined);
     setRecentChallenges(getRecentChallenges());
   };
@@ -369,6 +481,29 @@ const GameSettings: React.FC = () => {
   // Function to initiate deleting a challenge from the current game
   const initiateDeleteCurrentGameChallenge = (challenge: Challenge) => {
     initiateDeleteChallenge(challenge, true);
+  };
+
+  // Function to add a standard challenge to the game
+  const handleAddStandardChallenge = (challenge: Challenge) => {
+    // Use the utility function to ensure prebuilt properties are preserved
+    const preservedChallenge = ensurePrebuiltPropertiesPreserved(challenge);
+    
+    // Log if this is a prebuilt challenge
+    if (preservedChallenge.isPrebuilt) {
+      console.log('Adding prebuilt standard challenge to game:', {
+        id: preservedChallenge.id,
+        title: preservedChallenge.title,
+        isPrebuilt: preservedChallenge.isPrebuilt,
+        prebuiltType: preservedChallenge.prebuiltType,
+        hasSettings: !!preservedChallenge.prebuiltSettings
+      });
+    }
+    
+    // Add to the challenges array in state
+    dispatch({
+      type: "ADD_STANDARD_CHALLENGE",
+      payload: preservedChallenge
+    });
   };
 
   return (
@@ -627,12 +762,19 @@ const GameSettings: React.FC = () => {
           
           <PrebuiltChallengeMenu
             onChallengeCreated={(challenge) => {
+              console.log("GameSettings: PrebuiltChallengeMenu created a challenge:", challenge);
+              
+              // Ensure prebuilt properties are preserved
+              const preservedChallenge = ensurePrebuiltPropertiesPreserved(challenge);
+              
               dispatch({
-                type: "ADD_CUSTOM_CHALLENGE",
-                payload: challenge
+                type: "ADD_STANDARD_CHALLENGE",
+                payload: preservedChallenge
               });
               // Also add to recent challenges
-              updateRecentChallenges(challenge);
+              console.log("GameSettings: Adding challenge to recent challenges");
+              updateRecentChallenges(preservedChallenge);
+              console.log("GameSettings: Challenge handling complete");
             }}
           />
         </div>
@@ -824,8 +966,8 @@ const GameSettings: React.FC = () => {
           <div className="mt-6">
             {isLoadingChallenges && (
               <div className="flex justify-center items-center p-4">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 dark:border-gray-100"></div>
-                <span className="ml-2">{t("loading")}</span>
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2"></div>
+                <span className="ml-4 text-gray-900 dark:text-gray-100">{t("common.loading")}</span>
               </div>
             )}
             
@@ -948,15 +1090,25 @@ const GameSettings: React.FC = () => {
         />
       )}
 
+      {/* Add the Quiz Form */}
+      {showQuizForm && (
+        <QuizForm
+          isOpen={showQuizForm}
+          onClose={() => setShowQuizForm(false)}
+          onChallengeCreated={handleChallengeUpdated}
+          editChallenge={editingChallenge}
+        />
+      )}
+
       {/* Challenge delete confirmation modal */}
       {showDeleteConfirm && challengeToDelete && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md w-full shadow-lg">
-            <h3 className="text-lg font-semibold mb-4">
+            <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-4">
               {t("common.confirmDelete")}
             </h3>
-            <p className="mb-6">
-              {t("confirmDeleteChallenge", { item: challengeToDelete.title })}
+            <p className="mb-6 text-gray-900 dark:text-gray-300">
+              {t("game.confirmDeleteChallenge", { item: challengeToDelete.title })}
             </p>
             <div className="flex justify-end gap-3">
               <button

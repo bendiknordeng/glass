@@ -3,10 +3,12 @@ import { useTranslation } from 'react-i18next';
 import { motion } from 'framer-motion';
 import { Challenge, PrebuiltChallengeType } from '@/types/Challenge';
 import SpotifyMusicQuizForm from './SpotifyMusicQuizForm';
+import QuizForm from './QuizForm';
 import Button from '@/components/common/Button';
 import { 
   MusicalNoteIcon, 
-  PlusIcon 
+  PlusIcon,
+  QuestionMarkCircleIcon
 } from '@heroicons/react/24/solid';
 
 interface PrebuiltChallengeMenuProps {
@@ -28,6 +30,32 @@ const PrebuiltChallengeMenu: React.FC<PrebuiltChallengeMenuProps> = ({
   
   // State for challenge form modals
   const [showSpotifyMusicQuizForm, setShowSpotifyMusicQuizForm] = useState(false);
+  const [showQuizForm, setShowQuizForm] = useState(false);
+  
+  // Wrap the onChallengeCreated prop with logging
+  const handleChallengeCreated = (challenge: Challenge) => {
+    console.log("PrebuiltChallengeMenu: Challenge created:", challenge);
+    
+    // Ensure all prebuilt properties are preserved
+    const challengeWithPreservedProps = {
+      ...challenge,
+      // Explicitly preserve these crucial properties
+      isPrebuilt: true, // Always true for challenges created here
+      prebuiltType: challenge.prebuiltType,
+      prebuiltSettings: challenge.prebuiltSettings,
+    };
+    
+    // Log detailed info about the challenge for debugging
+    console.log("PrebuiltChallengeMenu: Adding challenge with preserved props:", {
+      id: challengeWithPreservedProps.id,
+      title: challengeWithPreservedProps.title,
+      isPrebuilt: challengeWithPreservedProps.isPrebuilt,
+      prebuiltType: challengeWithPreservedProps.prebuiltType,
+      hasPrebuiltSettings: !!challengeWithPreservedProps.prebuiltSettings
+    });
+    
+    onChallengeCreated(challengeWithPreservedProps);
+  };
   
   // List of available prebuilt challenges
   const prebuiltChallenges: PrebuiltChallengeOption[] = [
@@ -37,15 +65,26 @@ const PrebuiltChallengeMenu: React.FC<PrebuiltChallengeMenuProps> = ({
       description: t('prebuilt.spotifyMusicQuiz.shortDescription'),
       icon: <MusicalNoteIcon className="h-6 w-6" />,
       color: 'from-green-400 to-green-600'
+    },
+    {
+      type: PrebuiltChallengeType.QUIZ,
+      title: t('prebuilt.quiz.title'),
+      description: t('prebuilt.quiz.shortDescription'),
+      icon: <QuestionMarkCircleIcon className="h-6 w-6" />,
+      color: 'from-blue-400 to-blue-600'
     }
     // Add more prebuilt challenges here as they are developed
   ];
   
   // Handle opening the appropriate form based on challenge type
   const handleSelectChallenge = (type: PrebuiltChallengeType) => {
+    console.log("Selected challenge type:", type);
     switch (type) {
       case PrebuiltChallengeType.SPOTIFY_MUSIC_QUIZ:
         setShowSpotifyMusicQuizForm(true);
+        break;
+      case PrebuiltChallengeType.QUIZ:
+        setShowQuizForm(true);
         break;
       default:
         console.error(`Form for challenge type ${type} not implemented`);
@@ -115,7 +154,12 @@ const PrebuiltChallengeMenu: React.FC<PrebuiltChallengeMenuProps> = ({
       <SpotifyMusicQuizForm
         isOpen={showSpotifyMusicQuizForm}
         onClose={() => setShowSpotifyMusicQuizForm(false)}
-        onChallengeCreated={onChallengeCreated}
+        onChallengeCreated={handleChallengeCreated}
+      />
+      <QuizForm
+        isOpen={showQuizForm}
+        onClose={() => setShowQuizForm(false)}
+        onChallengeCreated={handleChallengeCreated}
       />
     </div>
   );

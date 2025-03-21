@@ -61,7 +61,8 @@ type GameAction =
   | { type: 'LOAD_CHALLENGES'; payload: Challenge[] }
   | { type: 'SET_CHALLENGES_LOADING'; payload: boolean }
   | { type: 'SET_CHALLENGES_ERROR'; payload: string | null }
-  | { type: 'ADD_CUSTOM_CHALLENGE'; payload: Omit<Challenge, 'id'> }
+  | { type: 'ADD_CUSTOM_CHALLENGE'; payload: Challenge }
+  | { type: 'ADD_STANDARD_CHALLENGE'; payload: Challenge }
   | { type: 'UPDATE_CUSTOM_CHALLENGE'; payload: Challenge }
   | { type: 'REMOVE_CUSTOM_CHALLENGE'; payload: string }
   | { type: 'NEXT_TURN' }
@@ -230,10 +231,13 @@ const gameReducer = (state: GameState, action: GameAction): GameState => {
     }
 
     case 'ADD_CUSTOM_CHALLENGE': {
+      console.log("GameContext: ADD_CUSTOM_CHALLENGE received payload:", action.payload);
       const newChallenge: Challenge = {
         ...action.payload,
-        id: generateId(),
+        // Only generate a new ID if one isn't provided in the payload
+        id: action.payload.id || generateId(),
       };
+      console.log("GameContext: Adding challenge with ID:", newChallenge.id);
       return {
         ...state,
         customChallenges: [...state.customChallenges, newChallenge],
@@ -241,11 +245,16 @@ const gameReducer = (state: GameState, action: GameAction): GameState => {
     }
 
     case 'UPDATE_CUSTOM_CHALLENGE': {
+      console.log("GameContext: UPDATE_CUSTOM_CHALLENGE received payload:", action.payload);
       return {
         ...state,
-        customChallenges: state.customChallenges.map(challenge =>
-          challenge.id === action.payload.id ? action.payload : challenge
-        ),
+        customChallenges: state.customChallenges.map(challenge => {
+          if (challenge.id === action.payload.id) {
+            console.log("GameContext: Updating challenge with ID:", challenge.id);
+            return action.payload;
+          }
+          return challenge;
+        }),
       };
     }
 
@@ -300,7 +309,23 @@ const gameReducer = (state: GameState, action: GameAction): GameState => {
     }
 
     case 'SELECT_CHALLENGE': {
-      const challenge = action.payload;
+      // Ensure all prebuilt properties are preserved
+      const challengeWithPreservedProps = {
+        ...action.payload,
+        isPrebuilt: action.payload.isPrebuilt,
+        prebuiltType: action.payload.prebuiltType,
+        prebuiltSettings: action.payload.prebuiltSettings,
+      };
+      
+      // Log the selected challenge for debugging
+      console.log('GameContext: SELECT_CHALLENGE with preserved properties:', {
+        id: challengeWithPreservedProps.id,
+        title: challengeWithPreservedProps.title,
+        isPrebuilt: challengeWithPreservedProps.isPrebuilt,
+        prebuiltType: challengeWithPreservedProps.prebuiltType,
+        hasPrebuiltSettings: !!challengeWithPreservedProps.prebuiltSettings
+      });
+      
       let participants: string[] = [];
       
       // Get current participant ID before determining participants
@@ -311,10 +336,10 @@ const gameReducer = (state: GameState, action: GameAction): GameState => {
       }
       
       // Determine participants based on challenge type
-      if (challenge.type === 'individual') {
+      if (challengeWithPreservedProps.type === 'individual') {
         // Current player/team only
         participants = [currentId];
-      } else if (challenge.type === 'oneOnOne') {
+      } else if (challengeWithPreservedProps.type === 'oneOnOne') {
         if (state.gameMode === GameMode.TEAMS) {
           // In team mode, one-on-one is between all teams - each team selects a player
           participants = state.teams.map(team => team.id);
@@ -372,7 +397,7 @@ const gameReducer = (state: GameState, action: GameAction): GameState => {
             return state;
           }
         }
-      } else if (challenge.type === 'team') {
+      } else if (challengeWithPreservedProps.type === 'team') {
         if (state.gameMode === GameMode.TEAMS) {
           // In team mode, all teams participate in team challenges
           participants = state.teams.map(team => team.id);
@@ -380,7 +405,7 @@ const gameReducer = (state: GameState, action: GameAction): GameState => {
           // In free-for-all, just use the current player (they play for their "team")
           participants = [currentId];
         }
-      } else if (challenge.type === 'allVsAll') {
+      } else if (challengeWithPreservedProps.type === 'allVsAll') {
         if (state.gameMode === GameMode.TEAMS) {
           // In team mode, all teams participate in all vs all challenges
           participants = state.teams.map(team => team.id);
@@ -398,9 +423,9 @@ const gameReducer = (state: GameState, action: GameAction): GameState => {
       
       return {
         ...state,
-        currentChallenge: challenge,
+        currentChallenge: challengeWithPreservedProps,
         currentChallengeParticipants: participants,
-        usedChallenges: [...state.usedChallenges, challenge.id]
+        usedChallenges: [...state.usedChallenges, challengeWithPreservedProps.id]
       };
     }
 
@@ -506,25 +531,94 @@ const gameReducer = (state: GameState, action: GameAction): GameState => {
       };
 
     case 'RESTORE_GAME_STATE': {
-      const { gameStarted, gameFinished, gameMode, gameDuration, currentRound, currentTurnIndex, players, teams, challenges, usedChallenges, results, customChallenges, currentChallenge, currentChallengeParticipants } = action.payload;
+      // Extract the challenges from the saved state
+      const savedChallenges = action.payload.challenges || [];
+      const savedCustomChallenges = action.payload.customChallenges || [];
+      const savedCurrentChallenge = action.payload.currentChallenge;
+      
+      // Check for the unusual situation where we have custom challenges but no standard challenges
+      if (savedCustomChallenges.length > 0 && savedChallenges.length === 0) {
+        console.warn("Found custom challenges but no standard challenges in saved state");
+      }
+
+      // Process all challenges to ensure isPrebuilt property is explicitly set
+      const processedChallenges = savedChallenges.map(challenge => {
+        // If isPrebuilt is undefined, explicitly set it based on prebuiltType
+        if (challenge.isPrebuilt === undefined) {
+          return {
+            ...challenge,
+            isPrebuilt: !!challenge.prebuiltType,
+            // Ensure other prebuilt properties are preserved
+            prebuiltType: challenge.prebuiltType || undefined,
+            prebuiltSettings: challenge.prebuiltSettings || undefined
+          };
+        }
+        return challenge;
+      });
+
+      // Process all custom challenges to ensure isPrebuilt property is explicitly set
+      const processedCustomChallenges = savedCustomChallenges.map(challenge => {
+        // If isPrebuilt is undefined, explicitly set it based on prebuiltType
+        if (challenge.isPrebuilt === undefined) {
+          return {
+            ...challenge,
+            isPrebuilt: !!challenge.prebuiltType,
+            // Ensure other prebuilt properties are preserved
+            prebuiltType: challenge.prebuiltType || undefined,
+            prebuiltSettings: challenge.prebuiltSettings || undefined
+          };
+        }
+        return challenge;
+      });
+
+      // Process current challenge if it exists
+      let processedCurrentChallenge = null;
+      if (savedCurrentChallenge) {
+        if (savedCurrentChallenge.isPrebuilt === undefined) {
+          processedCurrentChallenge = {
+            ...savedCurrentChallenge,
+            isPrebuilt: !!savedCurrentChallenge.prebuiltType,
+            // Ensure other prebuilt properties are preserved
+            prebuiltType: savedCurrentChallenge.prebuiltType || undefined,
+            prebuiltSettings: savedCurrentChallenge.prebuiltSettings || undefined
+          };
+        } else {
+          processedCurrentChallenge = savedCurrentChallenge;
+        }
+      }
+
+      // Migration: Move prebuilt challenges from custom to standard if needed
+      let migratedStandardChallenges = [...processedChallenges];
+      let migratedCustomChallenges = [...processedCustomChallenges];
+      
+      if (processedChallenges.length === 0 && processedCustomChallenges.some(c => c.isPrebuilt)) {
+        console.log("Migrating prebuilt challenges from custom to standard challenges");
+        
+        // Filter out prebuilt challenges from custom challenges
+        const prebuiltFromCustom = processedCustomChallenges.filter(c => c.isPrebuilt);
+        migratedCustomChallenges = processedCustomChallenges.filter(c => !c.isPrebuilt);
+        
+        // Add them to standard challenges
+        migratedStandardChallenges = [...prebuiltFromCustom];
+        
+        console.log(`Migrated ${prebuiltFromCustom.length} prebuilt challenges from custom to standard`);
+      }
+
+      // Log the restoration details for debugging
+      console.log("Restoring game state with challenges:", {
+        totalChallenges: migratedStandardChallenges.length + migratedCustomChallenges.length,
+        standardChallengesCount: migratedStandardChallenges.length,
+        customChallengesCount: migratedCustomChallenges.length,
+        currentChallengeId: processedCurrentChallenge?.id,
+        currentChallengeIsPrebuilt: processedCurrentChallenge?.isPrebuilt,
+        currentChallengePrebuiltType: processedCurrentChallenge?.prebuiltType
+      });
+
       return {
-        ...state,
-        gameStarted,
-        gameFinished,
-        gameMode,
-        gameDuration,
-        currentRound,
-        currentTurnIndex,
-        players: players.map(p => ({ ...p })),
-        teams: teams.map(t => ({ ...t })),
-        challenges: challenges.map(c => ({ ...c })),
-        usedChallenges,
-        results: results.map(r => ({ ...r })),
-        customChallenges: customChallenges.map(c => ({ ...c })),
-        currentChallenge: currentChallenge ? { ...currentChallenge } : null,
-        currentChallengeParticipants,
-        isLoadingChallenges: false,
-        challengeLoadError: null
+        ...action.payload,
+        challenges: migratedStandardChallenges,
+        customChallenges: migratedCustomChallenges,
+        currentChallenge: processedCurrentChallenge
       };
     }
 
@@ -567,6 +661,34 @@ const gameReducer = (state: GameState, action: GameAction): GameState => {
             : player
         )
       };
+
+    case 'ADD_STANDARD_CHALLENGE': {
+      // Create a new challenge with preserved properties
+      // IMPORTANT: Don't generate a new ID, keep the original ID for standard challenges
+      const newChallenge: Challenge = {
+        ...action.payload,
+        // Explicitly preserve prebuilt properties
+        isPrebuilt: action.payload.isPrebuilt,
+        prebuiltType: action.payload.prebuiltType,
+        prebuiltSettings: action.payload.prebuiltSettings,
+      };
+      
+      // Log if this is a prebuilt challenge
+      if (newChallenge.isPrebuilt) {
+        console.log('GameContext: Adding prebuilt standard challenge:', {
+          id: newChallenge.id,
+          title: newChallenge.title,
+          isPrebuilt: newChallenge.isPrebuilt,
+          prebuiltType: newChallenge.prebuiltType,
+          hasSettings: !!newChallenge.prebuiltSettings
+        });
+      }
+      
+      return {
+        ...state,
+        challenges: [...state.challenges, newChallenge],
+      };
+    }
 
     default:
       return state;
@@ -674,12 +796,20 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [state, dispatch] = useReducer(gameReducer, initialState);
   const { user, isAuthenticated } = useAuth();
   
+  // Module-level flags to prevent recursive calls
+  let isLoadingChallengesInProgress = false;
+  // Flag to track if we've already attempted game state restoration
+  let hasAttemptedGameStateRestoration = false;
+  
   const loadChallenges = async () => {
-    if (state.isLoadingChallenges) {
+    // Skip if already loading or if the global flag is set
+    if (state.isLoadingChallenges || isLoadingChallengesInProgress) {
+      console.log('Skipping loadChallenges call - loading already in progress');
       return;
     }
 
-    // Set loading state
+    // Set both the state and our module-level flag
+    isLoadingChallengesInProgress = true;
     dispatch({ type: 'SET_CHALLENGES_LOADING', payload: true });
     dispatch({ type: 'SET_CHALLENGES_ERROR', payload: null });
     
@@ -690,54 +820,132 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
         type: 'SET_CHALLENGES_ERROR', 
         payload: 'Timeout while loading challenges. Please try again.' 
       });
+      // Also clear our module-level flag
+      isLoadingChallengesInProgress = false;
     }, 8000); // 8 seconds timeout
     
     try {
-      let challenges: Challenge[] = [];
+      // Check if we're continuing a game first
+      const isContinuingGame = state.gameStarted && !state.gameFinished;
       
-      // Load from Supabase if authenticated
-      if (isAuthenticated && user) {
-        try {
-          // Make sure we're passing the user ID to filter only this user's challenges
-          const dbChallenges = await challengesService.getChallenges(user.id);
-          
-          challenges = dbChallenges.map(dbChallengeToAppChallenge);
-        } catch (error) {
-          console.error('Error loading challenges from Supabase:', error);
-          dispatch({ 
-            type: 'SET_CHALLENGES_ERROR', 
-            payload: 'Failed to load challenges from the database. Falling back to local storage.' 
-          });
-          
-          // Fall back to localStorage
-          const storedChallenges = localStorage.getItem('customChallenges');
-          if (storedChallenges) {
-            challenges = JSON.parse(storedChallenges);
+      // If we already have any challenges loaded (either standard or custom), don't reload
+      if ((state.challenges && state.challenges.length > 0) || 
+          (state.customChallenges && state.customChallenges.length > 0)) {
+        console.log('Continuing game with existing challenges:', {
+          standardChallengesCount: state.challenges.length,
+          customChallengesCount: state.customChallenges.length,
+          hasCurrentChallenge: !!state.currentChallenge
+        });
+        
+        // Just make sure we're not loading anymore
+        dispatch({ type: 'SET_CHALLENGES_LOADING', payload: false });
+        isLoadingChallengesInProgress = false;
+        return;
+      }
+      
+      // If we're continuing a game but don't have challenges, try to load them from localStorage
+      if (isContinuingGame) {
+        console.log('Continuing game but need to load challenges');
+        const savedState = localStorage.getItem('glassGameState');
+        if (savedState) {
+          try {
+            const parsedState = JSON.parse(savedState) as GameState;
+            
+            // Log the content of the saved state for debugging
+            console.log('Found savedState with challenges:', {
+              standardChallenges: parsedState.challenges?.length || 0,
+              customChallenges: parsedState.customChallenges?.length || 0,
+              currentChallenge: parsedState.currentChallenge ? 'yes' : 'no'
+            });
+            
+            if (parsedState.challenges && parsedState.challenges.length > 0) {
+              console.log('Restoring challenges from saved game state:', {
+                challengesCount: parsedState.challenges.length,
+                customChallengesCount: parsedState.customChallenges?.length || 0
+              });
+              
+              // Ensure all challenges have their prebuilt properties preserved
+              const preservedChallenges = parsedState.challenges.map(challenge => ({
+                ...challenge,
+                isPrebuilt: challenge.isPrebuilt,
+                prebuiltType: challenge.prebuiltType,
+                prebuiltSettings: challenge.prebuiltSettings,
+              }));
+              
+              // Restore the challenges that were previously selected for this game
+              dispatch({ type: 'LOAD_CHALLENGES', payload: preservedChallenges });
+              isLoadingChallengesInProgress = false;
+              return;
+            } 
+            // If we have custom challenges but no standard challenges, load an empty array
+            // to prevent infinite loading attempts
+            else if (parsedState.customChallenges && parsedState.customChallenges.length > 0) {
+              console.log('Only found custom challenges in saved state, loading empty standard challenges array');
+              dispatch({ type: 'LOAD_CHALLENGES', payload: [] });
+              isLoadingChallengesInProgress = false;
+              return;
+            } 
+            else {
+              console.warn('No challenges found in saved game state, will load empty array');
+              dispatch({ type: 'LOAD_CHALLENGES', payload: [] });
+              isLoadingChallengesInProgress = false;
+              return;
+            }
+          } catch (error) {
+            console.error('Error parsing saved game state:', error);
+            // Still need to load an empty array to prevent infinite loading
+            dispatch({ type: 'LOAD_CHALLENGES', payload: [] });
+            isLoadingChallengesInProgress = false;
+            return;
           }
-        }
-      } else {
-        // Not authenticated, load from localStorage
-        const storedChallenges = localStorage.getItem('customChallenges');
-        if (storedChallenges) {
-          challenges = JSON.parse(storedChallenges);
+        } else {
+          console.warn('No saved game state found, but continuing game flag is true');
+          dispatch({ type: 'LOAD_CHALLENGES', payload: [] });
+          isLoadingChallengesInProgress = false;
+          return;
         }
       }
       
-      dispatch({ type: 'LOAD_CHALLENGES', payload: challenges });
+      // If we're starting a new game, or couldn't restore challenges for a continuing game,
+      // we should load both standard and custom challenges.
+      console.log('Creating challenge setup for new game or restoring failed');
+      
+      // For new games, preload selected challenges (any challenge in customChallenges[] is already selected)
+      // Standard challenges will be added via ADD_STANDARD_CHALLENGE when selected in GameSettings
+      const selectedChallenges: Challenge[] = [];
+      
+      console.log('Setting up initial challenge state:', { 
+        selectedCount: selectedChallenges.length,
+        customChallengesCount: state.customChallenges.length  
+      });
+      
+      dispatch({ type: 'LOAD_CHALLENGES', payload: selectedChallenges });
     } catch (error) {
       console.error('Error in loadChallenges:', error);
       dispatch({ 
         type: 'SET_CHALLENGES_ERROR', 
         payload: 'An unexpected error occurred while loading challenges.' 
       });
+      // Load empty array to prevent infinite loading
+      dispatch({ type: 'LOAD_CHALLENGES', payload: [] });
     } finally {
       clearTimeout(loadingTimeout);
       dispatch({ type: 'SET_CHALLENGES_LOADING', payload: false });
+      isLoadingChallengesInProgress = false;
     }
   };
 
   // Load game state from localStorage on mount
   useEffect(() => {
+    // Skip if we've already attempted restoration
+    if (hasAttemptedGameStateRestoration) {
+      return;
+    }
+    
+    // Mark that we've attempted restoration
+    hasAttemptedGameStateRestoration = true;
+    let gameStateRestored = false;
+    
     const savedState = localStorage.getItem('glassGameState');
     if (savedState) {
       try {
@@ -745,6 +953,8 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
         
         // Only proceed if there's an active game
         if (parsedState.gameStarted && !parsedState.gameFinished) {
+          gameStateRestored = true;
+          
           // Always try to load player data from database for authenticated users
           if (isAuthenticated && user) {
             // Get the user ID
@@ -854,9 +1064,33 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     }
     
-    // Load challenges on mount
-    loadChallenges();
-  }, [isAuthenticated]);
+    // Load challenges on mount only if we didn't restore the game state
+    // or if we have no challenges at all (neither standard nor custom)
+    if (!gameStateRestored && 
+        state.challenges.length === 0 && 
+        state.customChallenges.length === 0 && 
+        !state.isLoadingChallenges) {
+      console.log('Loading challenges since no game state was restored and no challenges exist');
+      loadChallenges();
+    }
+    // Empty dependency array ensures this effect only runs once on mount
+
+    // Return cleanup function to reset flag when component unmounts
+    return () => {
+      // This ensures the flag is reset if the component is unmounted and remounted
+      hasAttemptedGameStateRestoration = false;
+    };
+  }, []);
+
+  // Add a separate effect to handle auth changes
+  useEffect(() => {
+    // This effect only handles the initial authentication state
+    // and won't re-trigger the game state restoration
+    
+    // We don't want to do anything here that would cause a loop
+    // Just log the auth state for debugging
+    console.log(`Auth state changed: isAuthenticated=${isAuthenticated}, userId=${user?.id || 'none'}`);
+  }, [isAuthenticated, user]);
 
   // Save game state to localStorage whenever it changes
   useEffect(() => {

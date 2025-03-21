@@ -8,6 +8,7 @@
     "next": "Neste",
     "back": "Tilbake",
     "cancel": "Avbryt",
+    "remove": "Fjern",
     "save": "Lagre",
     "edit": "Rediger",
     "optional": "valgfritt",
@@ -30,7 +31,12 @@
     "loading": "Laster...",
     "error": "Feil",
     "retry": "Prøv igjen",
-    "confirmDelete": "Bekreft sletting"
+    "confirmDelete": "Bekreft sletting",
+    "title": "Tittel",
+    "description": "Beskrivelse",
+    "type": "Type",
+    "create": "Opprett",
+    "submitting": "Oppretter..."
   },
   "home": {
     "newGame": "Nytt spill",
@@ -156,7 +162,11 @@
     "playerFromTeam": "Fra {{team}}",
     "teamVsTeam": "Lag mot lag",
     "teamChallenge": "Lagutfordring",
-    "moreMembers": "flere medlemmer"
+    "moreMembers": "flere medlemmer",
+    "settings": "Spillinnstillinger",
+    "skipChallenge": "Hopp over utfordring",
+    "confirmSkip": "Hopp over denne utfordringen?",
+    "skipChallengeConfirmation": "Er du sikker på at du vil hoppe over denne utfordringen og gå til neste?"
   },
   "results": {
     "finalResults": "Endelig resultat",
@@ -192,6 +202,7 @@
     "canReuse": "Kan gjenbrukes i samme spill",
     "difficulty": "Vanskelighetsgrad",
     "category": "Kategori (valgfritt)",
+    "points": "{{points}} poeng",
     "addChallenge": "Legg til utfordring",
     "editChallenge": "Rediger utfordring",
     "deleteChallenge": "Slett utfordring",
@@ -208,8 +219,20 @@
     "recentChallengesDesc": "Utfordringer du har laget tidligere vil vises her for enkel tilgang.",
     "deleteConfirmation": "Er du sikker på at du vil slette denne utfordringen?",
     "clearAllRecent": "Fjern alle nylige",
+    "deleteAllRecent": "Slett alle nylige utfordringer",
     "includePunishment": "Inkluder straff for å mislykkes",
+    "challengeCreated": "Utfordring opprettet",
     "punishmentType": "Straffetype",
+    "punishmentTypes": {
+      "sips": "Slurker",
+      "custom": "Egendefinert"
+    },
+    "type": {
+      "individual": "Individuell",
+      "team": "Lag",
+      "allVsAll": "Alle mot alle",
+      "oneOnOne": "En mot en"
+    },
     "sips": "Slurker",
     "custom": "Egendefinert",
     "numberOfSips": "Antall slurker",
@@ -219,19 +242,47 @@
         "description": "Drikk en shot av vann eller vodka. La gruppen gjette hva du drakk."
       },
       "categories": {
-        "title": "Kategorier: {{category}}",
-        "description": "Si ord etter tur som hører til kategorien {{category}}. Første som bommer taper!",
-        "beer-brands": "Ølmerker",
-        "tv-shows": "TV-serier",
-        "cities": "Byer",
-        "animals": "Dyr",
-        "fruits": "Frukter",
-        "countries": "Land",
-        "celebrities": "Kjente personer",
-        "movies": "Filmer",
-        "sports": "Sport"
+        "beer-brands": {
+          "title": "Ølmerker",
+          "description": "Si ord etter tur som hører til kategorien Ølmerker. Første som bommer taper!"
+        },
+        "tv-shows": {
+          "title": "TV-serier",
+          "description": "Si ord etter tur som hører til kategorien TV-serier. Første som bommer taper!"
+        },
+        "cities": {
+          "title": "Byer",
+          "description": "Si ord etter tur som hører til kategorien Byer. Første som bommer taper!"
+        },
+        "animals": {
+          "title": "Dyr",
+          "description": "Si ord etter tur som hører til kategorien Dyr. Første som bommer taper!"
+        },
+        "fruits": {
+          "title": "Frukter",
+          "description": "Si ord etter tur som hører til kategorien Frukter. Første som bommer taper!"
+        },
+        "countries": {
+          "title": "Land",
+          "description": "Si ord etter tur som hører til kategorien Land. Første som bommer taper!"
+        },
+        "celebrities": {
+          "title": "Kjente personer",
+          "description": "Si ord etter tur som hører til kategorien Kjente personer. Første som bommer taper!"
+        },
+        "movies": {
+          "title": "Filmer",
+          "description": "Si ord etter tur som hører til kategorien Filmer. Første som bommer taper!"
+        },
+        "sports": {
+          "title": "Sport",
+          "description": "Si ord etter tur som hører til kategorien Sport. Første som bommer taper!"
+        }
       }
-    }
+    },
+    "punishment": "Straff",
+    "allRecentChallenges": "Alle nylige utfordringer",
+    "didntDoOrFailed": "Konsekvensen av å ikke gjøre eller mislykkes?"
   },
   "settings": {
     "title": "Innstillinger",
@@ -321,7 +372,72 @@
       "updateChallenge": "Oppdater musikk-quiz",
       "awardPointsTo": "Gi poeng til vinneren",
       "pointsAwarded": "{{points}} poeng tildelt",
-      "selected": "Valgt"
+      "selected": "Valgt",
+      "assignPoints": "Tildel poeng",
+      "fullPoints": "Fulle poeng",
+      "currentScores": "Nåværende poeng",
+      "recordManually": "Registrer svar manuelt. Spillere bør skrive svarene sine på papir.",
+      "points": "poeng"
+    },
+    "quiz": {
+      "title": "Egendefinert Quiz",
+      "shortDescription": "Lag en egendefinert quiz med spørsmål og bilder",
+      "description": "Lag og spill en egendefinert quiz med bilder for både spørsmål og svar",
+      "createTitle": "Lag Quiz-utfordring",
+      "editTitle": "Rediger Quiz-utfordring",
+      "questions": "Spørsmål",
+      "addQuestion": "Legg til spørsmål",
+      "questionNumber": "Spørsmål {{number}}",
+      "questionPlaceholder": "Skriv inn spørsmålet ditt her...",
+      "options": "Svaralternativer",
+      "addOption": "Legg til alternativ",
+      "optionPlaceholder": "Skriv inn et svaralternativ...",
+      "correct": "Riktig svar",
+      "incorrect": "Feil svar",
+      "questionImages": "Bilder til spørsmål",
+      "optionImages": "Bilder til svaralternativ",
+      "answerImages": "Bilder til svar",
+      "addImage": "Legg til bilde",
+      "addImages": "Klikk for å legge til bilder til dette spørsmålet",
+      "emptyQuestionText": "Spørsmål {{number}} mangler tekst",
+      "noCorrectOption": "Spørsmål {{number}} trenger et markert riktig svar",
+      "emptyOptionText": "Alternativ {{optionNumber}} for spørsmål {{questionNumber}} mangler tekst",
+      "noQuestions": "Ingen spørsmål tilgjengelig for denne quizen",
+      "questionProgress": "Spørsmål {{current}} av {{total}}",
+      "previousQuestion": "Forrige",
+      "nextQuestion": "Neste",
+      "finishAndReveal": "Fullfør og vis svar",
+      "revealingQuestion": "Viser svar for spørsmål {{current}} av {{total}}",
+      "correctAnswer": "Riktig svar",
+      "correctAnswerPlaceholder": "Skriv inn riktig svar her...",
+      "gotItRight": "Spillere som svarte riktig",
+      "nobodyGotItRight": "Ingen svarte riktig",
+      "nobodyCorrect": "Ingen spillere valgte riktig svar",
+      "nextReveal": "Neste spørsmål",
+      "finishQuiz": "Fullfør quiz",
+      "quizCompleted": "Quiz fullført!",
+      "finalScores": "Endelig poengsum",
+      "answered": "Besvart",
+      "showOptions": "Flervalg",
+      "hideOptions": "Direkte svar",
+      "dragDropImage": "Dra og slipp et bilde her eller klikk for å velge",
+      "dropImageHere": "Slipp bildet her",
+      "titlePlaceholder": "Eksempel: Flaggquiz",
+      "descriptionPlaceholder": "Eksempel: Gjett hvilken land hvert flagg hører til!",
+      "pointsPerQuestion": "Poeng per spørsmål",
+      "punishment": "Straff",
+      "punishmentType": "Straffetype",
+      "sips": "Slurker",
+      "custom": "Egendefinert",
+      "punishmentValue": "Antall slurker",
+      "punishmentDescription": "Egendefinert straff",
+      "punishmentDescriptionPlaceholder": "Beskriv straffen (f.eks. 'Gjør 10 pushups')",
+      "assignPoints": "Tildel poeng",
+      "fullPoints": "Fulle poeng",
+      "currentScores": "Nåværende poeng",
+      "recordManually": "Registrer svar manuelt. Spillere bør skrive svarene sine på papir.",
+      "points": "poeng",
+      "questionPoints": "Poeng"
     }
   },
   "validation": {
@@ -331,7 +447,8 @@
     "punishmentDescriptionRequired": "Straffebeskrivelse er påkrevd",
     "invalidSpotifyUrl": "Vennligst skriv inn en gyldig Spotify-spilleliste URL",
     "minValue": "Verdi må være minst {{min}}",
-    "maxValue": "Verdi må være maks {{max}}"
+    "maxValue": "Verdi må være maks {{max}}",
+    "formHasErrors": "Vennligst rett valideringsfeilene"
   },
   "error": {
     "title": "Feil",
@@ -369,5 +486,6 @@
     "editPlayer": "Rediger spiller",
     "namePlaceholder": "Eksempel: Ola Nordmann",
     "preview": "Forhåndsvisning"
-  }
+  },
+  "points": "Poeng"
 }

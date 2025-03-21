@@ -408,6 +408,7 @@ export const challengesService = {
   // Add a new challenge
   async addChallenge(challenge: Omit<DBChallenge, 'id' | 'created_at' | 'updated_at' | 'times_played'>) {
     try {
+      console.log("Supabase: Adding new challenge:", challenge);
       // Ensure user_id is in UUID format
       const validatedUserId = ensureUuid(challenge.user_id);
       if (!validatedUserId) {
@@ -442,6 +443,7 @@ export const challengesService = {
         throw error;
       }
       
+      console.log("Supabase: Challenge successfully added with ID:", data.id);
       return data;
     } catch (error) {
       console.error('Exception in addChallenge:', error);
@@ -452,6 +454,7 @@ export const challengesService = {
   // Update a challenge
   async updateChallenge(challengeId: string, updates: Partial<Omit<DBChallenge, 'id' | 'created_at'>>) {
     try {
+      console.log("Supabase: Updating challenge with ID:", challengeId, "Updates:", updates);
       // First check if the challenge exists and belongs to the current user
       const { data: existingChallenge, error: checkError } = await supabase
         .from('challenges')
@@ -491,6 +494,7 @@ export const challengesService = {
         throw error;
       }
       
+      console.log("Supabase: Challenge successfully updated:", data);
       return data;
     } catch (error) {
       console.error(`Exception in updateChallenge: ${JSON.stringify(error)}`);
@@ -501,6 +505,7 @@ export const challengesService = {
   // Delete a challenge
   async deleteChallenge(challengeId: string) {
     try {
+      console.log("Supabase: Attempting to delete challenge with ID:", challengeId);
       // First check if the challenge exists and belongs to the current user
       const { data: existingChallenge, error: checkError } = await supabase
         .from('challenges')
@@ -521,6 +526,7 @@ export const challengesService = {
         
         // Since we're deleting, if the challenge doesn't exist, that's fine
         if (checkError.code === 'PGRST116') {
+          console.log(`Challenge ${challengeId} already doesn't exist in database, considering delete successful`);
           return true; // Consider it deleted if it doesn't exist
         }
         
@@ -540,6 +546,7 @@ export const challengesService = {
         throw error;
       }
       
+      console.log(`Supabase: Successfully deleted challenge ${challengeId}`);
       return true;
     } catch (error) {
       console.error(`Exception in deleteChallenge: ${JSON.stringify(error)}`);
