@@ -46,6 +46,8 @@ const CustomChallengeForm: React.FC<CustomChallengeFormProps> = ({
   const [type, setType] = useState<ChallengeType>(ChallengeType.INDIVIDUAL);
   const [points, setPoints] = useState(1);
   const [canReuse, setCanReuse] = useState(true);
+  const [maxReuseCount, setMaxReuseCount] = useState<number | undefined>(undefined);
+  const [showMaxReuseCount, setShowMaxReuseCount] = useState(false); // Track if we should show the max reuse count option
   const [isSubmitting, setIsSubmitting] = useState(false);
   
   // Punishment state
@@ -63,6 +65,14 @@ const CustomChallengeForm: React.FC<CustomChallengeFormProps> = ({
       loadChallenges();
     }
   }, [isOpen, isAuthenticated, user]);
+  
+  // Toggle max reuse count visibility based on canReuse value
+  useEffect(() => {
+    setShowMaxReuseCount(canReuse);
+    if (!canReuse) {
+      setMaxReuseCount(undefined); // Reset max reuse count if canReuse is set to false
+    }
+  }, [canReuse]);
   
   // Load challenges from Supabase
   const loadChallenges = async () => {
@@ -99,6 +109,8 @@ const CustomChallengeForm: React.FC<CustomChallengeFormProps> = ({
       setType(editChallenge.type);
       setPoints(editChallenge.points);
       setCanReuse(editChallenge.canReuse);
+      setMaxReuseCount(editChallenge.maxReuseCount);
+      setShowMaxReuseCount(editChallenge.canReuse);
       
       // Set punishment data if it exists
       if (editChallenge.punishment) {
@@ -169,6 +181,10 @@ const CustomChallengeForm: React.FC<CustomChallengeFormProps> = ({
       newErrors.push({ id: 'punishment', message: t('validation.punishmentDescriptionRequired') });
     }
     
+    if (canReuse && maxReuseCount !== undefined && maxReuseCount < 1) {
+      newErrors.push({ id: 'maxReuseCount', message: t('validation.maxReuseCountInvalid') || 'Maximum reuse count must be at least 1' });
+    }
+    
     setErrors(newErrors);
     return newErrors.length === 0;
   };
@@ -206,6 +222,7 @@ const CustomChallengeForm: React.FC<CustomChallengeFormProps> = ({
           type,
           points,
           canReuse,
+          maxReuseCount: canReuse ? maxReuseCount : undefined,
           punishment: getPunishment()
         };
         
@@ -224,6 +241,7 @@ const CustomChallengeForm: React.FC<CustomChallengeFormProps> = ({
               type: type.toString(),
               points,
               can_reuse: canReuse,
+              max_reuse_count: canReuse ? maxReuseCount : undefined,
               punishment: punishmentToDbFormat(getPunishment())
             });
             
@@ -255,6 +273,7 @@ const CustomChallengeForm: React.FC<CustomChallengeFormProps> = ({
           type,
           points,
           canReuse,
+          maxReuseCount: canReuse ? maxReuseCount : undefined,
           punishment: getPunishment()
         };
         
@@ -273,6 +292,7 @@ const CustomChallengeForm: React.FC<CustomChallengeFormProps> = ({
             type: type.toString(),
             points,
             can_reuse: canReuse,
+            max_reuse_count: canReuse ? (maxReuseCount ?? null) : null,
             punishment: punishmentToDbFormat(getPunishment()),
             is_prebuilt: false,
             is_favorite: false,
@@ -325,6 +345,8 @@ const CustomChallengeForm: React.FC<CustomChallengeFormProps> = ({
     setType(ChallengeType.INDIVIDUAL);
     setPoints(1);
     setCanReuse(true);
+    setMaxReuseCount(undefined);
+    setShowMaxReuseCount(true);
     setHasPunishment(false);
     setPunishmentType('sips');
     setPunishmentValue(1);
@@ -573,6 +595,38 @@ const CustomChallengeForm: React.FC<CustomChallengeFormProps> = ({
               {t('challenges.canReuse')}
             </label>
           </div>
+          
+          {/* Max Reuse Count - Only shown if canReuse is true */}
+          <AnimatePresence>
+            {showMaxReuseCount && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                transition={{ duration: 0.3 }}
+                className="overflow-hidden"
+              >
+                <div>
+                  <label htmlFor="max-reuse-count" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    {t('challenges.maxReuseCount') || 'Max times to use'} <span className="text-sm font-normal text-gray-500 dark:text-gray-400">(1-10)</span>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                      {t('challenges.maxReuseCountHelp') || 'Leave empty for unlimited reuse'}
+                    </p>
+                  </label>
+                  <div className="max-w-xs">
+                    <NumberInput
+                      id="max-reuse-count"
+                      value={maxReuseCount ?? 3} // Default to 3 if undefined
+                      onChange={val => setMaxReuseCount(val)}
+                      min={1}
+                      max={10}
+                      label={t('challenges.times') || 'times'}
+                    />
+                  </div>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
           
           {/* Punishment options */}
           <div className="border-t border-gray-200 dark:border-gray-700 pt-4">

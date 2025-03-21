@@ -37,6 +37,7 @@ export interface DBChallenge {
   type: string; // 'INDIVIDUAL', 'ONE_ON_ONE', 'TEAM', 'ALL_VS_ALL'
   points: number;
   can_reuse: boolean;
+  max_reuse_count: number | null; // Maximum number of times this challenge can be reused
   category: string | null;
   is_prebuilt: boolean;
   prebuilt_type: string | null;

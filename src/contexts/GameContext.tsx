@@ -774,6 +774,7 @@ const dbChallengeToAppChallenge = (dbChallenge: any): Challenge => {
     type: dbChallenge.type,
     points: dbChallenge.points,
     canReuse: dbChallenge.can_reuse,
+    maxReuseCount: dbChallenge.max_reuse_count || undefined,
     category: dbChallenge.category || undefined,
     isPrebuilt: dbChallenge.is_prebuilt,
     prebuiltType: dbChallenge.prebuilt_type || undefined,

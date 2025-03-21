@@ -222,6 +222,9 @@
     "deleteAllRecent": "Slett alle nylige utfordringer",
     "includePunishment": "Inkluder straff for å mislykkes",
     "challengeCreated": "Utfordring opprettet",
+    "times": "ganger",
+    "maxReuseCountHelp": "Antall ganger en utfordring kan gjenbrukes i samme spill",
+    "maxReuseCount": "Maksimalt antall ganger",
     "punishmentType": "Straffetype",
     "punishmentTypes": {
       "sips": "Slurker",
@@ -242,42 +245,16 @@
         "description": "Drikk en shot av vann eller vodka. La gruppen gjette hva du drakk."
       },
       "categories": {
-        "beer-brands": {
-          "title": "Ølmerker",
-          "description": "Si ord etter tur som hører til kategorien Ølmerker. Første som bommer taper!"
-        },
-        "tv-shows": {
-          "title": "TV-serier",
-          "description": "Si ord etter tur som hører til kategorien TV-serier. Første som bommer taper!"
-        },
-        "cities": {
-          "title": "Byer",
-          "description": "Si ord etter tur som hører til kategorien Byer. Første som bommer taper!"
-        },
-        "animals": {
-          "title": "Dyr",
-          "description": "Si ord etter tur som hører til kategorien Dyr. Første som bommer taper!"
-        },
-        "fruits": {
-          "title": "Frukter",
-          "description": "Si ord etter tur som hører til kategorien Frukter. Første som bommer taper!"
-        },
-        "countries": {
-          "title": "Land",
-          "description": "Si ord etter tur som hører til kategorien Land. Første som bommer taper!"
-        },
-        "celebrities": {
-          "title": "Kjente personer",
-          "description": "Si ord etter tur som hører til kategorien Kjente personer. Første som bommer taper!"
-        },
-        "movies": {
-          "title": "Filmer",
-          "description": "Si ord etter tur som hører til kategorien Filmer. Første som bommer taper!"
-        },
-        "sports": {
-          "title": "Sport",
-          "description": "Si ord etter tur som hører til kategorien Sport. Første som bommer taper!"
-        }
+        "title": "Kategorier",
+        "beer-brands": "Si ord etter tur som hører til kategorien Ølmerker. Første som bommer taper!",
+        "tv-shows": "Si ord etter tur som hører til kategorien TV-serier. Første som bommer taper!",
+        "cities": "Si ord etter tur som hører til kategorien Byer. Første som bommer taper!",
+        "animals": "Si ord etter tur som hører til kategorien Dyr. Første som bommer taper!",
+        "fruits": "Si ord etter tur som hører til kategorien Frukter. Første som bommer taper!",
+        "countries": "Si ord etter tur som hører til kategorien Land. Første som bommer taper!",
+        "celebrities": "Si ord etter tur som hører til kategorien Kjente personer. Første som bommer taper!",
+        "movies": "Si ord etter tur som hører til kategorien Filmer. Første som bommer taper!",
+        "sports": "Si ord etter tur som hører til kategorien Sport. Første som bommer taper!"
       }
     },
     "punishment": "Straff",

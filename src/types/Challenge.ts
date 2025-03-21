@@ -26,6 +26,7 @@ export enum ChallengeType {
     description: string;       // Detailed challenge description
     type: ChallengeType;       // Type of challenge
     canReuse: boolean;         // Whether this challenge can be reused in the same game
+    maxReuseCount?: number;    // Maximum number of times this challenge can be reused if canReuse is true
     points: number;            // Points awarded for completing the challenge
     category?: string;         // Optional category for grouping challenges
     customPrompt?: string;     // Optional custom prompt for dynamic challenges
@@ -33,6 +34,8 @@ export enum ChallengeType {
     isPrebuilt?: boolean;      // Indicates if this is a prebuilt challenge
     prebuiltType?: PrebuiltChallengeType; // Type of prebuilt challenge
     prebuiltSettings?: PrebuiltChallengeSettings; // Settings for prebuilt challenge
+    isSelected?: boolean;      // Whether this challenge is currently selected in the game
+    createdBy?: string;        // User ID of the creator of this challenge
   }
   
   /**

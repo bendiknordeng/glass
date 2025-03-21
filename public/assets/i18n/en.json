@@ -241,6 +241,9 @@
     "deleteAllRecent": "Delete all recent challenges",
     "includePunishment": "Include punishment for failing",
     "challengeCreated": "Challenge Created",
+    "times": "times",
+    "maxReuseCountHelp": "Number of times a challenge can be reused in the same game",
+    "maxReuseCount": "Maximum number of times",
     "punishmentType": "Punishment Type",
     "punishmentTypes": {
       "sips": "Sips",
@@ -261,42 +264,16 @@
         "description": "Drink a shot of water or vodka. Have the group guess what you drank."
       },
       "categories": {
-        "beer-brands": {
-          "title": "Beer Brands",
-          "description": "Say words after turn that belong to the category Beer Brands. First to fail loses!"
-        },
-        "tv-shows": {
-          "title": "TV Shows",
-          "description": "Say words after turn that belong to the category TV Shows. First to fail loses!"
-        },
-        "cities": {
-          "title": "Cities",
-          "description": "Say words after turn that belong to the category Cities. First to fail loses!"
-        },
-        "animals": {
-          "title": "Animals",
-          "description": "Say words after turn that belong to the category Animals. First to fail loses!"
-        },
-        "fruits": {
-          "title": "Fruits",
-          "description": "Say words after turn that belong to the category Fruits. First to fail loses!"
-        },
-        "countries": {
-          "title": "Countries",
-          "description": "Say words after turn that belong to the category Countries. First to fail loses!"
-        },
-        "celebrities": {
-          "title": "Celebrities",
-          "description": "Say words after turn that belong to the category Celebrities. First to fail loses!"
-        },
-        "movies": {
-          "title": "Movies",
-          "description": "Say words after turn that belong to the category Movies. First to fail loses!"
-        },
-        "sports": {
-          "title": "Sports",
-          "description": "Say words after turn that belong to the category Sports. First to fail loses!"
-        }
+        "title": "Categories",
+        "beer-brands": "Say words after turn that belong to the category Beer Brands. First to fail loses!",
+        "tv-shows": "Say words after turn that belong to the category TV Shows. First to fail loses!",
+        "cities": "Say words after turn that belong to the category Cities. First to fail loses!",
+        "animals": "Say words after turn that belong to the category Animals. First to fail loses!",
+        "fruits": "Say words after turn that belong to the category Fruits. First to fail loses!",
+        "countries": "Say words after turn that belong to the category Countries. First to fail loses!",
+        "celebrities": "Say words after turn that belong to the category Celebrities. First to fail loses!",
+        "movies": "Say words after turn that belong to the category Movies. First to fail loses!",
+        "sports": "Say words after turn that belong to the category Sports. First to fail loses!"
       }
     },
     "allRecentChallenges": "All Recent Challenges",

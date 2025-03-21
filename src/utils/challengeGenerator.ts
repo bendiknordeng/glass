@@ -38,6 +38,17 @@ export const getNextChallenge = (
       return;
     }
     
+    // Check if the challenge has reached its maximum reuse count
+    if (challenge.canReuse && challenge.maxReuseCount !== undefined) {
+      // Count how many times this challenge has been used
+      const usageCount = usedChallenges.filter(id => id === challenge.id).length;
+      
+      // Skip if we've already used it the maximum number of times
+      if (usageCount >= challenge.maxReuseCount) {
+        return;
+      }
+    }
+    
     // Skip team challenges in FREE_FOR_ALL mode
     if (gameMode === GameMode.FREE_FOR_ALL && challenge.type === ChallengeType.TEAM) {
       return;
@@ -52,6 +63,17 @@ export const getNextChallenge = (
     // Skip challenges that can't be reused and have already been used
     if (!challenge.canReuse && usedChallenges.includes(challenge.id)) {
       return;
+    }
+    
+    // Check if the challenge has reached its maximum reuse count
+    if (challenge.canReuse && challenge.maxReuseCount !== undefined) {
+      // Count how many times this challenge has been used
+      const usageCount = usedChallenges.filter(id => id === challenge.id).length;
+      
+      // Skip if we've already used it the maximum number of times
+      if (usageCount >= challenge.maxReuseCount) {
+        return;
+      }
     }
     
     // Skip team challenges in FREE_FOR_ALL mode
@@ -86,8 +108,15 @@ export const getNextChallenge = (
     
     // Reusable challenges get higher weight if they haven't been used many times
     if (challenge.canReuse) {
-      // Higher weight for challenges that can be reused but haven't been used much
-      weight = Math.max(1, 3 - usageCount);
+      // If challenge has a maxReuseCount, decrease weight as it approaches its limit
+      if (challenge.maxReuseCount !== undefined) {
+        // Higher weight for challenges that are further from their max use limit
+        const remainingUses = challenge.maxReuseCount - usageCount;
+        weight = Math.max(1, remainingUses);
+      } else {
+        // Higher weight for challenges that can be reused but haven't been used much
+        weight = Math.max(1, 3 - usageCount);
+      }
     }
     
     // Return the challenge with its calculated weight
@@ -124,7 +153,7 @@ export const getNextChallenge = (
  * @returns Array of Challenge objects
  */
 export const generateDefaultChallenges = () => {
-  const categories = [
+  const allCategories = [
     "beer-brands",
     "tv-shows",
     "cities",
@@ -135,13 +164,26 @@ export const generateDefaultChallenges = () => {
     "movies",
     "sports",
   ];
+  
+  // Select a smaller subset of categories (3-4) instead of using all of them
+  const getRandomCategories = (categories: string[], count: number = 4) => {
+    // Shuffle the categories array
+    const shuffled = [...categories].sort(() => 0.5 - Math.random());
+    // Return the first 'count' elements
+    return shuffled.slice(0, Math.min(count, categories.length));
+  };
+  
+  // Get a random selection of categories to use
+  const selectedCategories = getRandomCategories(allCategories, 4);
+  
   return [
-    ...categories.map((category, index) => ({
+    ...selectedCategories.map((category, index) => ({
       id: `1-${index}`,
-      title: `challenges.standard.categories.${category}.title`,
-      description: `challenges.standard.categories.${category}.description`,
+      title: `challenges.standard.categories.title`,
+      description: `challenges.standard.categories.${category}`,
       type: ChallengeType.ONE_ON_ONE,
       canReuse: true,
+      maxReuseCount: 2, // Only allow each category challenge to be used twice
       points: 2,
       category: "knowledge",
       punishment: {
@@ -155,6 +197,7 @@ export const generateDefaultChallenges = () => {
       description: "challenges.standard.waterOrVodka.description",
       type: ChallengeType.ONE_ON_ONE,
       canReuse: true,
+      maxReuseCount: 3, // Allow this challenge to be used three times
       points: 2,
       category: "knowledge",
       punishment: {

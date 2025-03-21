@@ -72,6 +72,9 @@ const QuizForm: React.FC<QuizFormProps> = ({
   ]);
   const [type, setType] = useState<ChallengeType>(ChallengeType.ALL_VS_ALL);
   const [points, setPoints] = useState(1);
+  const [canReuse, setCanReuse] = useState(false);
+  const [maxReuseCount, setMaxReuseCount] = useState<number | undefined>(undefined);
+  const [showMaxReuseCount, setShowMaxReuseCount] = useState(false); // Track if we should show the max reuse count option
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
 
@@ -88,6 +91,14 @@ const QuizForm: React.FC<QuizFormProps> = ({
   const [uploadingImage, setUploadingImage] = useState(false);
   const [draggingOver, setDraggingOver] = useState<string | null>(null);
 
+  // Toggle max reuse count visibility based on canReuse value
+  useEffect(() => {
+    setShowMaxReuseCount(canReuse);
+    if (!canReuse) {
+      setMaxReuseCount(undefined); // Reset max reuse count if canReuse is set to false
+    }
+  }, [canReuse]);
+
   // Load values from editChallenge if provided
   useEffect(() => {
     if (editChallenge && editChallenge.prebuiltSettings) {
@@ -99,6 +110,9 @@ const QuizForm: React.FC<QuizFormProps> = ({
       setQuestions(settings.questions || [createEmptyQuestion()]);
       setType(editChallenge.type);
       setPoints(editChallenge.points);
+      setCanReuse(editChallenge.canReuse || false);
+      setMaxReuseCount(editChallenge.maxReuseCount);
+      setShowMaxReuseCount(editChallenge.canReuse || false);
 
       // Set punishment values if available
       if (editChallenge.punishment) {
@@ -461,6 +475,11 @@ const QuizForm: React.FC<QuizFormProps> = ({
       }
     }
 
+    // Validate max reuse count
+    if (canReuse && maxReuseCount !== undefined && maxReuseCount < 1) {
+      errors.maxReuseCount = t("validation.maxReuseCountInvalid") || "Maximum reuse count must be at least 1";
+    }
+
     setFormErrors(errors);
     
     // Display toast notification with specific errors
@@ -545,7 +564,8 @@ const QuizForm: React.FC<QuizFormProps> = ({
           title,
           description,
           type,
-          canReuse: false,
+          canReuse,
+          maxReuseCount: canReuse ? maxReuseCount : undefined,
           points,
           isPrebuilt: true,
           prebuiltType: PrebuiltChallengeType.QUIZ,
@@ -569,7 +589,8 @@ const QuizForm: React.FC<QuizFormProps> = ({
               description,
               type: type.toString(),
               points,
-              can_reuse: false,
+              can_reuse: canReuse,
+              max_reuse_count: canReuse ? (maxReuseCount ?? null) : null,
               punishment: punishmentToDbFormat(punishment),
               is_prebuilt: true,
               prebuilt_type: PrebuiltChallengeType.QUIZ.toString(),
@@ -614,7 +635,8 @@ const QuizForm: React.FC<QuizFormProps> = ({
           title,
           description,
           type,
-          canReuse: false,
+          canReuse,
+          maxReuseCount: canReuse ? maxReuseCount : undefined,
           points,
           isPrebuilt: true,
           prebuiltType: PrebuiltChallengeType.QUIZ,
@@ -637,7 +659,8 @@ const QuizForm: React.FC<QuizFormProps> = ({
             description,
             type: type.toString(),
             points,
-            can_reuse: false,
+            can_reuse: canReuse,
+            max_reuse_count: canReuse ? (maxReuseCount ?? null) : null,
             punishment: punishmentToDbFormat(punishment),
             is_prebuilt: true,
             is_favorite: false,
@@ -864,6 +887,71 @@ const QuizForm: React.FC<QuizFormProps> = ({
                 </button>
               </div>
             </div>
+
+            {/* Can Reuse Switch */}
+            <div className="flex items-center space-x-2">
+              <Switch
+                checked={canReuse}
+                onChange={() => setCanReuse(!canReuse)}
+                ariaLabel={t("challenges.canReuse")}
+                activeIcon={<CheckIcon className="h-4 w-4 text-green-500" />}
+                inactiveIcon={<XMarkIcon className="h-4 w-4 text-red-500" />}
+              />
+              <label className="text-sm text-gray-700 dark:text-gray-300">
+                {t("challenges.canReuse")}
+              </label>
+            </div>
+
+            {/* Max Reuse Count - Only shown if canReuse is true */}
+            <AnimatePresence>
+              {showMaxReuseCount && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  transition={{ duration: 0.3 }}
+                  className="overflow-hidden"
+                >
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      {t("challenges.maxReuseCount") || "Max times to use"} <span className="text-sm font-normal text-gray-500 dark:text-gray-400">(1-10)</span>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                        {t("challenges.maxReuseCountHelp") || "Leave empty for unlimited reuse"}
+                      </p>
+                    </label>
+                    <div className="grid grid-cols-5 gap-2">
+                      {[2, 3, 5, 7, 10].map((count) => (
+                        <button
+                          key={count}
+                          type="button"
+                          onClick={() => setMaxReuseCount(count)}
+                          className={`py-2 px-3 rounded-md flex items-center justify-center text-sm font-medium transition-colors ${
+                            maxReuseCount === count
+                              ? "bg-blue-100 text-blue-700 dark:bg-blue-800/40 dark:text-blue-300 border border-blue-300 dark:border-blue-700"
+                              : "bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600"
+                          }`}
+                        >
+                          {count}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="mt-2">
+                      <button
+                        type="button"
+                        onClick={() => setMaxReuseCount(undefined)}
+                        className={`py-2 px-3 rounded-md flex items-center justify-center text-sm font-medium transition-colors w-full ${
+                          maxReuseCount === undefined
+                            ? "bg-green-100 text-green-700 dark:bg-green-800/40 dark:text-green-300 border border-green-300 dark:border-green-700"
+                            : "bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600"
+                        }`}
+                      >
+                        {t("challenges.unlimited") || "Unlimited"}
+                      </button>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
         </div>
 

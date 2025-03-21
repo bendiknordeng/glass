@@ -61,6 +61,8 @@ const SpotifyMusicQuizForm: React.FC<SpotifyMusicQuizFormProps> = ({
   const [type, setType] = useState<ChallengeType>(ChallengeType.ALL_VS_ALL);
   const [points, setPoints] = useState(3);
   const [canReuse, setCanReuse] = useState(true);
+  const [maxReuseCount, setMaxReuseCount] = useState<number | undefined>(undefined);
+  const [showMaxReuseCount, setShowMaxReuseCount] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [isValidatingPlaylist, setIsValidatingPlaylist] = useState(false);
@@ -71,6 +73,14 @@ const SpotifyMusicQuizForm: React.FC<SpotifyMusicQuizFormProps> = ({
   const [punishmentType, setPunishmentType] = useState<'sips' | 'custom'>('sips');
   const [punishmentValue, setPunishmentValue] = useState(1);
   const [customPunishmentDescription, setCustomPunishmentDescription] = useState('');
+  
+  // Toggle max reuse count visibility based on canReuse value
+  useEffect(() => {
+    setShowMaxReuseCount(canReuse);
+    if (!canReuse) {
+      setMaxReuseCount(undefined); // Reset max reuse count if canReuse is set to false
+    }
+  }, [canReuse]);
   
   // Load values from editChallenge if provided
   useEffect(() => {
@@ -85,6 +95,8 @@ const SpotifyMusicQuizForm: React.FC<SpotifyMusicQuizFormProps> = ({
       setType(editChallenge.type || ChallengeType.ALL_VS_ALL);
       setPoints(editChallenge.points || 3);
       setCanReuse(editChallenge.canReuse !== undefined ? editChallenge.canReuse : true);
+      setMaxReuseCount(editChallenge.maxReuseCount);
+      setShowMaxReuseCount(editChallenge.canReuse !== undefined ? editChallenge.canReuse : true);
       
       // When editing, always default to the URL tab
       setActiveTab('url');
@@ -351,6 +363,11 @@ const SpotifyMusicQuizForm: React.FC<SpotifyMusicQuizFormProps> = ({
     } else if (playDurationSeconds > 30) {
       errors.playDurationSeconds = t('validation.maxValue', { max: 30 });
     }
+
+    // Validate max reuse count
+    if (canReuse && maxReuseCount !== undefined && maxReuseCount < 1) {
+      errors.maxReuseCount = t("validation.maxReuseCountInvalid") || "Maximum reuse count must be at least 1";
+    }
     
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
@@ -450,6 +467,7 @@ const SpotifyMusicQuizForm: React.FC<SpotifyMusicQuizFormProps> = ({
           type,
           points,
           canReuse,
+          maxReuseCount: canReuse ? maxReuseCount : undefined,
           punishment: getPunishment(),
           prebuiltSettings: challengeSettings
         };
@@ -465,6 +483,7 @@ const SpotifyMusicQuizForm: React.FC<SpotifyMusicQuizFormProps> = ({
               type: type.toString(),
               points,
               can_reuse: canReuse,
+              max_reuse_count: canReuse ? maxReuseCount : undefined,
               punishment: punishmentToDbFormat(getPunishment()),
               is_prebuilt: true,
               prebuilt_type: PrebuiltChallengeType.SPOTIFY_MUSIC_QUIZ.toString(),
@@ -504,6 +523,7 @@ const SpotifyMusicQuizForm: React.FC<SpotifyMusicQuizFormProps> = ({
           description: t('prebuilt.spotifyMusicQuiz.description', { numberOfSongs, playDurationSeconds }),
           type,
           canReuse,
+          maxReuseCount: canReuse ? maxReuseCount : undefined,
           points,
           punishment: getPunishment(),
           category: 'Music',
@@ -528,6 +548,7 @@ const SpotifyMusicQuizForm: React.FC<SpotifyMusicQuizFormProps> = ({
             type: type.toString(),
             points,
             can_reuse: canReuse,
+            max_reuse_count: canReuse ? (maxReuseCount ?? null) : null,
             punishment: punishmentToDbFormat(getPunishment()),
             is_prebuilt: true,
             is_favorite: false,
@@ -598,6 +619,8 @@ const SpotifyMusicQuizForm: React.FC<SpotifyMusicQuizFormProps> = ({
     setType(ChallengeType.ALL_VS_ALL);
     setPoints(3);
     setCanReuse(true);
+    setMaxReuseCount(undefined);
+    setShowMaxReuseCount(true);
     setFormErrors({});
     setActiveTab('url');
     setSelectedPlaylist(null);
@@ -1100,6 +1123,62 @@ const SpotifyMusicQuizForm: React.FC<SpotifyMusicQuizFormProps> = ({
             {t('challenges.canReuse')}
           </label>
         </div>
+        
+        {/* Max Reuse Count - Only shown if canReuse is true */}
+        <AnimatePresence>
+          {showMaxReuseCount && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              transition={{ duration: 0.3 }}
+              className="overflow-hidden"
+            >
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  {t("challenges.maxReuseCount") || "Max times to use"} <span className="text-sm font-normal text-gray-500 dark:text-gray-400">(1-10)</span>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    {t("challenges.maxReuseCountHelp") || "Leave empty for unlimited reuse"}
+                  </p>
+                </label>
+                <div className="grid grid-cols-5 gap-2">
+                  {[2, 3, 5, 7, 10].map((count) => (
+                    <button
+                      key={count}
+                      type="button"
+                      onClick={() => setMaxReuseCount(count)}
+                      className={`py-2 px-3 rounded-md flex items-center justify-center text-sm font-medium transition-colors ${
+                        maxReuseCount === count
+                          ? "bg-blue-100 text-blue-700 dark:bg-blue-800/40 dark:text-blue-300 border border-blue-300 dark:border-blue-700"
+                          : "bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600"
+                      }`}
+                    >
+                      {count}
+                    </button>
+                  ))}
+                </div>
+                <div className="mt-2">
+                  <button
+                    type="button"
+                    onClick={() => setMaxReuseCount(undefined)}
+                    className={`py-2 px-3 rounded-md flex items-center justify-center text-sm font-medium transition-colors w-full ${
+                      maxReuseCount === undefined
+                        ? "bg-green-100 text-green-700 dark:bg-green-800/40 dark:text-green-300 border border-green-300 dark:border-green-700"
+                        : "bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600"
+                    }`}
+                  >
+                    {t("challenges.unlimited") || "Unlimited"}
+                  </button>
+                </div>
+                {formErrors.maxReuseCount && (
+                  <p className="mt-1 text-sm text-red-600 dark:text-red-500">
+                    {formErrors.maxReuseCount}
+                  </p>
+                )}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
         
         {/* Punishment options */}
         <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
