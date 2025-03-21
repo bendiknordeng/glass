@@ -316,10 +316,10 @@ const ChallengeDisplay: React.FC<ChallengeDisplayProps> = ({
         {/* Challenge Type Indicator */}
         <div className="mb-6 text-center">
           <span className={`inline-block text-sm font-medium px-3 py-1 rounded-full mb-2 ${
-            challenge.type === ChallengeType.INDIVIDUAL ? 'bg-pastel-blue/20 text-pastel-blue-dark' :
-            challenge.type === ChallengeType.ONE_ON_ONE ? 'bg-pastel-orange/20 text-pastel-orange-dark' :
-            challenge.type === ChallengeType.TEAM ? 'bg-pastel-green/20 text-pastel-green-dark' :
-            'bg-pastel-purple/20 text-pastel-purple-dark'
+            challenge.type === ChallengeType.INDIVIDUAL ? 'bg-pastel-blue/20 text-pastel-blue-dark dark:bg-blue-500/20 dark:text-blue-300' :
+            challenge.type === ChallengeType.ONE_ON_ONE ? 'bg-pastel-orange/20 text-pastel-orange-dark dark:bg-orange-500/20 dark:text-orange-300' :
+            challenge.type === ChallengeType.TEAM ? 'bg-pastel-green/20 text-pastel-green-dark dark:bg-green-500/20 dark:text-green-300' :
+            'bg-pastel-purple/20 text-pastel-purple-dark dark:bg-purple-500/20 dark:text-purple-300'
           }`}>
             {challenge.type === ChallengeType.INDIVIDUAL ? t('game.challengeTypes.individual') :
               challenge.type === ChallengeType.ONE_ON_ONE ? t('game.challengeTypes.oneOnOne') :
@@ -429,30 +429,28 @@ const ChallengeDisplay: React.FC<ChallengeDisplayProps> = ({
           )}
         </div>
         
-        {/* Challenge Description */}
         <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-5 mb-6">
-          <p className="text-gray-700 dark:text-gray-300 whitespace-pre-line">
-            {challenge.description}
-          </p>
-          
           {/* Show punishment info if available */}
           {challenge.punishment && (
-            <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-600">
-              <div className="flex items-center text-red-500 dark:text-red-400 font-medium">
+            <div>
+              <div className="flex items-center text-amber-600 dark:text-amber-400 font-medium mb-2">
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
                   <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
                 </svg>
                 <span>
-                  {challenge.punishment.type === 'sips' 
-                    ? t('game.failurePunishmentSips', { count: challenge.punishment.value }) 
-                    : t('game.failurePunishmentCustom')}
+                  {t('challenges.lostOrFailed')}
                 </span>
               </div>
-              {challenge.punishment.type === 'custom' && challenge.punishment.customDescription && (
-                <p className="mt-1 text-sm text-gray-600 dark:text-gray-400 italic">
-                  "{challenge.punishment.customDescription}"
-                </p>
-              )}
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                {challenge.punishment.type === 'sips' 
+                  ? t('game.failurePunishmentSips', { count: challenge.punishment.value }) 
+                  : t('game.failurePunishmentCustom')}
+                {challenge.punishment.type === 'custom' && challenge.punishment.customDescription && (
+                  <span className="ml-1 italic">
+                    "{challenge.punishment.customDescription}"
+                  </span>
+                )}
+              </p>
             </div>
           )}
         </div>
@@ -552,9 +550,14 @@ const ChallengeDisplay: React.FC<ChallengeDisplayProps> = ({
             onAnimationComplete={handlePunishmentAnimationComplete}
           >
             <div className="text-center mb-6">
-              <p className="text-gray-600 dark:text-gray-400 mb-4">
-                {t('challenges.didntDoOrFailed')}
-              </p>
+              <div className="bg-red-100 dark:bg-red-900/30 p-4 rounded-lg mb-4">
+                <p className="text-red-700 dark:text-red-300 mb-2 font-medium">
+                  {t('challenges.didntDoOrFailed')}
+                </p>
+                <p className="text-gray-600 dark:text-gray-400 text-sm mb-3">
+                  {t('challenges.punishmentExplanation')}
+                </p>
+              </div>
               <motion.div
                 className="inline-block bg-red-500 text-white px-6 py-4 rounded-lg mb-4 text-xl font-bold"
                 variants={shake}

@@ -282,7 +282,7 @@
     },
     "punishment": "Straff",
     "allRecentChallenges": "Alle nylige utfordringer",
-    "didntDoOrFailed": "Konsekvensen av å ikke gjøre eller mislykkes?"
+    "lostOrFailed": "Tapte du eller mislyktes?"
   },
   "settings": {
     "title": "Innstillinger",

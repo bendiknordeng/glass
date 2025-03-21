@@ -301,7 +301,7 @@
     },
     "allRecentChallenges": "All Recent Challenges",
     "punishment": "Punishment",
-    "didntDoOrFailed": "What happens if you don't do or fail?"
+    "lostOrFailed": "Did you lose or fail?"
   },
   "settings": {
     "title": "Settings",
