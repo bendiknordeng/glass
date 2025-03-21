@@ -60,6 +60,12 @@ export const getNextChallenge = (
   
   // Process custom challenges
   customChallenges.forEach(challenge => {
+    // Ensure we only use challenges that are explicitly selected
+    if (!challenge.isSelected) {
+      console.log(`Skipping challenge that is not selected: "${challenge.title}" (ID: ${challenge.id})`);
+      return;
+    }
+    
     // Skip challenges that can't be reused and have already been used
     if (!challenge.canReuse && usedChallenges.includes(challenge.id)) {
       return;
@@ -178,12 +184,11 @@ export const generateDefaultChallenges = () => {
   
   return [
     ...selectedCategories.map((category, index) => ({
-      id: `1-${index}`,
+      id: `cat-${index}-${category}`, // Ensure unique IDs for each category challenge
       title: `challenges.standard.categories.title`,
       description: `challenges.standard.categories.${category}`,
       type: ChallengeType.ONE_ON_ONE,
-      canReuse: true,
-      maxReuseCount: 2, // Only allow each category challenge to be used twice
+      canReuse: false,
       points: 2,
       category: "knowledge",
       punishment: {
@@ -192,18 +197,120 @@ export const generateDefaultChallenges = () => {
       },
     })),
     {
-      id: "2",
+      id: "water-vodka-1", // Fixed unique ID
       title: "challenges.standard.waterOrVodka.title",
       description: "challenges.standard.waterOrVodka.description",
       type: ChallengeType.ONE_ON_ONE,
       canReuse: true,
-      maxReuseCount: 3, // Allow this challenge to be used three times
+      maxReuseCount: 3,
       points: 2,
-      category: "knowledge",
-      punishment: {
-        type: "sips",
-        value: 3,
-      },
+      category: "knowledge"
     },
+    {
+      id: "water-vodka-team", // Fixed unique ID for team version
+      title: "challenges.standard.waterOrVodka.title",
+      description: "challenges.standard.waterOrVodka.description",
+      type: ChallengeType.TEAM,
+      canReuse: false,
+      points: 3,
+      category: "knowledge"
+    },
+    {
+      id: "truth-dare-1",
+      title: "challenges.standard.truthOrDare.title",
+      description: "challenges.standard.truthOrDare.description",
+      type: ChallengeType.ONE_ON_ONE,
+      canReuse: true,
+      maxReuseCount: 5,
+      points: 2,
+      category: "personal"
+    },
+    {
+      id: "truth-dare-2",
+      title: "challenges.standard.truthOrDare.teamVersion",
+      description: "challenges.standard.truthOrDare.teamDescription",
+      type: ChallengeType.TEAM,
+      canReuse: true,
+      maxReuseCount: 3,
+      points: 3,
+      category: "personal"
+    },
+    {
+      id: "quickdraw-1",
+      title: "challenges.standard.quickdraw.title",
+      description: "challenges.standard.quickdraw.description",
+      type: ChallengeType.ONE_ON_ONE,
+      canReuse: true,
+      maxReuseCount: 4,
+      points: 1,
+      category: "reflex"
+    },
+    {
+      id: "word-chain-1", 
+      title: "challenges.standard.wordChain.title",
+      description: "challenges.standard.wordChain.description",
+      type: ChallengeType.ONE_ON_ONE,
+      canReuse: false,
+      points: 2,
+      category: "knowledge"
+    },
+    {
+      id: "word-chain-team",
+      title: "challenges.standard.wordChain.teamTitle",
+      description: "challenges.standard.wordChain.teamDescription",
+      type: ChallengeType.TEAM,
+      canReuse: false,
+      points: 3,
+      category: "knowledge"
+    },
+    {
+      id: "mime-1",
+      title: "challenges.standard.mime.title",
+      description: "challenges.standard.mime.description",
+      type: ChallengeType.ONE_ON_ONE,
+      canReuse: true,
+      maxReuseCount: 3,
+      points: 2,
+      category: "performance"
+    },
+    {
+      id: "mime-team",
+      title: "challenges.standard.mime.teamTitle", 
+      description: "challenges.standard.mime.teamDescription",
+      type: ChallengeType.TEAM,
+      canReuse: true,
+      maxReuseCount: 2,
+      points: 3,
+      category: "performance"
+    },
+    {
+      id: "rock-paper-scissors-1",
+      title: "challenges.standard.rockPaperScissors.title",
+      description: "challenges.standard.rockPaperScissors.description",
+      type: ChallengeType.ONE_ON_ONE,
+      canReuse: true,
+      maxReuseCount: 5,
+      points: 1,
+      category: "luck"
+    },
+    {
+      id: "tongue-twister-1",
+      title: "challenges.standard.tongueTwister.title",
+      description: "challenges.standard.tongueTwister.description",
+      type: ChallengeType.ONE_ON_ONE,
+      canReuse: true,
+      maxReuseCount: 3,
+      points: 2,
+      category: "speech"
+    },
+    {
+      id: "staring-contest-1",
+      title: "challenges.standard.staringContest.title",
+      description: "challenges.standard.staringContest.description",
+      type: ChallengeType.ONE_ON_ONE,
+      canReuse: false,
+      points: 2,
+      category: "endurance"
+    }
   ];
 };

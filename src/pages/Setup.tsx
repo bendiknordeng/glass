@@ -36,7 +36,82 @@ const Setup: React.FC = () => {
   // Save currentStep to localStorage whenever it changes
   useEffect(() => {
     localStorage.setItem(SETUP_CURRENT_STEP_KEY, currentStep.toString());
+    
+    // Save game state when changing steps
+    saveGameStateToLocalStorage();
   }, [currentStep]);
+  
+  // Save game state to localStorage
+  const saveGameStateToLocalStorage = () => {
+    try {
+      // Save relevant parts of the state
+      const stateToSave = {
+        players: state.players,
+        teams: state.teams,
+        gameMode: state.gameMode,
+        gameDuration: state.gameDuration,
+        challenges: state.challenges,
+        customChallenges: state.customChallenges
+      };
+      
+      // Store in localStorage
+      localStorage.setItem('gameStateSetup', JSON.stringify(stateToSave));
+      console.log('Game state saved to localStorage');
+    } catch (error) {
+      console.error('Error saving game state to localStorage:', error);
+    }
+  };
+  
+  // Load game state from localStorage on initial mount
+  useEffect(() => {
+    try {
+      const savedState = localStorage.getItem('gameStateSetup');
+      if (savedState) {
+        const parsedState = JSON.parse(savedState);
+        
+        // Restore the game state
+        if (parsedState.players) {
+          // Restore players
+          for (const player of parsedState.players) {
+            if (!state.players.some(p => p.id === player.id)) {
+              dispatch({
+                type: 'ADD_PLAYER',
+                payload: player
+              });
+            }
+          }
+        }
+        
+        // Restore teams if needed
+        if (parsedState.teams && parsedState.teams.length > 0) {
+          dispatch({
+            type: 'SAVE_TEAMS_STATE',
+            payload: parsedState.teams
+          });
+        }
+        
+        // Restore game mode
+        if (parsedState.gameMode) {
+          dispatch({
+            type: 'SET_GAME_MODE',
+            payload: parsedState.gameMode
+          });
+        }
+        
+        // Restore game duration
+        if (parsedState.gameDuration) {
+          dispatch({
+            type: 'SET_GAME_DURATION',
+            payload: parsedState.gameDuration
+          });
+        }
+        
+        console.log('Game state restored from localStorage');
+      }
+    } catch (error) {
+      console.error('Error restoring game state from localStorage:', error);
+    }
+  }, []);
   
   // Mark initial load as complete after a short delay to ensure state is properly loaded
   useEffect(() => {
@@ -70,6 +145,8 @@ const Setup: React.FC = () => {
   // Clear the saved step when the game starts
   const clearSavedStep = () => {
     localStorage.removeItem(SETUP_CURRENT_STEP_KEY);
+    localStorage.removeItem('gameStateSetup');
+    localStorage.removeItem('setupTeams');
   };
   
   // Reset to first step if we don't have enough players, but only after initial load

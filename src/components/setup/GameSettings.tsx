@@ -19,6 +19,8 @@ const RECENT_CHALLENGES_KEY = "recentCustomChallenges";
 // Helper function to update recent challenges in local storage
 const updateRecentChallenges = (newChallenge: Challenge, isSelected = false) => {
   try {
+    console.log(`updateRecentChallenges: Updating challenge "${newChallenge.title}" with isSelected=${isSelected}`);
+    
     const recentChallenges = JSON.parse(
       localStorage.getItem(RECENT_CHALLENGES_KEY) || "[]"
     );
@@ -51,6 +53,8 @@ const updateRecentChallenges = (newChallenge: Challenge, isSelected = false) => 
       RECENT_CHALLENGES_KEY,
       JSON.stringify(updatedChallenges)
     );
+    
+    console.log(`updateRecentChallenges: Stored ${updatedChallenges.length} challenges in localStorage`);
     
     return updatedChallenges;
   } catch (error) {
@@ -161,6 +165,75 @@ const GameSettings: React.FC = () => {
   const [challengeToDelete, setChallengeToDelete] = useState<Challenge | null>(null);
   const [deleteFromCurrentGame, setDeleteFromCurrentGame] = useState(false);
 
+  // Keep track of challenges count to detect removals
+  const [prevChallengesCount, setPrevChallengesCount] = useState(state.customChallenges.length);
+  
+  // Monitor changes to the custom challenges array
+  React.useEffect(() => {
+    // If challenges were removed from the game, we need to refresh the recent challenges list
+    // to potentially show them again (only if they're still in localStorage)
+    if (state.customChallenges.length < prevChallengesCount || state.customChallenges.length === 0 || deleteFromCurrentGame) {
+      console.log('Challenges count changed, refreshing UI');
+      
+      // Reset the deleteFromCurrentGame flag after processing
+      if (deleteFromCurrentGame) {
+        // Use setTimeout to avoid state update during render
+        setTimeout(() => {
+          setDeleteFromCurrentGame(false);
+        }, 0);
+      }
+      
+      // Sync challenges with localStorage first
+      syncChallengesWithLocalStorage();
+      
+      // Update recent challenges
+      setRecentChallenges(getRecentChallenges());
+    }
+    
+    // Update the previous count
+    setPrevChallengesCount(state.customChallenges.length);
+  }, [state.customChallenges, state.customChallenges.length, prevChallengesCount, deleteFromCurrentGame]);
+
+  // Track standard challenges for updates
+  const [prevStandardChallengesCount, setPrevStandardChallengesCount] = useState(state.challenges.length);
+  
+  // Monitor changes to the standard challenges array
+  React.useEffect(() => {
+    // Check if challenges were added
+    if (state.challenges.length > prevStandardChallengesCount) {
+      console.log('Standard challenges changed, refreshing UI');
+      // Sync challenges with localStorage
+      syncChallengesWithLocalStorage();
+      
+      // Update recent challenges
+      setRecentChallenges(getRecentChallenges());
+    }
+    
+    // Update the previous count
+    setPrevStandardChallengesCount(state.challenges.length);
+  }, [state.challenges.length, prevStandardChallengesCount]);
+
+  // Load challenges on mount
+  React.useEffect(() => {
+    // Load challenges from localStorage initially
+    const localChallenges = getRecentChallenges();
+    setRecentChallenges(localChallenges);
+    
+    // Then load database challenges (only once on mount)
+    loadChallengesFromDB();
+  }, []); // Empty dependency array - only run on mount
+
+  // Auto-save when duration type or value changes
+  useEffect(() => {
+    dispatch({
+      type: "SET_GAME_DURATION",
+      payload: {
+        type: durationType,
+        value: durationValue,
+      },
+    });
+  }, [durationType, durationValue, dispatch]);
+
   // Helper function to get recent challenges from local storage
   const getRecentChallenges = (): Challenge[] => {
     try {
@@ -169,6 +242,7 @@ const GameSettings: React.FC = () => {
 
       // Parse stored challenges
       const parsedChallenges = JSON.parse(stored);
+      console.log(`getRecentChallenges: Found ${parsedChallenges.length} challenges in localStorage`);
       
       // Get the current challenges in the game for filtering
       const currentGameChallengeIds = state.customChallenges.map(c => c.id);
@@ -187,6 +261,7 @@ const GameSettings: React.FC = () => {
         
         // If challenge selection state is out of sync with game state, update it
         if (isInGame !== (storedChallenge.isSelected || false)) {
+          console.log(`getRecentChallenges: Updating selection state for ${storedChallenge.title} to ${isInGame}`);
           updateRecentChallenges({
             ...storedChallenge,
             // Preserve prebuilt properties
@@ -208,6 +283,7 @@ const GameSettings: React.FC = () => {
         }
       }
       
+      console.log(`getRecentChallenges: Returning ${updatedChallenges.length} challenges that are not in the current game`);
       return updatedChallenges;
     } catch (error) {
       console.error("Error reading recent challenges:", error);
@@ -350,66 +426,6 @@ const GameSettings: React.FC = () => {
       console.error("Error syncing challenges with localStorage:", error);
     }
   };
-
-  // Track changes to customChallenges for handling both additions and removals
-  React.useEffect(() => {
-    // If challenges were removed from the game, we need to refresh the recent challenges list
-    // to potentially show them again (only if they're still in localStorage)
-    if (state.customChallenges.length === 0 || deleteFromCurrentGame) {
-      // Reset the deleteFromCurrentGame flag after processing
-      if (deleteFromCurrentGame) {
-        // Use setTimeout to avoid state update during render
-        setTimeout(() => {
-          setDeleteFromCurrentGame(false);
-        }, 0);
-      }
-      
-      // Sync challenges with localStorage first
-      syncChallengesWithLocalStorage();
-      
-      // Update recent challenges
-      setRecentChallenges(getRecentChallenges());
-    }
-  }, [state.customChallenges, deleteFromCurrentGame]);
-  
-  // Keep track of challenges count to detect removals
-  const [prevChallengesCount, setPrevChallengesCount] = useState(state.customChallenges.length);
-  
-  // Monitor changes to the custom challenges array
-  React.useEffect(() => {
-    // Check if challenges were removed
-    if (state.customChallenges.length < prevChallengesCount) {
-      // Sync challenges with localStorage
-      syncChallengesWithLocalStorage();
-      
-      // Update recent challenges
-      setRecentChallenges(getRecentChallenges());
-    }
-    
-    // Update the previous count
-    setPrevChallengesCount(state.customChallenges.length);
-  }, [state.customChallenges.length, prevChallengesCount]);
-
-  // Load challenges on mount
-  React.useEffect(() => {
-    // Load challenges from localStorage initially
-    const localChallenges = getRecentChallenges();
-    setRecentChallenges(localChallenges);
-    
-    // Then load database challenges (only once on mount)
-    loadChallengesFromDB();
-  }, []); // Empty dependency array - only run on mount
-
-  // Auto-save when duration type or value changes
-  useEffect(() => {
-    dispatch({
-      type: "SET_GAME_DURATION",
-      payload: {
-        type: durationType,
-        value: durationValue,
-      },
-    });
-  }, [durationType, durationValue, dispatch]);
 
   // Add a recent challenge to current game
   const handleAddRecentChallenge = (challenge: Challenge) => {
@@ -723,17 +739,34 @@ const GameSettings: React.FC = () => {
     // Update in localStorage as selected
     updateRecentChallenges(challengeToUpdate, true);
     
-    // Update in the game state
-    dispatch({
-      type: "UPDATE_CUSTOM_CHALLENGE",
-      payload: challengeToUpdate,
-    });
+    // For new challenges, add to standard challenges pool first
+    if (!editingChallenge) {
+      dispatch({
+        type: "ADD_STANDARD_CHALLENGE",
+        payload: challengeToUpdate,
+      });
+      
+      // Also add to the current game's custom challenges
+      dispatch({
+        type: "ADD_CUSTOM_CHALLENGE",
+        payload: challengeToUpdate,
+      });
+    } else {
+      // Update in the game state for existing challenges
+      dispatch({
+        type: "UPDATE_CUSTOM_CHALLENGE",
+        payload: challengeToUpdate,
+      });
+    }
 
     // Close all forms
     setShowCustomChallengeForm(false);
     setShowSpotifyMusicQuizForm(false);
     setShowQuizForm(false);
     setEditingChallenge(undefined);
+    
+    // Refresh recent challenges to reflect changes
+    syncChallengesWithLocalStorage();
     setRecentChallenges(getRecentChallenges());
   };
 
@@ -774,6 +807,8 @@ const GameSettings: React.FC = () => {
     const gameChallenge = state.customChallenges.find(c => c.id === challenge.id);
     
     if (gameChallenge) {
+      console.log(`Removing challenge from game: ${challenge.id} - ${challenge.title}`);
+      
       // Track this challenge as recently removed for animation
       setRecentlyRemovedChallenge(challenge.id);
       
@@ -782,15 +817,14 @@ const GameSettings: React.FC = () => {
         setRecentlyRemovedChallenge(null);
       }, 800); // Slightly longer than the animation duration
       
-      // First, update the challenge in localStorage to mark as unselected
-      // We use the updateRecentChallenges helper to ensure it's in localStorage
-      updateRecentChallenges({
+      // Create a preserved copy of the challenge to add to recent challenges
+      const challengeCopy = ensurePrebuiltPropertiesPreserved({
         ...gameChallenge,
-        // Preserve prebuilt properties
-        isPrebuilt: gameChallenge.isPrebuilt,
-        prebuiltType: gameChallenge.prebuiltType,
-        prebuiltSettings: gameChallenge.prebuiltSettings
-      }, false);
+        isSelected: false
+      });
+      
+      // First, update the challenge in localStorage to mark as unselected
+      updateRecentChallenges(challengeCopy, false);
       
       // Then remove it from the game
       dispatch({
@@ -798,9 +832,28 @@ const GameSettings: React.FC = () => {
         payload: challenge.id
       });
       
-      // Immediately update recent challenges to show the removed challenge
+      // Force immediate synchronization with localStorage
       syncChallengesWithLocalStorage();
-      setRecentChallenges(getRecentChallenges());
+      
+      // Add the challenge directly to the recentChallenges state
+      setRecentChallenges(prevChallenges => {
+        // Check if it already exists in the list
+        const exists = prevChallenges.some(
+          c => c.id === challengeCopy.id || 
+               c.title.toLowerCase() === challengeCopy.title.toLowerCase()
+        );
+        
+        // If it already exists, don't add it again
+        if (exists) {
+          console.log(`Challenge ${challengeCopy.title} already exists in recent challenges, not adding again`);
+          return prevChallenges;
+        }
+        
+        console.log(`Adding challenge ${challengeCopy.title} to recent challenges list`);
+        return [challengeCopy, ...prevChallenges];
+      });
+    } else {
+      console.error('Failed to find challenge in game:', challenge.id);
     }
   };
 
@@ -1065,11 +1118,19 @@ const GameSettings: React.FC = () => {
               // Ensure prebuilt properties are preserved
               const preservedChallenge = ensurePrebuiltPropertiesPreserved(challenge);
               
+              // Add to standard challenges pool
               dispatch({
                 type: "ADD_STANDARD_CHALLENGE",
                 payload: preservedChallenge
               });
-              // Also add to recent challenges
+              
+              // Also add to current game's custom challenges (selected list)
+              dispatch({
+                type: "ADD_CUSTOM_CHALLENGE",
+                payload: preservedChallenge
+              });
+              
+              // Also add to recent challenges, but mark as selected
               console.log("GameSettings: Adding challenge to recent challenges");
               updateRecentChallenges(preservedChallenge, true);
               console.log("GameSettings: Challenge handling complete");
@@ -1093,7 +1154,7 @@ const GameSettings: React.FC = () => {
                 {state.customChallenges.map((challenge) => (
                   <motion.div
                     key={challenge.id}
-                    className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4 border border-gray-200 dark:border-gray-600"
+                    className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4 border border-gray-200 dark:border-gray-600 group"
                     layoutId={`challenge-${challenge.id}`}
                     initial={{ opacity: 1, scale: 1 }}
                     exit={{
@@ -1157,8 +1218,31 @@ const GameSettings: React.FC = () => {
                         </button>
                         <button
                           onClick={() => handleDirectRemoveChallenge(challenge)}
-                          className="text-red-500 hover:text-red-600 dark:text-red-400 dark:hover:text-red-300 p-1"
-                          title={t("common.delete")}
+                          className="text-amber-500 hover:text-amber-600 dark:text-amber-400 dark:hover:text-amber-300 p-1"
+                          title={t("challenges.removeFromGame")}
+                        >
+                          <svg
+                            className="w-5 h-5"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                            xmlns="http://www.w3.org/2000/svg"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M15 12H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z"
+                            />
+                          </svg>
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            initiateDeleteChallenge(challenge);
+                          }}
+                          className="text-red-500 hover:text-red-600 dark:text-red-400 dark:hover:text-red-300 p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                          title={t("challenges.deletePermanently")}
                         >
                           <svg
                             className="w-5 h-5"
@@ -1376,10 +1460,10 @@ const GameSettings: React.FC = () => {
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        handleDirectRemoveChallenge(challenge);
+                        initiateDeleteChallenge(challenge);
                       }}
                       className="absolute top-3 right-3 text-red-500 hover:text-red-600 dark:text-red-400 dark:hover:text-red-300 p-1 opacity-0 group-hover:opacity-100 transition-opacity"
-                      title={t("common.delete")}
+                      title={t("challenges.deletePermanently")}
                     >
                       <svg
                         className="w-5 h-5"
@@ -1414,6 +1498,31 @@ const GameSettings: React.FC = () => {
           setRecentChallenges(getRecentChallenges());
         }}
         editChallenge={editingChallenge}
+        onChallengeCreated={(challenge) => {
+          console.log("GameSettings: CustomChallengeForm created a challenge:", challenge);
+          
+          // Ensure prebuilt properties are preserved
+          const preservedChallenge = ensurePrebuiltPropertiesPreserved(challenge);
+          
+          // If not already in the custom challenges list (for new challenges), 
+          // update the localStorage as selected and add to the game
+          if (!editingChallenge) {
+            console.log("GameSettings: Adding new challenge to game:", preservedChallenge.title);
+            
+            // Mark as selected in localStorage
+            updateRecentChallenges(preservedChallenge, true);
+            
+            // For brand new challenges, we need to explicitly add them to the game state
+            // since the dispatch in CustomChallengeForm might not be reflected in this component
+            dispatch({
+              type: "ADD_CUSTOM_CHALLENGE",
+              payload: preservedChallenge
+            });
+          }
+          
+          // Refresh recent challenges list to reflect changes
+          setRecentChallenges(getRecentChallenges());
+        }}
       />
 
       {/* Spotify Music Quiz Form Modal */}

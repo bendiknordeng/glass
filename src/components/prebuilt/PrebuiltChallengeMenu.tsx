@@ -54,7 +54,12 @@ const PrebuiltChallengeMenu: React.FC<PrebuiltChallengeMenuProps> = ({
       hasPrebuiltSettings: !!challengeWithPreservedProps.prebuiltSettings
     });
     
+    // Pass the challenge to the parent component
     onChallengeCreated(challengeWithPreservedProps);
+    
+    // Close the modals after creation to improve UX
+    setShowSpotifyMusicQuizForm(false);
+    setShowQuizForm(false);
   };
   
   // List of available prebuilt challenges
@@ -141,14 +146,14 @@ const PrebuiltChallengeMenu: React.FC<PrebuiltChallengeMenuProps> = ({
       </div>
       
       {/* Coming Soon Section */}
-      <div className="bg-gray-100 dark:bg-gray-800/50 rounded-lg p-4 border border-dashed border-gray-300 dark:border-gray-600 text-center">
+      {/* <div className="bg-gray-100 dark:bg-gray-800/50 rounded-lg p-4 border border-dashed border-gray-300 dark:border-gray-600 text-center">
         <h4 className="font-medium text-gray-700 dark:text-gray-300 mb-2">
           {t('prebuilt.comingSoon')}
         </h4>
         <p className="text-gray-600 dark:text-gray-400 text-sm">
           {t('prebuilt.moreChallengesComingSoon')}
         </p>
-      </div>
+      </div> */}
       
       {/* Challenge Form Modals */}
       <SpotifyMusicQuizForm

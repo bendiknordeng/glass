@@ -37,6 +37,10 @@ const Game: React.FC = () => {
   
   // Add state for skip confirmation dialog
   const [showSkipConfirm, setShowSkipConfirm] = useState(false);
+  // Add state for the skip button confirmation
+  const [isSkipConfirming, setIsSkipConfirming] = useState(false);
+  // Ref for the timer that resets the confirmation state
+  const skipConfirmTimerRef = useRef<NodeJS.Timeout | null>(null);
   
   // Debug logging for current challenge changes
   useEffect(() => {
@@ -753,9 +757,6 @@ const Game: React.FC = () => {
   
   // Handler for skipping the current challenge
   const handleSkipChallenge = () => {
-    // Close the confirmation dialog
-    setShowSkipConfirm(false);
-    
     // Reset animation states
     setIsRevealingPlayer(false);
     setIsRevealingMultiPlayers(false);
@@ -772,6 +773,39 @@ const Game: React.FC = () => {
       startRevealSequence();
     }, 100);
   };
+
+  // Handler for the skip button first click
+  const handleSkipClick = () => {
+    if (isSkipConfirming) {
+      // Second click - actually skip
+      handleSkipChallenge();
+      // Reset the confirmation state
+      setIsSkipConfirming(false);
+      // Clear any existing timer
+      if (skipConfirmTimerRef.current) {
+        clearTimeout(skipConfirmTimerRef.current);
+        skipConfirmTimerRef.current = null;
+      }
+    } else {
+      // First click - enter confirmation mode
+      setIsSkipConfirming(true);
+      
+      // Set a timer to automatically reset after 3 seconds
+      skipConfirmTimerRef.current = setTimeout(() => {
+        setIsSkipConfirming(false);
+        skipConfirmTimerRef.current = null;
+      }, 3000);
+    }
+  };
+  
+  // Clear the timer on component unmount
+  useEffect(() => {
+    return () => {
+      if (skipConfirmTimerRef.current) {
+        clearTimeout(skipConfirmTimerRef.current);
+      }
+    };
+  }, []);
 
   return (
     <div>
@@ -878,46 +912,71 @@ const Game: React.FC = () => {
         {/* Skip Challenge Button */}
         {state.currentChallenge && (
           <div className="fixed bottom-6 right-6 z-10">
-            <Button
-              onClick={() => setShowSkipConfirm(true)}
-              variant="secondary"
-              size="sm"
-              className="bg-gray-200 hover:bg-gray-300 text-gray-700 dark:bg-gray-700 dark:hover:bg-gray-600 dark:text-gray-300 rounded-full p-3 shadow-md transition-colors"
+            <motion.div
+              animate={{
+                width: isSkipConfirming ? 'auto' : 'auto',
+                transition: { duration: 0.3 }
+              }}
             >
-              {t('game.skipChallenge')}
-            </Button>
-          </div>
-        )}
-
-        {/* Skip Confirmation Dialog */}
-        {showSkipConfirm && (
-          <div className="fixed inset-0 flex items-center justify-center z-50 bg-black bg-opacity-50">
-            <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-sm mx-auto shadow-xl">
-              <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">
-                {t('game.confirmSkip')}
-              </h3>
-              <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
-                {t('game.skipChallengeConfirmation')}
-              </p>
-              <div className="flex justify-end space-x-3">
-                <Button
-                  onClick={() => setShowSkipConfirm(false)}
-                  variant="primary"
-                  size="sm"
-                  className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-800 dark:bg-gray-700 dark:hover:bg-gray-600 dark:text-gray-200 rounded-md"
-                >
-                  {t('common.cancel')}
-                </Button>
-                <Button
-                  onClick={handleSkipChallenge}
-                  variant="secondary"
-                  size="sm"
-                  className="px-4 py-2 bg-game-secondary hover:bg-game-secondary/80 text-white rounded-md"
-                >
-                  {t('common.skip')}
-                </Button>
-              </div>
-            </div>
+              <Button
+                onClick={handleSkipClick}
+                variant="secondary"
+                size="sm"
+                className={`
+                  relative overflow-hidden transition-all duration-300
+                  ${isSkipConfirming 
+                    ? 'bg-game-secondary hover:bg-game-secondary/80 text-white px-6' 
+                    : 'bg-gray-200 hover:bg-gray-300 text-gray-700 dark:bg-gray-700 dark:hover:bg-gray-600 dark:text-gray-300 px-5'}
+                  rounded-full py-3 shadow-md flex items-center justify-center min-w-[140px]
+                `}
+              >
+                {isSkipConfirming && (
+                  <motion.div 
+                    className="absolute inset-0 rounded-full bg-white opacity-30 z-0"
+                    initial={{ opacity: 0, scale: 1 }}
+                    animate={{ opacity: [0, 0.2, 0], scale: [0.9, 1.1, 1.5] }}
+                    transition={{ 
+                      duration: 1.5, 
+                      repeat: Infinity,
+                      repeatType: "loop" 
+                    }}
+                  />
+                )}
+                <div className="relative w-full h-6 flex items-center justify-center z-10">
+                  <motion.div
+                    initial={false}
+                    animate={{ 
+                      x: isSkipConfirming ? -80 : 0,
+                      opacity: isSkipConfirming ? 0 : 1
+                    }}
+                    transition={{ duration: 0.3, ease: "easeInOut" }}
+                    className="absolute whitespace-nowrap"
+                  >
+                    {t('game.skipChallenge')}
+                  </motion.div>
+                  <motion.div
+                    initial={{ x: 80, opacity: 0 }}
+                    animate={{ 
+                      x: isSkipConfirming ? 0 : 80,
+                      opacity: isSkipConfirming ? 1 : 0,
+                      scale: isSkipConfirming ? [1, 1.08, 1] : 1
+                    }}
+                    transition={{ 
+                      duration: 0.3, 
+                      ease: "easeInOut",
+                      scale: {
+                        duration: 0.6,
+                        repeat: Infinity,
+                        repeatType: "reverse"
+                      }
+                    }}
+                    className="absolute whitespace-nowrap font-medium"
+                  >
+                    {t('common.skip')}
+                  </motion.div>
+                </div>
+              </Button>
+            </motion.div>
           </div>
         )}
       </div>

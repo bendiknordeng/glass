@@ -348,14 +348,18 @@ const TeamCreation = forwardRef<TeamCreationRef, {}>((props, ref) => {
     );
   };
   
-  // Save teams state when component unmounts or updates
+  // Update state when teams change
   useEffect(() => {
-    // Save current teams state
-    if (state.teams.length > 0) {
-      dispatch({
-        type: 'SAVE_TEAMS_STATE',
-        payload: state.teams
-      });
+    dispatch({
+      type: "SAVE_TEAMS_STATE",
+      payload: state.teams
+    });
+    
+    // Also save to localStorage for persistence across refreshes
+    try {
+      localStorage.setItem('setupTeams', JSON.stringify(state.teams));
+    } catch (error) {
+      console.error('Error saving teams to localStorage:', error);
     }
   }, [state.teams, dispatch]);
 

@@ -21,6 +21,7 @@ interface CustomChallengeFormProps {
   isOpen: boolean;
   onClose: () => void;
   editChallenge?: Challenge; // Challenge to edit, if in edit mode
+  onChallengeCreated?: (challenge: Challenge) => void; // Callback when challenge is created or updated
 }
 
 // Interface for validation errors
@@ -32,7 +33,8 @@ interface ValidationError {
 const CustomChallengeForm: React.FC<CustomChallengeFormProps> = ({
   isOpen,
   onClose,
-  editChallenge
+  editChallenge,
+  onChallengeCreated
 }) => {
   const { t } = useTranslation();
   const { dispatch } = useGame();
@@ -326,6 +328,12 @@ const CustomChallengeForm: React.FC<CustomChallengeFormProps> = ({
       // Add to recent challenges in localStorage as a fallback
       updateRecentChallengesLocally(challenge);
       
+      // Call the onChallengeCreated callback if provided
+      if (onChallengeCreated) {
+        console.log('Calling onChallengeCreated with challenge:', challenge);
+        onChallengeCreated(challenge);
+      }
+      
       // Reset form and close modal
       resetForm();
       onClose();
@@ -509,63 +517,79 @@ const CustomChallengeForm: React.FC<CustomChallengeFormProps> = ({
           
           {/* Challenge Type */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              {t('challenges.challengeType')} *
-            </label>
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
-              <button
-                type="button"
-                onClick={() => setType(ChallengeType.INDIVIDUAL)}
-                className={`
-                  px-4 py-2 rounded-md text-sm font-medium transition-colors
-                  ${type === ChallengeType.INDIVIDUAL 
-                    ? 'bg-pastel-blue text-gray-800 border-2 border-pastel-blue' 
-                    : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-2 border-transparent hover:bg-pastel-blue/20'}
-                `}
-              >
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            {t('challenges.challengeType')} *
+          </label>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <button
+              type="button"
+              onClick={() => setType(ChallengeType.INDIVIDUAL)}
+              className={`
+                px-2 py-3 rounded-md text-sm font-medium transition-colors h-full
+                flex items-center justify-center text-center
+                ${type === ChallengeType.INDIVIDUAL 
+                  ? 'bg-pastel-blue text-gray-800 border-2 border-pastel-blue' 
+                  : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-2 border-transparent hover:bg-pastel-blue/20'}
+              `}
+              disabled={isSubmitting}
+            >
+              <span className="line-clamp-2">
                 {t('game.challengeTypes.individual')}
-              </button>
-              
-              <button
-                type="button"
-                onClick={() => setType(ChallengeType.ONE_ON_ONE)}
-                className={`
-                  px-4 py-2 rounded-md text-sm font-medium transition-colors
-                  ${type === ChallengeType.ONE_ON_ONE 
-                    ? 'bg-pastel-orange text-gray-800 border-2 border-pastel-orange' 
-                    : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-2 border-transparent hover:bg-pastel-orange/20'}
-                `}
-              >
+              </span>
+            </button>
+            
+            <button
+              type="button"
+              onClick={() => setType(ChallengeType.ONE_ON_ONE)}
+              className={`
+                px-2 py-3 rounded-md text-sm font-medium transition-colors h-full
+                flex items-center justify-center text-center
+                ${type === ChallengeType.ONE_ON_ONE 
+                  ? 'bg-pastel-orange text-gray-800 border-2 border-pastel-orange' 
+                  : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-2 border-transparent hover:bg-pastel-orange/20'}
+              `}
+              disabled={isSubmitting}
+            >
+              <span className="line-clamp-2">
                 {t('game.challengeTypes.oneOnOne')}
-              </button>
-              
-              <button
-                type="button"
-                onClick={() => setType(ChallengeType.TEAM)}
-                className={`
-                  px-4 py-2 rounded-md text-sm font-medium transition-colors
-                  ${type === ChallengeType.TEAM 
-                    ? 'bg-pastel-green text-gray-800 border-2 border-pastel-green' 
-                    : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-2 border-transparent hover:bg-pastel-green/20'}
-                `}
-              >
+              </span>
+            </button>
+            
+            <button
+              type="button"
+              onClick={() => setType(ChallengeType.TEAM)}
+              className={`
+                px-2 py-3 rounded-md text-sm font-medium transition-colors h-full
+                flex items-center justify-center text-center
+                ${type === ChallengeType.TEAM 
+                  ? 'bg-pastel-green text-gray-800 border-2 border-pastel-green' 
+                  : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-2 border-transparent hover:bg-pastel-green/20'}
+              `}
+              disabled={isSubmitting}
+            >
+              <span className="line-clamp-2">
                 {t('game.challengeTypes.team')}
-              </button>
-              
-              <button
-                type="button"
-                onClick={() => setType(ChallengeType.ALL_VS_ALL)}
-                className={`
-                  px-4 py-2 rounded-md text-sm font-medium transition-colors
-                  ${type === ChallengeType.ALL_VS_ALL 
-                    ? 'bg-pastel-purple text-gray-800 border-2 border-pastel-purple' 
-                    : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-2 border-transparent hover:bg-pastel-purple/20'}
-                `}
-              >
+              </span>
+            </button>
+            
+            <button
+              type="button"
+              onClick={() => setType(ChallengeType.ALL_VS_ALL)}
+              className={`
+                px-2 py-3 rounded-md text-sm font-medium transition-colors h-full
+                flex items-center justify-center text-center
+                ${type === ChallengeType.ALL_VS_ALL 
+                  ? 'bg-pastel-purple text-gray-800 border-2 border-pastel-purple' 
+                  : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-2 border-transparent hover:bg-pastel-purple/20'}
+              `}
+              disabled={isSubmitting}
+            >
+              <span className="line-clamp-2">
                 {t('game.challengeTypes.allVsAll')}
-              </button>
-            </div>
+              </span>
+            </button>
           </div>
+        </div>
           
           {/* Points - Enhanced with custom number input */}
           <div>
