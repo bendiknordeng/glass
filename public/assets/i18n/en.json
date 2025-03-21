@@ -151,6 +151,7 @@
     "allRecentChallenges": "All Recent Challenges",
     "nextChallenge": "Next Challenge",
     "challengeFailed": "Challenge Failed",
+    "assigningPoints": "Assigning {{points}} points to the winner",
     "points": "{{points}} points",
     "type": {
       "individual": "Individual",

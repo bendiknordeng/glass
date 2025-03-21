@@ -998,12 +998,25 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
               }
             });
             
-            // Then asynchronously fetch real player data from database
-            playersService.getPlayers(userId)
-              .then(dbPlayers => {
+            // Start multiple async operations in parallel
+            Promise.all([
+              // 1. Fetch real player data from database
+              playersService.getPlayers(userId),
+              
+              // 2. Ensure challenges are properly loaded if needed
+              (async () => {
+                if (parsedState.challenges.length === 0 && !parsedState.isLoadingChallenges) {
+                  return await loadChallenges();
+                }
+                return null;
+              })()
+            ])
+            .then(([dbPlayers]) => {
+              // Process player images once data is available
+              if (dbPlayers && dbPlayers.length > 0) {
                 // Create a map of id -> image for quick lookups
                 const playerImageMap = new Map();
-                dbPlayers.forEach(dbPlayer => {
+                dbPlayers.forEach((dbPlayer: { id: string; image?: string }) => {
                   if (dbPlayer.image) {
                     playerImageMap.set(dbPlayer.id, dbPlayer.image);
                   }
@@ -1042,11 +1055,12 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
                     challengeLoadError: null
                   }
                 });
-              })
-              .catch(err => {
-                console.error('Failed to load player images from database:', err);
-                // We already have a game state with avatars, so no need to dispatch again
-              });
+              }
+            })
+            .catch(err => {
+              console.error('Failed to load player images from database:', err);
+              // We already have a game state with avatars, so no need to dispatch again
+            });
           } else {
             // For non-authenticated users, fall back to avatars
             const playersWithAvatars = parsedState.players.map(player => ({

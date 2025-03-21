@@ -302,7 +302,14 @@ const GameSettings: React.FC = () => {
       const userId = getValidUserId();
       if (!userId) return;
       
-      const challenges = await challengesService.getChallenges(userId);
+      // Start loading challenges in the background immediately
+      const challengesPromise = challengesService.getChallenges(userId);
+      
+      // Load local challenges while waiting for DB response
+      const localChallenges = getRecentChallenges();
+      
+      // Wait for DB challenges to load
+      const challenges = await challengesPromise;
       
       if (challenges && challenges.length > 0) {
         // Convert DB challenges to Challenge type
@@ -321,36 +328,52 @@ const GameSettings: React.FC = () => {
         setDbChallenges(convertedChallenges);
         console.log(`Loaded ${convertedChallenges.length} challenges from database`);
         
-        // Get local challenges
-        const localChallenges = getRecentChallenges();
-        
         // Combine all challenges (database overrides local with same ID)
         const allChallenges = [...localChallenges];
         
-        // Add database challenges that aren't already in the local list OR in the current game
+        // Use a Map for faster ID-based lookups
+        const existingChallengeMap = new Map(
+          allChallenges.map(challenge => [challenge.id, challenge])
+        );
+        
+        // Get a set of challenge IDs already in the game for faster lookups
+        const gameChallengeTitlesLower = new Set(
+          state.customChallenges.map(c => c.title.toLowerCase())
+        );
+        const gameChallengeIds = new Set(
+          state.customChallenges.map(c => c.id)
+        );
+        
+        // Process all DB challenges at once and collect new/updated challenges
+        const updatedChallenges: Challenge[] = [];
+        
         convertedChallenges.forEach(dbChallenge => {
           // Check if this challenge is already in the game
-          const alreadyInGame = state.customChallenges.some(
-            gameChallenge => 
-              gameChallenge.id === dbChallenge.id || 
-              gameChallenge.title.toLowerCase() === dbChallenge.title.toLowerCase()
-          );
+          const alreadyInGame = 
+            gameChallengeIds.has(dbChallenge.id) || 
+            gameChallengeTitlesLower.has(dbChallenge.title.toLowerCase());
           
           // Only add if not already in the game
           if (!alreadyInGame) {
-            const existingIndex = allChallenges.findIndex(c => c.id === dbChallenge.id);
-            if (existingIndex >= 0) {
+            // Check if already in our collection (by ID)
+            if (existingChallengeMap.has(dbChallenge.id)) {
               // Replace with database version
-              allChallenges[existingIndex] = dbChallenge;
+              existingChallengeMap.set(dbChallenge.id, dbChallenge);
             } else {
-              // Add new challenge
-              allChallenges.push(dbChallenge);
+              // New challenge to add
+              updatedChallenges.push(dbChallenge);
             }
           }
         });
         
+        // Merge existing and new challenges
+        const mergedChallenges = [
+          ...Array.from(existingChallengeMap.values()),
+          ...updatedChallenges
+        ];
+        
         // Update recent challenges
-        setRecentChallenges(allChallenges);
+        setRecentChallenges(mergedChallenges);
       }
     } catch (error) {
       console.error("Error in loadChallengesFromDB:", error);

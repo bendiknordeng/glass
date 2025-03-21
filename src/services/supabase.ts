@@ -91,11 +91,11 @@ export const supabase = createClient<{
     autoRefreshToken: true,
   },
   global: {
-    // Set lower timeout to prevent hanging
+    // Set higher timeout to prevent hanging
     fetch: (url, options) => {
       const requestOptions = {
         ...options,
-        timeout: 15000, // 15 seconds timeout
+        timeout: 30000, // Increased to 30 seconds timeout globally
       };
       return fetch(url, requestOptions as RequestInit);
     },
@@ -231,13 +231,13 @@ const processImageForStorage = async (imageDataUrl: string): Promise<string> => 
  */
 export const playersService = {
   // Get all players for the current user
-  async getPlayers(userId?: string) {
+  async getPlayers(userId?: string, limit?: number) {
     try {
       const validatedUserId = ensureUuid(userId);
-      // Build the query
+      // Build the query with only essential fields by default
       let query = supabase
         .from('players')
-        .select('*')
+        .select('id, name, last_played_at, favorite') // Minimal fields for listing
         .order('last_played_at', { ascending: false });
       
       // Apply user_id filter if provided
@@ -245,11 +245,35 @@ export const playersService = {
         query = query.eq('user_id', validatedUserId);
       }
       
-      const { data, error } = await query;
+      // Apply limit if provided (default to 20 for better performance)
+      if (limit !== undefined) {
+        query = query.limit(limit);
+      } else {
+        query = query.limit(20); // Default limit to prevent loading too many
+      }
+      
+      // Set a timeout for the request
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Request timed out')), 10000); // 10 seconds timeout
+      });
+      
+      // Actual database request
+      const dbPromise = query;
+      
+      // Race the DB request against the timeout
+      const { data, error } = await Promise.race([
+        dbPromise,
+        timeoutPromise.then(() => { throw new Error('Database request timed out'); })
+      ]) as any;
       
       if (error) {
         console.error('Error fetching players:', error);
         throw error;
+      }
+      
+      // If we need images for these players, get them in a separate batch
+      if (data && data.length > 0) {
+        return this.enrichPlayersWithImages(data, validatedUserId);
       }
     
       return data || [];
@@ -259,6 +283,180 @@ export const playersService = {
     }
   },
   
+  // Helper to get images for players in a separate efficient request
+  async enrichPlayersWithImages(players: any[], userId?: string) {
+    if (!players || players.length === 0) return players;
+    
+    try {
+      // Get player IDs
+      const playerIds = players.map(p => p.id);
+      
+      // Fetch only the id and image fields in a separate query
+      const { data: imageData, error } = await supabase
+        .from('players')
+        .select('id, image')
+        .in('id', playerIds)
+        .eq('user_id', userId || '');
+      
+      if (error) {
+        console.error('Error fetching player images:', error);
+        return players; // Return players without images on error
+      }
+      
+      // Create a map of id -> image
+      const imageMap = new Map();
+      if (imageData) {
+        imageData.forEach((item: {id: string, image?: string}) => {
+          if (item.image) {
+            imageMap.set(item.id, item.image);
+          }
+        });
+      }
+      
+      // Add images to original players data
+      return players.map((player: {id: string, [key: string]: any}) => ({
+        ...player,
+        image: imageMap.get(player.id) || ''
+      }));
+    } catch (error) {
+      console.error('Error enriching players with images:', error);
+      return players; // Return original players without images on error
+    }
+  },
+  
+  // Get player details including all fields
+  async getPlayerDetails(playerId: string) {
+    try {
+      if (!playerId) return null;
+      
+      // Set a timeout for the request
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Request timed out')), 10000); // 10 seconds timeout
+      });
+      
+      // Actual database request
+      const dbPromise = supabase
+        .from('players')
+        .select('*')
+        .eq('id', playerId)
+        .single();
+      
+      // Race the DB request against the timeout
+      const { data, error } = await Promise.race([
+        dbPromise,
+        timeoutPromise.then(() => { throw new Error('Database request timed out'); })
+      ]) as any;
+      
+      if (error) {
+        console.error('Error fetching player details:', error);
+        throw error;
+      }
+      
+      return data;
+    } catch (error) {
+      console.error('Exception in getPlayerDetails:', error);
+      return null;
+    }
+  },
+  
+  // Get multiple players by their IDs (batch operation)
+  async getPlayersByIds(playerIds: string[]) {
+    try {
+      if (!playerIds || playerIds.length === 0) return [];
+      
+      // Split into smaller batches if there are many IDs to fetch
+      if (playerIds.length > 15) {
+        console.log(`Fetching ${playerIds.length} players in batches for better performance`);
+        
+        // Process in batches of 15
+        const batchSize = 15;
+        const batches = [];
+        
+        for (let i = 0; i < playerIds.length; i += batchSize) {
+          batches.push(playerIds.slice(i, i + batchSize));
+        }
+        
+        // Process each batch sequentially to avoid overloading the connection
+        let allResults: any[] = [];
+        for (const batch of batches) {
+          const batchResults = await this._getPlayersByIdsBatch(batch);
+          allResults = [...allResults, ...batchResults];
+        }
+        
+        return allResults;
+      }
+      
+      // For smaller sets, use the direct batch function
+      return await this._getPlayersByIdsBatch(playerIds);
+    } catch (error) {
+      console.error('Exception in getPlayersByIds:', error);
+      return [];
+    }
+  },
+  
+  // Helper method to fetch a batch of players by IDs
+  async _getPlayersByIdsBatch(playerIds: string[]) {
+    try {
+      if (!playerIds || playerIds.length === 0) return [];
+      
+      // Set a timeout for the request
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Request timed out')), 10000); // 10 seconds timeout
+      });
+      
+      // First fetch essential data without images
+      const dbPromise = supabase
+        .from('players')
+        .select('id, name, score, last_played_at')
+        .in('id', playerIds);
+      
+      // Race the DB request against the timeout
+      const { data, error } = await Promise.race([
+        dbPromise,
+        timeoutPromise.then(() => { throw new Error('Database request timed out'); })
+      ]) as any;
+      
+      if (error) {
+        console.error('Error fetching players by IDs batch:', error);
+        throw error;
+      }
+      
+      // If we have data, fetch images separately
+      if (data && data.length > 0) {
+        try {
+          // Fetch only the id and image fields in a separate query
+          const { data: imageData, error: imageError } = await supabase
+            .from('players')
+            .select('id, image')
+            .in('id', playerIds);
+          
+          if (!imageError && imageData) {
+            // Create a map of id -> image
+            const imageMap = new Map();
+            imageData.forEach((item: {id: string, image?: string}) => {
+              if (item.image) {
+                imageMap.set(item.id, item.image);
+              }
+            });
+            
+            // Add images to original data
+            return data.map((player: {id: string, [key: string]: any}) => ({
+              ...player,
+              image: imageMap.get(player.id) || ''
+            }));
+          }
+        } catch (imageError) {
+          console.error('Error fetching player images:', imageError);
+        }
+      }
+      
+      return data || [];
+    } catch (error) {
+      console.error('Exception in _getPlayersByIdsBatch:', error);
+      return [];
+    }
+  },
+
   // Add a new player
   async addPlayer(player: Omit<Player, 'id' | 'created_at' | 'updated_at' | 'total_games' | 'wins'>) {
     try {
@@ -376,14 +574,14 @@ export const playersService = {
  */
 export const challengesService = {
   // Get all challenges for the current user
-  async getChallenges(userId?: string) {
+  async getChallenges(userId?: string, limit?: number) {
     try {
       const validatedUserId = ensureUuid(userId);
       
-      // Build the query
+      // Build the query with only necessary fields for better performance
       let query = supabase
         .from('challenges')
-        .select('*')
+        .select('id, title, type, user_id, can_reuse, max_reuse_count, points, created_at')
         .order('created_at', { ascending: false });
         
       // Apply user_id filter if provided  
@@ -391,7 +589,26 @@ export const challengesService = {
         query = query.eq('user_id', validatedUserId);
       }
       
-      const { data, error } = await query;
+      // Add limit to prevent loading too many challenges
+      if (limit !== undefined) {
+        query = query.limit(limit);
+      } else {
+        query = query.limit(25); // Default limit for better performance
+      }
+      
+      // Set a timeout for the request
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Request timed out')), 10000); // 10 seconds timeout
+      });
+      
+      // Actual database request
+      const dbPromise = query;
+      
+      // Race the DB request against the timeout
+      const { data, error } = await Promise.race([
+        dbPromise,
+        timeoutPromise.then(() => { throw new Error('Database request timed out'); })
+      ]) as any;
       
       if (error) {
         console.error('Error fetching challenges:', error);
@@ -405,21 +622,113 @@ export const challengesService = {
     }
   },
   
-  // Add a new challenge
-  async addChallenge(challenge: Omit<DBChallenge, 'id' | 'created_at' | 'updated_at' | 'times_played'>) {
+  // Get challenge details including description (separate call to optimize initial loading)
+  async getChallengeDetails(challengeId: string) {
     try {
-      console.log("Supabase: Adding new challenge:", challenge);
-      // Ensure user_id is in UUID format
-      const validatedUserId = ensureUuid(challenge.user_id);
-      if (!validatedUserId) {
-        throw new Error('Valid user_id is required');
+      if (!challengeId) return null;
+      
+      // Set a timeout for the request
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Request timed out')), 10000); // 10 seconds timeout
+      });
+      
+      // Actual database request
+      const dbPromise = supabase
+        .from('challenges')
+        .select('*')
+        .eq('id', challengeId)
+        .single();
+      
+      // Race the DB request against the timeout
+      const { data, error } = await Promise.race([
+        dbPromise,
+        timeoutPromise.then(() => { throw new Error('Database request timed out'); })
+      ]) as any;
+      
+      if (error) {
+        console.error('Error fetching challenge details:', error);
+        throw error;
       }
       
-      const challengeData = {
-        ...challenge,
-        user_id: validatedUserId
-      };
-
+      return data;
+    } catch (error) {
+      console.error('Exception in getChallengeDetails:', error);
+      return null;
+    }
+  },
+  
+  // Get challenges by their IDs (batch operation)
+  async getChallengesByIds(challengeIds: string[]) {
+    try {
+      if (!challengeIds || challengeIds.length === 0) return [];
+      
+      // Split into smaller batches if there are many IDs to fetch
+      if (challengeIds.length > 15) {
+        console.log(`Fetching ${challengeIds.length} challenges in batches for better performance`);
+        
+        // Process in batches of 15
+        const batchSize = 15;
+        const batches = [];
+        
+        for (let i = 0; i < challengeIds.length; i += batchSize) {
+          batches.push(challengeIds.slice(i, i + batchSize));
+        }
+        
+        // Process each batch sequentially to avoid overloading the connection
+        let allResults: any[] = [];
+        for (const batch of batches) {
+          const batchResults = await this._getChallengesByIdsBatch(batch);
+          allResults = [...allResults, ...batchResults];
+        }
+        
+        return allResults;
+      }
+      
+      // For smaller sets, use the direct batch function
+      return await this._getChallengesByIdsBatch(challengeIds);
+    } catch (error) {
+      console.error('Exception in getChallengesByIds:', error);
+      return [];
+    }
+  },
+  
+  // Helper method to fetch a batch of challenges by IDs
+  async _getChallengesByIdsBatch(challengeIds: string[]) {
+    try {
+      if (!challengeIds || challengeIds.length === 0) return [];
+      
+      // Set a timeout for the request
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Request timed out')), 10000); // 10 seconds timeout
+      });
+      
+      // Actual database request - select only essential fields
+      const dbPromise = supabase
+        .from('challenges')
+        .select('id, title, type, user_id, can_reuse, max_reuse_count, points')
+        .in('id', challengeIds);
+      
+      // Race the DB request against the timeout
+      const { data, error } = await Promise.race([
+        dbPromise,
+        timeoutPromise.then(() => { throw new Error('Database request timed out'); })
+      ]) as any;
+      
+      if (error) {
+        console.error('Error fetching challenges by IDs batch:', error);
+        throw error;
+      }
+      
+      return data || [];
+    } catch (error) {
+      console.error('Exception in getChallengesByIdsBatch:', error);
+      return [];
+    }
+  },
+  
+  // Add a new challenge
+  async addChallenge(challenge: DBChallenge) {
+    try {
       // Set a timeout for the request
       const timeoutPromise = new Promise((_, reject) => {
         setTimeout(() => reject(new Error('Request timed out')), 5000);
@@ -428,7 +737,7 @@ export const challengesService = {
       // Actual database request
       const dbPromise = supabase
         .from('challenges')
-        .insert(challengeData)
+        .insert(challenge)
         .select()
         .single();
       
@@ -437,13 +746,12 @@ export const challengesService = {
         dbPromise,
         timeoutPromise.then(() => { throw new Error('Database request timed out'); })
       ]) as any;
-        
+      
       if (error) {
-        console.error('Error adding challenge to Supabase:', error);
+        console.error('Error adding challenge:', error);
         throw error;
       }
       
-      console.log("Supabase: Challenge successfully added with ID:", data.id);
       return data;
     } catch (error) {
       console.error('Exception in addChallenge:', error);
@@ -567,7 +875,7 @@ export const gamesService = {
       // Build the query with only necessary fields for improved performance
       let query = supabase
         .from('games')
-        .select('id, user_id, game_mode, status, started_at, completed_at, players, scores, winner_id, settings')
+        .select('id, user_id, game_mode, status, started_at, completed_at, winner_id')  // Further reduce selected fields
         .order('started_at', { ascending: false });
         
       // Apply user_id filter if provided
@@ -575,14 +883,26 @@ export const gamesService = {
         query = query.eq('user_id', validatedUserId);
       }
       
-      // Apply limit if provided (default to 10 for better performance)
+      // Apply limit if provided (default to 5 for better performance)
       if (limit !== undefined) {
         query = query.limit(limit);
       } else {
-        query = query.limit(10); // Default limit to prevent loading too many games
+        query = query.limit(5); // Reduced default limit for improved performance
       }
       
-      const { data, error } = await query;
+      // Increase timeout for this operation since it's problematic
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Request timed out')), 10000); // 10 seconds timeout
+      });
+      
+      // Actual database request
+      const dbPromise = query;
+      
+      // Race the DB request against the timeout
+      const { data, error } = await Promise.race([
+        dbPromise, 
+        timeoutPromise.then(() => { throw new Error('Database request timed out'); })
+      ]) as any;
       
       if (error) {
         console.error('Error fetching games:', error);
@@ -596,23 +916,176 @@ export const gamesService = {
     }
   },
   
+  // Get additional details for a specific game - use this for loading full game data
+  async getGameDetails(gameId: string) {
+    try {
+      if (!gameId) return null;
+      
+      // Set a timeout for the request
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Request timed out')), 10000); // 10 seconds timeout
+      });
+      
+      // Actual database request
+      const dbPromise = supabase
+        .from('games')
+        .select('*')  // Select all fields for a single game
+        .eq('id', gameId)
+        .single();
+      
+      // Race the DB request against the timeout
+      const { data, error } = await Promise.race([
+        dbPromise,
+        timeoutPromise.then(() => { throw new Error('Database request timed out'); })
+      ]) as any;
+      
+      if (error) {
+        console.error('Error fetching game details:', error);
+        throw error;
+      }
+      
+      return data;
+    } catch (error) {
+      console.error('Exception in getGameDetails:', error);
+      return null;
+    }
+  },
+  
+  // Get a specific game by ID
+  async getGameById(gameId: string) {
+    try {
+      if (!gameId) return null;
+      
+      // Set a timeout for the request
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Request timed out')), 10000); // 10 seconds timeout
+      });
+      
+      // Actual database request - select only essential fields
+      const dbPromise = supabase
+        .from('games')
+        .select('id, user_id, game_mode, status, started_at, completed_at, winner_id')
+        .eq('id', gameId)
+        .single();
+      
+      // Race the DB request against the timeout
+      const { data, error } = await Promise.race([
+        dbPromise,
+        timeoutPromise.then(() => { throw new Error('Database request timed out'); })
+      ]) as any;
+      
+      if (error) {
+        console.error('Error fetching game by ID:', error);
+        throw error;
+      }
+      
+      return data;
+    } catch (error) {
+      console.error('Exception in getGameById:', error);
+      return null;
+    }
+  },
+  
+  // Load multiple games by IDs in a single batch request
+  async getGamesByIds(gameIds: string[]) {
+    try {
+      if (!gameIds || gameIds.length === 0) return [];
+      
+      // Split into smaller batches if there are many IDs to fetch
+      if (gameIds.length > 10) {
+        console.log(`Fetching ${gameIds.length} games in batches for better performance`);
+        
+        // Process in batches of 10
+        const batchSize = 10;
+        const batches = [];
+        
+        for (let i = 0; i < gameIds.length; i += batchSize) {
+          batches.push(gameIds.slice(i, i + batchSize));
+        }
+        
+        // Process each batch sequentially to avoid overloading the connection
+        let allResults: any[] = [];
+        for (const batch of batches) {
+          const batchResults = await this._getGamesByIdsBatch(batch);
+          allResults = [...allResults, ...batchResults];
+        }
+        
+        return allResults;
+      }
+      
+      // For smaller sets, use the direct batch function
+      return await this._getGamesByIdsBatch(gameIds);
+    } catch (error) {
+      console.error('Exception in getGamesByIds:', error);
+      return [];
+    }
+  },
+  
+  // Helper method to fetch a batch of games by IDs
+  async _getGamesByIdsBatch(gameIds: string[]) {
+    try {
+      if (!gameIds || gameIds.length === 0) return [];
+      
+      // Set a timeout for the request
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Request timed out')), 10000); // 10 seconds timeout
+      });
+      
+      // Actual database request - select only essential fields
+      const dbPromise = supabase
+        .from('games')
+        .select('id, user_id, game_mode, status, started_at, completed_at, winner_id')
+        .in('id', gameIds);
+      
+      // Race the DB request against the timeout
+      const { data, error } = await Promise.race([
+        dbPromise,
+        timeoutPromise.then(() => { throw new Error('Database request timed out'); })
+      ]) as any;
+      
+      if (error) {
+        console.error('Error fetching games by IDs batch:', error);
+        throw error;
+      }
+      
+      return data || [];
+    } catch (error) {
+      console.error('Exception in getGamesByIdsBatch:', error);
+      return [];
+    }
+  },
+  
   // Get active game for the current user
   async getActiveGame(userId?: string) {
     try {
-      // Build the query
+      const validatedUserId = ensureUuid(userId);
+      if (!validatedUserId) {
+        console.warn('No valid user ID provided for getActiveGame');
+        return null;
+      }
+      
+      // Build the query with limited fields for better performance
       let query = supabase
         .from('games')
-        .select('*')
+        .select('id, user_id, game_mode, status, started_at')
         .eq('status', 'active')
+        .eq('user_id', validatedUserId)
         .order('started_at', { ascending: false })
         .limit(1);
       
-      // Apply user_id filter if provided
-      if (userId) {
-        query = query.eq('user_id', userId);
-      }
+      // Set a longer timeout for this operation
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Request timed out')), 10000); // 10 seconds timeout
+      });
       
-      const { data, error } = await query.single();
+      // Actual database request
+      const dbPromise = query;
+      
+      // Race the DB request against the timeout
+      const { data, error } = await Promise.race([
+        dbPromise, 
+        timeoutPromise.then(() => { throw new Error('Database request timed out'); })
+      ]) as any;
       
       if (error) {
         if (error.code === 'PGRST116') { // No rows returned
@@ -622,7 +1095,12 @@ export const gamesService = {
         throw error;
       }
       
-      return data;
+      // If we need full game details, fetch them separately using getGameDetails
+      if (data && data.id) {
+        return data;
+      }
+      
+      return null;
     } catch (error) {
       console.error('Exception in getActiveGame:', error);
       return null;
@@ -632,12 +1110,24 @@ export const gamesService = {
   // Create a new game
   async createGame(game: Omit<Game, 'id' | 'started_at' | 'updated_at'>) {
     try {
-      const { data, error } = await supabase
+      // Set a timeout for the request
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Request timed out')), 10000); // 10 seconds timeout
+      });
+      
+      // Actual database request
+      const dbPromise = supabase
         .from('games')
         .insert(game)
-        .select()
+        .select('id, user_id, game_mode, status, started_at') // Only select essential fields
         .single();
-        
+      
+      // Race the DB request against the timeout
+      const { data, error } = await Promise.race([
+        dbPromise, 
+        timeoutPromise.then(() => { throw new Error('Database request timed out'); })
+      ]) as any;
+      
       if (error) {
         console.error('Error creating game:', error);
         throw error;
@@ -653,16 +1143,28 @@ export const gamesService = {
   // Update a game
   async updateGame(gameId: string, updates: Partial<Omit<Game, 'id' | 'started_at'>>) {
     try {
-      const { data, error } = await supabase
+      // Set a timeout for the request
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Request timed out')), 10000); // 10 seconds timeout
+      });
+      
+      // Actual database request
+      const dbPromise = supabase
         .from('games')
         .update({
           ...updates,
           updated_at: new Date().toISOString()
         })
         .eq('id', gameId)
-        .select()
+        .select('id, status, updated_at') // Only select essential fields for confirmation
         .single();
-        
+      
+      // Race the DB request against the timeout
+      const { data, error } = await Promise.race([
+        dbPromise, 
+        timeoutPromise.then(() => { throw new Error('Database request timed out'); })
+      ]) as any;
+      
       if (error) {
         console.error('Error updating game:', error);
         throw error;
@@ -678,7 +1180,13 @@ export const gamesService = {
   // Complete a game
   async completeGame(gameId: string, winnerId: string | null) {
     try {
-      const { data, error } = await supabase
+      // Set a timeout for the request
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Request timed out')), 10000); // 10 seconds timeout
+      });
+      
+      // Actual database request
+      const dbPromise = supabase
         .from('games')
         .update({
           status: 'completed',
@@ -687,9 +1195,15 @@ export const gamesService = {
           updated_at: new Date().toISOString()
         })
         .eq('id', gameId)
-        .select()
+        .select('id, status, completed_at, winner_id') // Only select essential fields for confirmation
         .single();
-        
+      
+      // Race the DB request against the timeout
+      const { data, error } = await Promise.race([
+        dbPromise, 
+        timeoutPromise.then(() => { throw new Error('Database request timed out'); })
+      ]) as any;
+      
       if (error) {
         console.error('Error completing game:', error);
         throw error;
@@ -705,12 +1219,24 @@ export const gamesService = {
   // Delete a game
   async deleteGame(gameId: string) {
     try {
-      const { error, data } = await supabase
+      // Set a timeout for the request
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Request timed out')), 10000); // 10 seconds timeout
+      });
+      
+      // Actual database request
+      const dbPromise = supabase
         .from('games')
         .delete()
         .eq('id', gameId)
-        .select();
-        
+        .select('id');
+      
+      // Race the DB request against the timeout
+      const { data, error } = await Promise.race([
+        dbPromise, 
+        timeoutPromise.then(() => { throw new Error('Database request timed out'); })
+      ]) as any;
+      
       if (error) {
         console.error('Error deleting game:', error);
         throw error;

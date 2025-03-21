@@ -32,7 +32,7 @@ const ChallengeDisplay: React.FC<ChallengeDisplayProps> = ({
   selectedParticipantPlayers = []
 }) => {
   const { t } = useTranslation();
-  const [selectedWinner, setSelectedWinner] = useState<string | null>(null);
+  const [selectedWinners, setSelectedWinners] = useState<Record<string, number>>({});
   const [showPunishment, setShowPunishment] = useState(false);
   const [punishmentTarget, setPunishmentTarget] = useState<string | null>(null);
   const punishmentAnimationCompleted = useRef(false);
@@ -205,9 +205,16 @@ const ChallengeDisplay: React.FC<ChallengeDisplayProps> = ({
       } else if (challenge.type === ChallengeType.INDIVIDUAL) {
         // For individual challenges, the participant is automatically the winner
         onComplete(true, participants[0]);
-      } else if (selectedWinner) {
-        // For one-on-one, team, or all vs all challenges, use the selected winner
-        onComplete(true, selectedWinner);
+      } else if (Object.keys(selectedWinners).length > 0) {
+        // For one-on-one, team, or all vs all challenges, use the selected winners
+        // If there's only one winner, use the traditional single-winner format
+        const winnerIds = Object.keys(selectedWinners);
+        if (winnerIds.length === 1) {
+          onComplete(true, winnerIds[0], { [winnerIds[0]]: selectedWinners[winnerIds[0]] });
+        } else {
+          // Multiple winners with scores
+          onComplete(true, undefined, selectedWinners);
+        }
       } else if (challenge.type === ChallengeType.ONE_ON_ONE || 
                 challenge.type === ChallengeType.TEAM || 
                 challenge.type === ChallengeType.ALL_VS_ALL) {
@@ -228,11 +235,11 @@ const ChallengeDisplay: React.FC<ChallengeDisplayProps> = ({
         setPunishmentTarget(
           // For individual challenges, punish the participant
           challenge.type === ChallengeType.INDIVIDUAL ? participants[0] :
-          // For competitive challenges, punish the losing player/team (non-selected winner)
-          selectedWinner ? 
-            // If winner is selected, find all non-winners to punish
-            participants.find(id => id !== selectedWinner) || null :
-            // If no winner selected, punish all participants
+          // For competitive challenges, punish the losing player/team (non-selected winners)
+          Object.keys(selectedWinners).length > 0 ? 
+            // If winners are selected, find participants who aren't winners to punish
+            participants.find(id => !selectedWinners[id]) || null :
+            // If no winners selected, punish all participants
             null
         );
         setShowPunishment(true);
@@ -255,9 +262,20 @@ const ChallengeDisplay: React.FC<ChallengeDisplayProps> = ({
     }
   };
   
-  // Select a winner
+  // Toggle winner selection and set default points
   const handleSelectWinner = (id: string) => {
-    setSelectedWinner(id);
+    setSelectedWinners(prev => {
+      const newSelectedWinners = { ...prev };
+      if (newSelectedWinners[id] !== undefined) {
+        // Deselect if already selected
+        delete newSelectedWinners[id];
+      } else {
+        // Select and assign points from challenge (default to 1 if not specified)
+        const pointValue = challenge.points || 1;
+        newSelectedWinners[id] = pointValue;
+      }
+      return newSelectedWinners;
+    });
   };
   
   // Get team for a player
@@ -368,9 +386,11 @@ const ChallengeDisplay: React.FC<ChallengeDisplayProps> = ({
           {challenge.type === ChallengeType.ONE_ON_ONE && (
             <div className="flex justify-center flex-wrap gap-4">
               {getOneOnOnePlayers().map((player) => {
-                const isSelected = selectedWinner === player.id || 
-                  (gameMode === GameMode.TEAMS && getTeamForPlayer(player.id) && 
-                   selectedWinner === getTeamForPlayer(player.id)?.id);
+                const teamId = gameMode === GameMode.TEAMS && getTeamForPlayer(player.id) 
+                  ? getTeamForPlayer(player.id)!.id 
+                  : undefined;
+                const winnerId = teamId || player.id;
+                const isSelected = selectedWinners[winnerId] !== undefined;
                    
                 return (
                   <div key={player.id} className="flex flex-col items-center">
@@ -379,9 +399,7 @@ const ChallengeDisplay: React.FC<ChallengeDisplayProps> = ({
                       isActive={true}
                       isSelected={isSelected}
                       size="md"
-                      onClick={() => handleSelectWinner(gameMode === GameMode.TEAMS && getTeamForPlayer(player.id) 
-                        ? getTeamForPlayer(player.id)!.id 
-                        : player.id)}
+                      onClick={() => handleSelectWinner(winnerId)}
                     />
                     {gameMode === GameMode.TEAMS && getTeamForPlayer(player.id) && (
                       <div className="mt-2 text-xs font-medium text-game-primary">
@@ -398,7 +416,7 @@ const ChallengeDisplay: React.FC<ChallengeDisplayProps> = ({
           {challenge.type === ChallengeType.ALL_VS_ALL && gameMode === GameMode.FREE_FOR_ALL && (
             <div className="flex flex-wrap justify-center gap-4">
               {getAllPlayers().map((player) => {
-                const isSelected = selectedWinner === player.id;
+                const isSelected = selectedWinners[player.id] !== undefined;
                 return (
                   <div key={player.id} className="flex flex-col items-center">
                     <PlayerCard
@@ -424,7 +442,7 @@ const ChallengeDisplay: React.FC<ChallengeDisplayProps> = ({
                     players={players.filter(p => team.playerIds.includes(p.id))}
                     size="md"
                     compact={true}
-                    isSelected={selectedWinner === team.id}
+                    isSelected={selectedWinners[team.id] !== undefined}
                     onClick={() => handleSelectWinner(team.id)}
                   />
                 </div>
@@ -474,36 +492,49 @@ const ChallengeDisplay: React.FC<ChallengeDisplayProps> = ({
             )}
             
             <div className="flex flex-wrap justify-center gap-4">
-              {winnerOptions.map(option => (
-                <div key={option.id} className="text-center">
-                  {option.type === 'team' && option.team ? (
-                    <div onClick={() => handleSelectWinner(option.id)}>
-                      <TeamCard 
-                        team={option.team}
-                        players={players.filter(p => option.team?.playerIds.includes(p.id) || false)}
-                        size="sm"
-                        compact={true}
-                        isSelected={selectedWinner === option.id}
-                      />
-                    </div>
-                  ) : option.player ? (
-                    <div onClick={() => handleSelectWinner(option.id)}>
-                      <PlayerCard 
-                        player={option.player}
-                        size="sm"
-                        showScore={false}
-                        isSelected={selectedWinner === option.id}
-                      />
-                      {gameMode === GameMode.TEAMS && option.team && (
-                        <div className="mt-1 text-xs font-medium text-game-primary">
-                          {option.team.name}
-                        </div>
-                      )}
-                    </div>
-                  ) : null}
-                </div>
-              ))}
+              {winnerOptions.map(option => {
+                const isSelected = selectedWinners[option.id] !== undefined;
+                
+                return (
+                  <div key={option.id} className="text-center">
+                    {option.type === 'team' && option.team ? (
+                      <div>
+                        <TeamCard 
+                          team={option.team}
+                          players={players.filter(p => option.team?.playerIds.includes(p.id) || false)}
+                          size="sm"
+                          compact={true}
+                          isSelected={isSelected}
+                          onClick={() => handleSelectWinner(option.id)}
+                        />
+                      </div>
+                    ) : option.player ? (
+                      <div>
+                        <PlayerCard 
+                          player={option.player}
+                          size="sm"
+                          showScore={false}
+                          isSelected={isSelected}
+                          onClick={() => handleSelectWinner(option.id)}
+                        />
+                        
+                        {gameMode === GameMode.TEAMS && option.team && (
+                          <div className="mt-1 text-xs font-medium text-game-primary">
+                            {option.team.name}
+                          </div>
+                        )}
+                      </div>
+                    ) : null}
+                  </div>
+                );
+              })}
             </div>
+            
+            {Object.keys(selectedWinners).length > 0 && (
+              <div className="mt-4 text-center text-sm text-teal-600 dark:text-teal-200">
+                <p>{t('game.assigningPoints', { points: challenge.points || 1 })}</p>
+              </div>
+            )}
           </div>
         )}
         

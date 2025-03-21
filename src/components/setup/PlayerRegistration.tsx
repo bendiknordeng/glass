@@ -214,7 +214,9 @@ const PlayerRegistration: React.FC = () => {
     }
   };
   
-  // Load recent players from Supabase or localStorage
+  /**
+   * Load recent players from database or localStorage
+   */
   const loadRecentPlayers = async (forceRefresh = false) => {
     // Don't reload if we're already loading and not forcing a refresh
     if (isLoadingPlayers && !forceRefresh) return;
@@ -244,33 +246,64 @@ const PlayerRegistration: React.FC = () => {
           throw new Error('Could not get a valid user ID');
         }
 
-        // Always load fresh from database when authenticated
-        const dbPlayers = await playersService.getPlayers(validUserId);
-        const formattedPlayers = dbPlayers.map(dbPlayerToAppPlayer);
-        
-        // IMPORTANT: Ensure all players have their actual images from the database
-        const playersWithImages = formattedPlayers.map(player => {
-          // If there is no image or it's empty, generate an avatar
-          if (!player.image || player.image === '') {
-            return {
-              ...player,
-              image: getAvatarByName(player.name).url
-            };
-          }
-          // Otherwise keep the actual database image
-          return player;
-        });
-        
-        // Store all database players in memory to ensure we always have the original images
-        setDbPlayersCached(playersWithImages);
-        
-        // Also cache minimal player data (without images)
-        cachePlayers(playersWithImages);
-        
-        const filteredPlayers = filterRecentPlayers(playersWithImages);
-        
-        // Set the filtered players to state
-        setRecentPlayers(filteredPlayers);
+        // If we already have cached players and just need to refresh
+        if (dbPlayersCached.length > 0 && forceRefresh) {
+          // Just use the cached data and update timestamps
+          const filteredPlayers = filterRecentPlayers(dbPlayersCached);
+          setRecentPlayers(filteredPlayers);
+          setLastLoadTime(now);
+          
+          // Asynchronously refresh the cache in background without blocking UI
+          playersService.getPlayers(validUserId)
+            .then(dbPlayers => {
+              const formattedPlayers = dbPlayers.map(dbPlayerToAppPlayer);
+              
+              // Update players with images
+              const playersWithImages = formattedPlayers.map(player => {
+                if (!player.image || player.image === '') {
+                  return { ...player, image: getAvatarByName(player.name).url };
+                }
+                return player;
+              });
+              
+              setDbPlayersCached(playersWithImages);
+              cachePlayers(playersWithImages);
+              
+              // Refresh the display with new data if needed
+              const newFilteredPlayers = filterRecentPlayers(playersWithImages);
+              setRecentPlayers(newFilteredPlayers);
+            })
+            .catch(error => console.error('Background player refresh error:', error));
+        } else {
+          // Always load fresh from database when authenticated
+          const dbPlayers = await playersService.getPlayers(validUserId);
+          const formattedPlayers = dbPlayers.map(dbPlayerToAppPlayer);
+          
+          // IMPORTANT: Ensure all players have their actual images from the database
+          const playersWithImages = formattedPlayers.map(player => {
+            // If there is no image or it's empty, generate an avatar
+            if (!player.image || player.image === '') {
+              return {
+                ...player,
+                image: getAvatarByName(player.name).url
+              };
+            }
+            // Otherwise keep the actual database image
+            return player;
+          });
+          
+          // Store all database players in memory to ensure we always have the original images
+          setDbPlayersCached(playersWithImages);
+          
+          // Also cache minimal player data (without images)
+          cachePlayers(playersWithImages);
+          
+          const filteredPlayers = filterRecentPlayers(playersWithImages);
+          
+          // Set the filtered players to state
+          setRecentPlayers(filteredPlayers);
+          setLastLoadTime(now);
+        }
       } else {
         // For non-authenticated users: use localStorage with generated avatars
         const localPlayers = getRecentPlayersLocally();
@@ -289,8 +322,6 @@ const PlayerRegistration: React.FC = () => {
     } finally {
       clearTimeout(loadingTimeout);
       setIsLoadingPlayers(false);
-      // Update the timestamp to track when we last loaded the players
-      setLastLoadTime(Date.now());
     }
   };
   
@@ -931,9 +962,14 @@ const PlayerRegistration: React.FC = () => {
           const validUserId = getValidUserId();
           if (!validUserId) return;
           
+          setIsLoadingPlayers(true);
+          
           // Fetch all players from the database
           const dbPlayers = await playersService.getPlayers(validUserId);
-          if (!dbPlayers || dbPlayers.length === 0) return;
+          if (!dbPlayers || dbPlayers.length === 0) {
+            setIsLoadingPlayers(false);
+            return;
+          }
           
           // Convert to app format
           const formattedPlayers = dbPlayers.map(dbPlayerToAppPlayer);
@@ -944,9 +980,18 @@ const PlayerRegistration: React.FC = () => {
           // Also cache minimal player data
           cachePlayers(formattedPlayers);
           
+          // Set the filtered players to state
+          const filteredPlayers = filterRecentPlayers(formattedPlayers);
+          setRecentPlayers(filteredPlayers);
+          
+          // Update last load time
+          setLastLoadTime(Date.now());
+          
           console.log(`Cached ${formattedPlayers.length} players from database`);
+          setIsLoadingPlayers(false);
         } catch (error) {
           console.error('Error pre-loading players for cache:', error);
+          setIsLoadingPlayers(false);
         }
       };
       

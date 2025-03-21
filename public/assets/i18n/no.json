@@ -152,6 +152,7 @@
     "allRecentChallenges": "Alle nylige utfordringer",
     "nextChallenge": "Neste utfordring",
     "challengeFailed": "Utfordring mislyktes",
+    "assigningPoints": "Tildeler {{points}} poeng til vinneren",
     "points": "{{points}} poeng",
     "type": {
       "individual": "Individuell",
