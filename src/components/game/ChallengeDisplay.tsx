@@ -621,7 +621,7 @@ const ChallengeDisplay: React.FC<ChallengeDisplayProps> = ({
             <div className="text-center mb-6">
               <div className="bg-red-100 dark:bg-red-900/30 p-4 rounded-lg mb-4">
                 <p className="text-red-700 dark:text-red-300 mb-2 font-medium">
-                  {t('challenges.didntDoOrFailed')}
+                  {t('challenges.lostOrFailed')}
                 </p>
                 <p className="text-gray-600 dark:text-gray-400 text-sm mb-3">
                   {t('challenges.punishmentExplanation')}

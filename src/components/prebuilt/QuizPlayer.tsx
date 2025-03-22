@@ -59,6 +59,9 @@ const QuizPlayer: React.FC<QuizPlayerProps> = ({
   const [revealedQuestionIndex, setRevealedQuestionIndex] = useState<number | null>(null);
   const [isCompleted, setIsCompleted] = useState(false);
   
+  // Track which questions have had "give all full score" applied
+  const [fullScoreApplied, setFullScoreApplied] = useState<Record<string, boolean>>({});
+  
   // Score tracking - Map participant ID to their total score
   const [scores, setScores] = useState<Record<string, number>>({});
   
@@ -116,12 +119,63 @@ const QuizPlayer: React.FC<QuizPlayerProps> = ({
     questions.forEach(question => {
       initialPartialScores[question.id] = {};
       activeParticipants.forEach(participantId => {
-        initialPartialScores[question.id][participantId] = 0;
+        // Preserve existing partial scores when reinitialized
+        const existingScore = partialScores[question.id]?.[participantId] || 0;
+        initialPartialScores[question.id][participantId] = existingScore;
       });
     });
     
-    setPartialScores(initialPartialScores);
-  }, [questions, activeParticipants]);
+    // Only update if there's a difference to avoid unnecessary re-renders
+    const hasChanged = !objectsAreEqual(initialPartialScores, partialScores);
+    if (hasChanged) {
+      console.log('[INIT] Preserving existing partial scores during initialization');
+      setPartialScores(initialPartialScores);
+    } else {
+      console.log('[INIT] No change in partial scores structure, skipping update');
+    }
+  }, [questions, activeParticipants]); // Don't add partialScores to deps or it will cause infinite loops
+  
+  // Helper function to compare objects (for partialScores comparison)
+  const objectsAreEqual = (obj1: any, obj2: any): boolean => {
+    if (obj1 === obj2) return true;
+    if (!obj1 || !obj2) return false;
+    
+    const keys1 = Object.keys(obj1);
+    const keys2 = Object.keys(obj2);
+    
+    if (keys1.length !== keys2.length) return false;
+    
+    for (const key of keys1) {
+      const val1 = obj1[key];
+      const val2 = obj2[key];
+      
+      const areObjects = typeof val1 === 'object' && typeof val2 === 'object';
+      
+      if (areObjects && !objectsAreEqual(val1, val2)) return false;
+      if (!areObjects && val1 !== val2) return false;
+    }
+    
+    return true;
+  };
+  
+  // Initialize fullScoreApplied state based on existing correctParticipants
+  useEffect(() => {
+    if (activeParticipants.length === 0) return;
+    
+    const initialFullScoreApplied: Record<string, boolean> = {};
+    
+    questions.forEach(question => {
+      // If all active participants are marked as correct for this question,
+      // then consider "Give All Full Score" as applied
+      const correctForThisQuestion = correctParticipants[question.id] || [];
+      const allCorrect = activeParticipants.every(participantId => 
+        correctForThisQuestion.includes(participantId)
+      );
+      initialFullScoreApplied[question.id] = allCorrect;
+    });
+    
+    setFullScoreApplied(initialFullScoreApplied);
+  }, [questions, activeParticipants, correctParticipants]);
   
   // Get the current question
   const currentQuestion = questions[currentQuestionIndex];
@@ -353,112 +407,115 @@ const QuizPlayer: React.FC<QuizPlayerProps> = ({
   
   // Set partial score for a participant
   const setPartialScore = (questionId: string, participantId: string, points: number) => {
+    console.log(`[DIRECT SCORE] Setting partial score for ${participantId} on question ${questionId} to EXACTLY ${points} points`);
+    
+    // Debug the current state of partial scores
+    console.log(`[DIRECT SCORE] Current partial scores:`, JSON.stringify(partialScores, null, 2));
+    
     // Ensure this participant is not in the fully correct list
     if ((correctParticipants[questionId] || []).includes(participantId)) {
+      console.log(`[DIRECT SCORE] ${participantId} was marked as correct, removing before assigning partial points`);
       markIncorrect(questionId, participantId);
     }
     
-    // Calculate the previous partial points if any
-    const previousPartialPoints = partialScores[questionId]?.[participantId] || 0;
+    // Get current global scores
+    const currentGlobalScore = scores[participantId] || 0;
     
-    // Update partial scores
+    // Get the current score for this specific question and participant
+    const previousQuestionScore = partialScores[questionId]?.[participantId] || 0;
+    
+    // Calculate score adjustment needed
+    const scoreAdjustment = points - previousQuestionScore;
+    
+    console.log(`[DIRECT SCORE] Current global score: ${currentGlobalScore}, Previous question score: ${previousQuestionScore}`);
+    console.log(`[DIRECT SCORE] New partial score: ${points}, Score adjustment: ${scoreAdjustment}`);
+    
+    // IMPORTANT: Only proceed with updates if there's an actual change
+    if (points === previousQuestionScore) {
+      console.log(`[DIRECT SCORE] No change in score, skipping updates`);
+      return;
+    }
+    
+    // Step 1: Update the partial scores state for this specific question/participant
+    // Use a callback function to ensure we're working with the latest state
     setPartialScores(prev => {
-      const updatedScores = { ...prev };
-      if (!updatedScores[questionId]) {
-        updatedScores[questionId] = {};
+      // Start with a fresh object to avoid state mutation
+      const newPartialScores = JSON.parse(JSON.stringify(prev)); // Deep clone to avoid reference issues
+      
+      // Make sure the nested structure exists
+      if (!newPartialScores[questionId]) {
+        newPartialScores[questionId] = {};
       }
-      updatedScores[questionId][participantId] = points;
-      return updatedScores;
+      
+      // Set the actual score value
+      newPartialScores[questionId][participantId] = points;
+      
+      // Debug the new partial scores
+      console.log(`[DIRECT SCORE] Updated partial scores:`, JSON.stringify(newPartialScores, null, 2));
+      
+      return newPartialScores;
     });
     
-    // Update the score difference
-    if (previousPartialPoints !== points) {
-      const pointsDifference = points - previousPartialPoints;
+    // Step 2: Update global scores
+    if (scoreAdjustment !== 0) {
+      const newGlobalScore = Math.max(0, currentGlobalScore + scoreAdjustment);
+      console.log(`[DIRECT SCORE] Updating global score from ${currentGlobalScore} to ${newGlobalScore}`);
       
-      // Update local scores state
-      if (previousPartialPoints > 0) {
-        setScores(prev => ({
-          ...prev,
-          [participantId]: Math.max(0, (prev[participantId] || 0) - previousPartialPoints + points)
-        }));
-      } else if (points > 0) {
-        setScores(prev => ({
-          ...prev,
-          [participantId]: (prev[participantId] || 0) + points
-        }));
-      }
+      setScores(prev => {
+        const newScores = { ...prev };
+        newScores[participantId] = newGlobalScore;
+        return newScores;
+      });
       
-      // Only update game state if there's an actual change in points
-      if (pointsDifference !== 0) {
-        // Update game state with the partial points difference
-        const participant = getParticipantById(participantId, state.players, state.teams);
-        if (participant) {
-          const isTeam = 'teamColor' in participant;
-          const participantType = isTeam ? 'team' : 'player';
-          const action = pointsDifference > 0 ? 'Adding' : 'Subtracting';
-          const pointsValue = Math.abs(pointsDifference);
+      // Step 3: Update game state for scoreboard
+      const participant = getParticipantById(participantId, state.players, state.teams);
+      if (participant) {
+        const isTeam = 'teamColor' in participant;
+        const participantType = isTeam ? 'team' : 'player';
+        
+        if (isTeam) {
+          // Find current team score before update
+          const team = state.teams.find(t => t.id === participantId);
+          const currentTeamScore = team?.score || 0;
           
-          // Log clear information about the partial points being adjusted
-          console.log(`${action} ${pointsValue} partial points ${pointsDifference > 0 ? 'to' : 'from'} ${participantType} "${participant.name}" for question ${questionId}`);
+          console.log(`[DIRECT SCORE] Team "${participant.name}" current score: ${currentTeamScore}, adjustment: ${scoreAdjustment}`);
           
-          if (isTeam) {
-            // Get current team score
-            const team = state.teams.find(t => t.id === participantId);
-            const currentScore = team?.score || 0;
-            const newScore = Math.max(0, currentScore + pointsDifference);
-            
-            console.log(`Team "${participant.name}" partial score: ${currentScore} -> ${newScore}`);
-            
-            // First approach: UPDATE_TEAM_SCORE action
-            dispatch({
-              type: 'UPDATE_TEAM_SCORE',
-              payload: {
-                teamId: participantId,
-                points: pointsDifference
-              }
-            });
-            
-            // Second approach: To ensure immediate update, also directly modify the team in state
-            const updatedTeams = state.teams.map(team => 
-              team.id === participantId 
-                ? { ...team, score: Math.max(0, team.score + pointsDifference) } 
-                : team
-            );
-
-            // Force team state update
-            dispatch({
-              type: 'SAVE_TEAMS_STATE',
-              payload: updatedTeams
-            });
-            
-            // Force a refresh after a short delay
-            setTimeout(() => {
-              dispatch({
-                type: 'UPDATE_TEAM_SCORE',
-                payload: {
-                  teamId: participantId,
-                  points: 0  // No additional points, just forcing a refresh
-                }
-              });
-              
-              // Also force an overall state update to ensure UI refresh
-              dispatch({
-                type: 'FORCE_STATE_UPDATE'
-              });
-            }, 100);
-          } else {
-            // It's a player - update player score immediately
-            dispatch({
-              type: 'UPDATE_PLAYER_SCORE',
-              payload: {
-                playerId: participantId,
-                points: pointsDifference
-              }
-            });
-          }
+          // Update team score with adjustment
+          dispatch({
+            type: 'UPDATE_TEAM_SCORE',
+            payload: {
+              teamId: participantId,
+              points: scoreAdjustment
+            }
+          });
           
-          // Log to confirm scoreboard is being updated in real-time
-          console.log(`Scoreboard updated: ${action} ${pointsValue} points ${pointsDifference > 0 ? 'to' : 'from'} ${participantType} "${participant.name}"`);
+          // Also update teams directly for reliability
+          const updatedTeams = state.teams.map(team => 
+            team.id === participantId 
+              ? { ...team, score: Math.max(0, team.score + scoreAdjustment) } 
+              : team
+          );
+          
+          dispatch({
+            type: 'SAVE_TEAMS_STATE',
+            payload: updatedTeams
+          });
+          
+          // Force refresh
+          setTimeout(() => {
+            dispatch({ type: 'FORCE_STATE_UPDATE' });
+          }, 100);
+        } else {
+          // Update player score
+          console.log(`[DIRECT SCORE] Updating player score by ${scoreAdjustment}`);
+          
+          dispatch({
+            type: 'UPDATE_PLAYER_SCORE',
+            payload: {
+              playerId: participantId,
+              points: scoreAdjustment
+            }
+          });
         }
       }
     }
@@ -860,31 +917,45 @@ const QuizPlayer: React.FC<QuizPlayerProps> = ({
     
     return (
       <div className="max-w-3xl mx-auto">
-        {/* Progress indicator */}
-        <div className="mb-6 flex justify-between items-center">
-          <div className="text-sm text-gray-500 dark:text-gray-300">
-            {t('prebuilt.quiz.revealingQuestion', { 
-              current: revealedQuestionIndex + 1, 
-              total: questions.length 
-            })}
-          </div>
-          <div className="flex space-x-1">
-            {questions.map((_, idx) => (
-              <div 
-                key={idx} 
-                className={`h-1.5 w-6 rounded-full ${
-                  idx < revealedQuestionIndex
-                    ? 'bg-green-500 dark:bg-green-400'
-                    : idx === revealedQuestionIndex
-                    ? 'bg-blue-500 dark:bg-blue-400'
-                    : 'bg-gray-200 dark:bg-gray-700'
-                }`}
-              />
-            ))}
+        {/* Top navigation bar */}
+        <div className="sticky top-0 z-10 bg-white dark:bg-gray-900 py-3 px-4 mb-6 border-b border-gray-200 dark:border-gray-700 shadow-sm">
+          <div className="flex justify-between items-center">
+            <div>
+              {revealedQuestionIndex > 0 && (
+                <Button
+                  variant="secondary"
+                  onClick={handleRevealPreviousQuestion}
+                  leftIcon={<ChevronLeftIcon className="w-5 h-5" />}
+                  size="sm"
+                  className="dark:text-white dark:hover:bg-gray-700"
+                >
+                  {t('prebuilt.quiz.previousQuestion')}
+                </Button>
+              )}
+            </div>
+            
+            <div className="text-sm text-gray-500 dark:text-gray-300 text-center">
+              {t('prebuilt.quiz.revealingQuestion', { 
+                current: revealedQuestionIndex + 1, 
+                total: questions.length 
+              })}
+            </div>
+            
+            <Button
+              variant="primary"
+              onClick={handleRevealNextQuestion}
+              rightIcon={revealedQuestionIndex < questions.length - 1 ? <ChevronRightIcon className="w-5 h-5" /> : undefined}
+              size="sm"
+            >
+              {revealedQuestionIndex < questions.length - 1
+                ? t('prebuilt.quiz.nextReveal')
+                : t('prebuilt.quiz.finishQuiz')
+              }
+            </Button>
           </div>
         </div>
         
-        {/* Question */}
+        {/* Reveal the current question */}
         <div className="mb-6">
           <h3 className="text-xl font-medium text-gray-900 dark:text-white mb-2">
             {revealQuestion.text}
@@ -972,20 +1043,81 @@ const QuizPlayer: React.FC<QuizPlayerProps> = ({
           
           <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4">
             {/* Add button to give all participants full score */}
-            <div className="mb-4 flex justify-end">
+            <div className="mb-4 flex justify-end space-x-2">
+              {!fullScoreApplied[revealQuestion.id] && (
+                <Button
+                  variant="danger"
+                  size="sm"
+                  onClick={() => {
+                    // Reset all scores for this question
+                    activeParticipants.forEach(participantId => {
+                      // Check if they were correct before resetting
+                      if ((correctParticipants[revealQuestion.id] || []).includes(participantId)) {
+                        markIncorrect(revealQuestion.id, participantId);
+                      }
+                      
+                      // Also clear any partial scores
+                      if (partialScores[revealQuestion.id]?.[participantId] > 0) {
+                        setPartialScore(revealQuestion.id, participantId, 0);
+                      }
+                    });
+                  }}
+                  className="flex items-center"
+                >
+                  <XMarkIcon className="h-4 w-4 mr-1" />
+                  {t('prebuilt.quiz.resetAllScores', 'Reset All Scores')}
+                </Button>
+              )}
+              
               <Button
-                variant="success"
+                variant={fullScoreApplied[revealQuestion.id] ? "danger" : "success"}
                 size="sm"
                 onClick={() => {
-                  // Mark all active participants as correct for this question
-                  activeParticipants.forEach(participantId => {
-                    markCorrect(revealQuestion.id, participantId);
-                  });
+                  if (fullScoreApplied[revealQuestion.id]) {
+                    // Reset all scores for this question
+                    activeParticipants.forEach(participantId => {
+                      // Check if they were correct before resetting
+                      if ((correctParticipants[revealQuestion.id] || []).includes(participantId)) {
+                        markIncorrect(revealQuestion.id, participantId);
+                      }
+                      
+                      // Also clear any partial scores
+                      if (partialScores[revealQuestion.id]?.[participantId] > 0) {
+                        setPartialScore(revealQuestion.id, participantId, 0);
+                      }
+                    });
+                    
+                    // Mark as not applied
+                    setFullScoreApplied(prev => ({
+                      ...prev,
+                      [revealQuestion.id]: false
+                    }));
+                  } else {
+                    // Mark all active participants as correct for this question
+                    activeParticipants.forEach(participantId => {
+                      markCorrect(revealQuestion.id, participantId);
+                    });
+                    
+                    // Mark as applied
+                    setFullScoreApplied(prev => ({
+                      ...prev,
+                      [revealQuestion.id]: true
+                    }));
+                  }
                 }}
                 className="flex items-center"
               >
-                <CheckIcon className="h-4 w-4 mr-1" />
-                {t('prebuilt.quiz.giveAllFullScore', 'Give All Full Score')}
+                {fullScoreApplied[revealQuestion.id] ? (
+                  <>
+                    <XMarkIcon className="h-4 w-4 mr-1" />
+                    {t('prebuilt.quiz.resetAllScores', 'Reset All Scores')}
+                  </>
+                ) : (
+                  <>
+                    <CheckIcon className="h-4 w-4 mr-1" />
+                    {t('prebuilt.quiz.giveAllFullScore', 'Give All Full Score')}
+                  </>
+                )}
               </Button>
             </div>
             
@@ -1008,34 +1140,53 @@ const QuizPlayer: React.FC<QuizPlayerProps> = ({
                       {/* Partial Points Controls */}
                       <div className={`flex items-center ${isCorrect ? 'opacity-50' : ''}`}>
                         <button
+                          type="button"
                           className={`flex-shrink-0 w-7 h-7 flex items-center justify-center rounded-l-md transition-colors ${
                             isCorrect || partialScore <= 0
                               ? 'bg-gray-100 dark:bg-gray-800 text-gray-400 cursor-not-allowed'
                               : 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/40'
                           }`}
-                          onClick={() => !isCorrect && partialScore > 0 && setPartialScore(
-                            revealQuestion.id,
-                            participantId,
-                            Math.max(0, partialScore - 1)
-                          )}
+                          onClick={() => {
+                            if (isCorrect || partialScore <= 0) return;
+                            
+                            // Directly decrement the score by 1
+                            const newScore = Math.max(0, partialScore - 1);
+                            console.log(`[UI] Decreasing score from ${partialScore} to ${newScore}`);
+                            // Prevent duplicate calls by checking previous value
+                            if (newScore !== partialScore) {
+                              setPartialScore(revealQuestion.id, participantId, newScore);
+                            }
+                          }}
                           disabled={isCorrect || partialScore <= 0}
                         >
                           <MinusIcon className="h-4 w-4" />
                         </button>
-                        <div className="px-3 py-1 min-w-[40px] text-center bg-white dark:bg-gray-900 border-y border-x border-gray-200 dark:border-gray-700 font-medium text-gray-700 dark:text-gray-300">
+                        
+                        {/* This display shows the current partial score for this question */}
+                        <div className={`px-3 py-1 min-w-[40px] text-center bg-white dark:bg-gray-900 border-y border-x border-gray-200 dark:border-gray-700 font-medium ${
+                          hasPartialScore ? 'text-blue-600 dark:text-blue-400' : 'text-gray-700 dark:text-gray-300'
+                        }`}>
                           {partialScore}
                         </div>
+                        
                         <button
+                          type="button"
                           className={`flex-shrink-0 w-7 h-7 flex items-center justify-center rounded-r-md transition-colors ${
                             isCorrect || partialScore >= maxPointsForQuestion - 1
                               ? 'bg-gray-100 dark:bg-gray-800 text-gray-400 cursor-not-allowed'
                               : 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/40'
                           }`}
-                          onClick={() => !isCorrect && partialScore < maxPointsForQuestion - 1 && setPartialScore(
-                            revealQuestion.id,
-                            participantId,
-                            Math.min(maxPointsForQuestion - 1, partialScore + 1)
-                          )}
+                          onClick={() => {
+                            if (isCorrect || partialScore >= maxPointsForQuestion - 1) return;
+                            
+                            // Directly increment the score by 1
+                            const newScore = Math.min(maxPointsForQuestion - 1, partialScore + 1);
+                            console.log(`[UI] Increasing score from ${partialScore} to ${newScore}`);
+                            // Prevent duplicate calls by checking previous value
+                            if (newScore !== partialScore) {
+                              setPartialScore(revealQuestion.id, participantId, newScore);
+                            }
+                          }}
                           disabled={isCorrect || partialScore >= maxPointsForQuestion - 1}
                         >
                           <PlusIcon className="h-4 w-4" />
@@ -1071,9 +1222,9 @@ const QuizPlayer: React.FC<QuizPlayerProps> = ({
         
         {/* Current Scores - using the new renderCurrentScores method */}
         {renderCurrentScores(scores, hasAnyPoints)}
-        
-        {/* Navigation buttons with previous and next - hide previous on first question */}
-        <div className="flex justify-between mt-6">
+
+        {/* Bottom navigation buttons with previous and next - hide previous on first question */}
+        <div className="flex justify-between mt-6 pb-4 sticky bottom-0 bg-white dark:bg-gray-900 pt-2 border-t border-gray-200 dark:border-gray-700">
           <div>
             {revealedQuestionIndex > 0 && (
               <Button
@@ -1086,17 +1237,6 @@ const QuizPlayer: React.FC<QuizPlayerProps> = ({
               </Button>
             )}
           </div>
-          
-          <Button
-            variant="primary"
-            onClick={handleRevealNextQuestion}
-            rightIcon={revealedQuestionIndex < questions.length - 1 ? <ChevronRightIcon className="w-5 h-5" /> : undefined}
-          >
-            {revealedQuestionIndex < questions.length - 1
-              ? t('prebuilt.quiz.nextReveal')
-              : t('prebuilt.quiz.finishQuiz')
-            }
-          </Button>
         </div>
       </div>
     );
