@@ -11,7 +11,7 @@ import {
 import { useGame } from '@/contexts/GameContext';
 import Button from '@/components/common/Button';
 import { Player } from '@/types/Player';
-import { Team } from '@/types/Team';
+import { Team, GameMode } from '@/types/Team';
 import PlayerCard from '@/components/common/PlayerCard';
 import TeamCard from '@/components/common/TeamCard';
 import { 
@@ -176,8 +176,21 @@ const QuizPlayer: React.FC<QuizPlayerProps> = ({
     // Update game state immediately with the question-specific points
     const participant = getParticipantById(participantId, state.players, state.teams);
     if (participant) {
-      if ('teamColor' in participant) {
-        // It's a team
+      const isTeam = 'teamColor' in participant;
+      const participantType = isTeam ? 'team' : 'player';
+      
+      // Log clear information about the points being awarded
+      console.log(`Awarding ${pointsToAdd} points to ${participantType} "${participant.name}" for question ${questionId}`);
+      
+      if (isTeam) {
+        // Get current team score
+        const team = state.teams.find(t => t.id === participantId);
+        const currentScore = team?.score || 0;
+        const newScore = currentScore + pointsToAdd;
+        
+        console.log(`Team "${participant.name}" score: ${currentScore} -> ${newScore}`);
+        
+        // First approach: UPDATE_TEAM_SCORE action
         dispatch({
           type: 'UPDATE_TEAM_SCORE',
           payload: {
@@ -185,8 +198,42 @@ const QuizPlayer: React.FC<QuizPlayerProps> = ({
             points: pointsToAdd
           }
         });
+        
+        // Second approach: To ensure immediate update, also directly modify the team in state
+        // This is a more aggressive approach to make sure scoreboard updates
+        const updatedTeams = state.teams.map(team => 
+          team.id === participantId 
+            ? { ...team, score: team.score + pointsToAdd } 
+            : team
+        );
+
+        // Force team state update
+        dispatch({
+          type: 'SAVE_TEAMS_STATE',
+          payload: updatedTeams
+        });
+        
+        // Force a refresh after a short delay
+        setTimeout(() => {
+          const updatedTeam = state.teams.find(t => t.id === participantId);
+          console.log(`VERIFICATION - Team "${participant.name}" current score now: ${updatedTeam?.score}`);
+          
+          // Force one more refresh with no additional points
+          dispatch({
+            type: 'UPDATE_TEAM_SCORE',
+            payload: {
+              teamId: participantId,
+              points: 0  // No additional points, just forcing a refresh
+            }
+          });
+          
+          // Also force an overall state update to ensure UI refresh
+          dispatch({
+            type: 'FORCE_STATE_UPDATE'
+          });
+        }, 100);
       } else {
-        // It's a player
+        // It's a player - update player score immediately
         dispatch({
           type: 'UPDATE_PLAYER_SCORE',
           payload: {
@@ -195,7 +242,9 @@ const QuizPlayer: React.FC<QuizPlayerProps> = ({
           }
         });
       }
-      console.log(`Awarded ${pointsToAdd} points to ${participant.name} for question ${questionId}`);
+      
+      // Log to confirm scoreboard is being updated in real-time
+      console.log(`Scoreboard updated with ${pointsToAdd} points for ${participantType} "${participant.name}"`);
     }
     
     // Remove any partial score for this participant
@@ -227,8 +276,21 @@ const QuizPlayer: React.FC<QuizPlayerProps> = ({
       // Update game state by subtracting points
       const participant = getParticipantById(participantId, state.players, state.teams);
       if (participant) {
-        if ('teamColor' in participant) {
-          // It's a team
+        const isTeam = 'teamColor' in participant;
+        const participantType = isTeam ? 'team' : 'player';
+        
+        // Log clear information about the points being subtracted
+        console.log(`Subtracting ${pointsToSubtract} points from ${participantType} "${participant.name}" for question ${questionId}`);
+        
+        if (isTeam) {
+          // Get current team score
+          const team = state.teams.find(t => t.id === participantId);
+          const currentScore = team?.score || 0;
+          const newScore = Math.max(0, currentScore - pointsToSubtract);
+          
+          console.log(`Team "${participant.name}" score: ${currentScore} -> ${newScore}`);
+          
+          // First approach: UPDATE_TEAM_SCORE action
           dispatch({
             type: 'UPDATE_TEAM_SCORE',
             payload: {
@@ -236,8 +298,37 @@ const QuizPlayer: React.FC<QuizPlayerProps> = ({
               points: -pointsToSubtract // Use negative value to subtract
             }
           });
+          
+          // Second approach: To ensure immediate update, also directly modify the team in state
+          const updatedTeams = state.teams.map(team => 
+            team.id === participantId 
+              ? { ...team, score: Math.max(0, team.score - pointsToSubtract) } 
+              : team
+          );
+
+          // Force team state update
+          dispatch({
+            type: 'SAVE_TEAMS_STATE',
+            payload: updatedTeams
+          });
+          
+          // Force a refresh after a short delay
+          setTimeout(() => {
+            dispatch({
+              type: 'UPDATE_TEAM_SCORE',
+              payload: {
+                teamId: participantId,
+                points: 0  // No additional points, just forcing a refresh
+              }
+            });
+            
+            // Also force an overall state update to ensure UI refresh
+            dispatch({
+              type: 'FORCE_STATE_UPDATE'
+            });
+          }, 100);
         } else {
-          // It's a player
+          // It's a player - update player score immediately
           dispatch({
             type: 'UPDATE_PLAYER_SCORE',
             payload: {
@@ -246,7 +337,9 @@ const QuizPlayer: React.FC<QuizPlayerProps> = ({
             }
           });
         }
-        console.log(`Subtracted ${pointsToSubtract} points from ${participant.name} for question ${questionId}`);
+        
+        // Log to confirm scoreboard is being updated in real-time
+        console.log(`Scoreboard updated: subtracted ${pointsToSubtract} points from ${participantType} "${participant.name}"`);
       }
     }
     
@@ -300,8 +393,23 @@ const QuizPlayer: React.FC<QuizPlayerProps> = ({
         // Update game state with the partial points difference
         const participant = getParticipantById(participantId, state.players, state.teams);
         if (participant) {
-          if ('teamColor' in participant) {
-            // It's a team
+          const isTeam = 'teamColor' in participant;
+          const participantType = isTeam ? 'team' : 'player';
+          const action = pointsDifference > 0 ? 'Adding' : 'Subtracting';
+          const pointsValue = Math.abs(pointsDifference);
+          
+          // Log clear information about the partial points being adjusted
+          console.log(`${action} ${pointsValue} partial points ${pointsDifference > 0 ? 'to' : 'from'} ${participantType} "${participant.name}" for question ${questionId}`);
+          
+          if (isTeam) {
+            // Get current team score
+            const team = state.teams.find(t => t.id === participantId);
+            const currentScore = team?.score || 0;
+            const newScore = Math.max(0, currentScore + pointsDifference);
+            
+            console.log(`Team "${participant.name}" partial score: ${currentScore} -> ${newScore}`);
+            
+            // First approach: UPDATE_TEAM_SCORE action
             dispatch({
               type: 'UPDATE_TEAM_SCORE',
               payload: {
@@ -309,8 +417,37 @@ const QuizPlayer: React.FC<QuizPlayerProps> = ({
                 points: pointsDifference
               }
             });
+            
+            // Second approach: To ensure immediate update, also directly modify the team in state
+            const updatedTeams = state.teams.map(team => 
+              team.id === participantId 
+                ? { ...team, score: Math.max(0, team.score + pointsDifference) } 
+                : team
+            );
+
+            // Force team state update
+            dispatch({
+              type: 'SAVE_TEAMS_STATE',
+              payload: updatedTeams
+            });
+            
+            // Force a refresh after a short delay
+            setTimeout(() => {
+              dispatch({
+                type: 'UPDATE_TEAM_SCORE',
+                payload: {
+                  teamId: participantId,
+                  points: 0  // No additional points, just forcing a refresh
+                }
+              });
+              
+              // Also force an overall state update to ensure UI refresh
+              dispatch({
+                type: 'FORCE_STATE_UPDATE'
+              });
+            }, 100);
           } else {
-            // It's a player
+            // It's a player - update player score immediately
             dispatch({
               type: 'UPDATE_PLAYER_SCORE',
               payload: {
@@ -319,7 +456,9 @@ const QuizPlayer: React.FC<QuizPlayerProps> = ({
               }
             });
           }
-          console.log(`${pointsDifference > 0 ? 'Added' : 'Subtracted'} ${Math.abs(pointsDifference)} points ${pointsDifference > 0 ? 'to' : 'from'} ${participant.name} for question ${questionId}`);
+          
+          // Log to confirm scoreboard is being updated in real-time
+          console.log(`Scoreboard updated: ${action} ${pointsValue} points ${pointsDifference > 0 ? 'to' : 'from'} ${participantType} "${participant.name}"`);
         }
       }
     }
@@ -336,12 +475,59 @@ const QuizPlayer: React.FC<QuizPlayerProps> = ({
   const handleRevealNextQuestion = () => {
     if (revealedQuestionIndex === null) return;
     
+    // Get the current question
+    const currentQuestion = questions[revealedQuestionIndex];
+    
     // Mark the current question as revealed
     setQuestions(prevQuestions => 
       prevQuestions.map((q, idx) => 
         idx === revealedQuestionIndex ? { ...q, isRevealed: true } : q
       )
     );
+    
+    // Check if any participant has been marked correct for this question
+    const hasAnyCorrectParticipant = (correctParticipants[currentQuestion.id] || []).length > 0;
+    const hasAnyPartialScore = Object.keys(partialScores[currentQuestion.id] || {}).length > 0;
+    
+    // In team mode, if no team has been given points for this question, automatically award points to the first team
+    if (state.gameMode === GameMode.TEAMS && 
+        state.teams.length > 0 && 
+        !hasAnyCorrectParticipant && 
+        !hasAnyPartialScore) {
+      
+      // Get the default team to award points to
+      const defaultTeamId = state.teams[0].id;
+      const defaultTeam = state.teams[0];
+      const pointValue = questionPoints[currentQuestion.id] || 1;
+      
+      console.log(`No team awarded points for question ${currentQuestion.id}. Automatically awarding ${pointValue} points to team "${defaultTeam.name}"`);
+      
+      // Mark the team as correct for this question
+      setCorrectParticipants(prev => {
+        const updatedIds = [...(prev[currentQuestion.id] || [])];
+        if (!updatedIds.includes(defaultTeamId)) {
+          updatedIds.push(defaultTeamId);
+        }
+        return { ...prev, [currentQuestion.id]: updatedIds };
+      });
+      
+      // Update local score state
+      setScores(prev => ({
+        ...prev,
+        [defaultTeamId]: (prev[defaultTeamId] || 0) + pointValue
+      }));
+      
+      // Update game state with the team's score
+      dispatch({
+        type: 'UPDATE_TEAM_SCORE',
+        payload: {
+          teamId: defaultTeamId,
+          points: pointValue
+        }
+      });
+      
+      console.log(`Team scoreboard updated: ${pointValue} points awarded to team "${defaultTeam.name}"`);
+    }
     
     // Update game state with current scores immediately before moving to next question
     // This ensures ScoreBoard is updated with each question's points
@@ -441,6 +627,37 @@ const QuizPlayer: React.FC<QuizPlayerProps> = ({
         }
       });
     });
+    
+    // In team mode, if no team has been given any points for the entire quiz,
+    // automatically award points to the first team to ensure we always have a winner
+    if (state.gameMode === GameMode.TEAMS && 
+        state.teams.length > 0 && 
+        Object.keys(finalScores).length === 0) {
+      
+      // Get the first question ID to award points for
+      const firstQuestionId = questions.length > 0 ? questions[0].id : 'default';
+      
+      // Award points to the first team
+      const defaultTeamId = state.teams[0].id;
+      const defaultTeam = state.teams[0];
+      const pointValue = questionPoints[firstQuestionId] || 1;
+      
+      console.log(`No team awarded any points for the entire quiz. Automatically awarding ${pointValue} points to team "${defaultTeam.name}"`);
+      
+      // Add to final scores
+      finalScores[defaultTeamId] = pointValue;
+      
+      // Update game state with the team's score
+      dispatch({
+        type: 'UPDATE_TEAM_SCORE',
+        payload: {
+          teamId: defaultTeamId,
+          points: pointValue
+        }
+      });
+      
+      console.log(`Team scoreboard updated: ${pointValue} points awarded to team "${defaultTeam.name}" for completing the quiz`);
+    }
     
     // Update the scores state for UI display
     setScores(finalScores);

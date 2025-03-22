@@ -79,7 +79,8 @@ type GameAction =
   | { type: 'UPDATE_PLAYER_SCORE'; payload: { playerId: string; points: number } }
   | { type: 'UPDATE_TEAM_SCORE'; payload: { teamId: string; points: number } }
   | { type: 'UPDATE_PLAYER_DETAILS'; payload: Partial<Player> }
-  | { type: 'SET_GAME_ID'; payload: string };
+  | { type: 'SET_GAME_ID'; payload: string }
+  | { type: 'FORCE_STATE_UPDATE' };
 
 // Create reducer function
 const gameReducer = (state: GameState, action: GameAction): GameState => {
@@ -703,6 +704,14 @@ const gameReducer = (state: GameState, action: GameAction): GameState => {
         challenges: [...state.challenges, newChallenge],
       };
     }
+
+    case 'FORCE_STATE_UPDATE':
+      // This case doesn't change any values but forces a re-render
+      // It's useful when we need to ensure the UI reflects the latest state
+      console.log('Forcing state update to refresh UI components');
+      return {
+        ...state
+      };
 
     default:
       return state;

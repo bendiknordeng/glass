@@ -382,7 +382,13 @@
       "fullPoints": "Fulle poeng",
       "currentScores": "Nåværende poeng",
       "recordManually": "Registrer svar manuelt. Spillere bør skrive svarene sine på papir.",
-      "points": "poeng"
+      "points": "poeng",
+      "punishment": "Straff",
+      "sipsPunishment": "{{count}} slurker",
+      "incorrect": "Feil svar",
+      "correct": "Riktig svar",
+      "participants": "Deltakere",
+      "selectWinner": "Velg en vinner"
     },
     "quiz": {
       "title": "Egendefinert Quiz",

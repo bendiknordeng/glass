@@ -22,4 +22,5 @@ export type GameAction =
   | { type: 'SET_CHALLENGE_POINTS'; payload: { challengeId: string; points: number } }
   | { type: 'UPDATE_CHALLENGE_PARTICIPANTS'; payload: { challengeId: string; participantIds: string[] } }
   | { type: 'UPDATE_PLAYER_SCORE'; payload: { playerId: string; points: number } }
-  | { type: 'UPDATE_TEAM_SCORE'; payload: { teamId: string; points: number } }; 
+  | { type: 'UPDATE_TEAM_SCORE'; payload: { teamId: string; points: number } }
+  | { type: 'FORCE_STATE_UPDATE' }; 

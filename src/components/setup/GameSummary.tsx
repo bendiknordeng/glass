@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useGame } from '@/contexts/GameContext';
@@ -11,6 +11,11 @@ const GameSummary: React.FC = () => {
   const { state, dispatch } = useGame();
   const [isValidating, setIsValidating] = useState(false);
   const [standardChallengesLoaded, setStandardChallengesLoaded] = useState(false);
+  
+  // Add state variables to store challenge counts
+  const [standardChallengesCount, setStandardChallengesCount] = useState(0);
+  const [customChallengesCount, setCustomChallengesCount] = useState(0);
+  const [totalChallengesCount, setTotalChallengesCount] = useState(0);
 
   // Load standard challenges if they're not already loaded
   useEffect(() => {
@@ -34,6 +39,23 @@ const GameSummary: React.FC = () => {
     loadStandardChallenges();
   }, []);
 
+  // Calculate challenge counts whenever related state changes
+  useEffect(() => {
+    // Count standard challenges (challenges in state.challenges array)
+    const standardCount = state.challenges.length;
+    
+    // Count ALL selected custom challenges
+    const customCount = state.customChallenges.filter(c => 
+      c.isSelected
+    ).length;
+    
+    // Update state with calculated counts
+    setStandardChallengesCount(standardCount);
+    setCustomChallengesCount(customCount);
+    setTotalChallengesCount(standardCount + customCount);
+    
+  }, [state.challenges, state.customChallenges]);
+
   // Format the expected duration text
   const formatDuration = () => {
     if (state.gameDuration.type === 'time') {
@@ -53,33 +75,8 @@ const GameSummary: React.FC = () => {
   // Check if all validations are passing
   const hasEnoughPlayers = state.players.length >= 2;
   const hasTeamsCreated = state.gameMode === GameMode.FREE_FOR_ALL || state.teams.length >= 2;
-  const hasStandardChallenges = standardChallengesLoaded && state.challenges.length > 0;
-  const hasSelectedCustomChallenges = state.customChallenges.some(c => c.isSelected);
-
-  // Get total number of challenges
-  const getTotalChallengeCount = () => {
-    // Total should be the sum of standard and custom challenges
-    return getStandardChallengesCount() + getSelectedCustomChallengesCount();
-  };
-
-  // Get count of custom challenges (only count challenges that are selected and not prebuilt)
-  const getSelectedCustomChallengesCount = () => {
-    return state.customChallenges.filter(c => 
-      c.isSelected && c.isPrebuilt !== true
-    ).length;
-  };
-  
-  // Get count of standard challenges (includes both default and prebuilt challenges)
-  const getStandardChallengesCount = () => {
-    // Count challenges from the standard challenges array
-    const standardArrayCount = state.challenges.length;
-    // Also count any prebuilt challenges that might be in customChallenges array
-    const prebuiltInCustomCount = state.customChallenges.filter(c => 
-      c.isSelected && c.isPrebuilt
-    ).length;
-    
-    return standardArrayCount + prebuiltInCustomCount;
-  };
+  const hasStandardChallenges = standardChallengesLoaded && standardChallengesCount > 0;
+  const hasSelectedCustomChallenges = customChallengesCount > 0;
 
   return (
     <div className="mx-auto w-full max-w-4xl px-4">
@@ -127,7 +124,7 @@ const GameSummary: React.FC = () => {
                   {formatDuration()}
                 </span>
                 <span className="ml-2 px-3 py-1 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 rounded-full text-sm font-medium">
-                  {getTotalChallengeCount()} {getTotalChallengeCount() === 1 ? t('setup.challenge') : t('setup.challenges')}
+                  {totalChallengesCount} {totalChallengesCount === 1 ? t('setup.challenge') : t('setup.challenges')}
                 </span>
               </div>
             </div>
@@ -368,7 +365,7 @@ const GameSummary: React.FC = () => {
                           <div className="w-4 h-4 rounded-full border-2 border-gray-300 border-t-gray-500 animate-spin"></div>
                         ) : (
                           <span className="font-semibold text-game-primary">
-                            {standardChallengesLoaded ? getStandardChallengesCount() : 0}
+                            {standardChallengesCount}
                           </span>
                         )}
                       </motion.div>
@@ -387,7 +384,7 @@ const GameSummary: React.FC = () => {
                         transition={{ duration: 0.3, delay: 0.4 }}
                       >
                         <span className="font-semibold text-purple-600 dark:text-purple-400">
-                          {getSelectedCustomChallengesCount()}
+                          {customChallengesCount}
                         </span>
                       </motion.div>
                     </div>

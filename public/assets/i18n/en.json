@@ -306,7 +306,8 @@
     "removeFromGame": "Remove from Game",
     "teamPoints": "Team Points",
     "teamPointsHelp": "Points for the winning team",
-    "customTeamPoints": "Set custom points"
+    "customTeamPoints": "Set custom points",
+    "sipsPunishment": "{{count}} sips"
   },
   "settings": {
     "title": "Settings",
@@ -396,7 +397,11 @@
       "updateChallenge": "Update Music Quiz",
       "awardPointsTo": "Award points to the winner",
       "pointsAwarded": "{{points}} points awarded",
-      "selected": "Selected"
+      "selected": "Selected",
+      "incorrect": "Incorrect",
+      "correct": "Correct",
+      "participants": "Participants",
+      "selectWinner": "Select a winner"
     },
     "quiz": {
       "title": "Custom Quiz",
