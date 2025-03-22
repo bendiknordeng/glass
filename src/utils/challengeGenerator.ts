@@ -24,12 +24,8 @@ export const getNextChallenge = (
   // ONLY contain challenges that have been explicitly selected for the current game.
   // Any filtering of unselected challenges should happen BEFORE calling this function.
   
-  // Combine all available challenges that can be used
-  const allAvailableChallenges: Challenge[] = [];
-  
   // Create arrays for storing both types of challenges
   const availableStandardChallenges: Challenge[] = [];
-  const availableCustomChallenges: Challenge[] = [];
   
   // Process standard challenges
   challenges.forEach(challenge => {
@@ -58,54 +54,69 @@ export const getNextChallenge = (
     availableStandardChallenges.push(challenge);
   });
   
-  // Process custom challenges
+  // Get all custom challenges that match the game mode
+  const availableCustomChallenges: Challenge[] = [];
+  
+  // Process custom challenges - must be included if they match the game mode
   customChallenges.forEach(challenge => {
-    // Ensure we only use challenges that are explicitly selected
-    if (!challenge.isSelected) {
-      console.log(`Skipping challenge that is not selected: "${challenge.title}" (ID: ${challenge.id})`);
-      return;
-    }
-    
-    // Skip challenges that can't be reused and have already been used
-    if (!challenge.canReuse && usedChallenges.includes(challenge.id)) {
-      return;
-    }
-    
-    // Check if the challenge has reached its maximum reuse count
-    if (challenge.canReuse && challenge.maxReuseCount !== undefined) {
-      // Count how many times this challenge has been used
-      const usageCount = usedChallenges.filter(id => id === challenge.id).length;
-      
-      // Skip if we've already used it the maximum number of times
-      if (usageCount >= challenge.maxReuseCount) {
-        return;
-      }
-    }
-    
-    // Skip team challenges in FREE_FOR_ALL mode
+    // Skip team challenges in FREE_FOR_ALL mode - only constraint for custom challenges
     if (gameMode === GameMode.FREE_FOR_ALL && challenge.type === ChallengeType.TEAM) {
       return;
     }
     
-    // Add the challenge to available custom challenges
+    // For custom challenges, we need to check if they've been used before
+    // but we still include them in the available pool (with appropriate weighting)
     availableCustomChallenges.push(challenge);
   });
   
   console.log(`Found ${availableStandardChallenges.length} available standard challenges and ${availableCustomChallenges.length} available custom challenges`);
   
-  // Merge all available challenges to create a pool for selection
-  allAvailableChallenges.push(...availableStandardChallenges, ...availableCustomChallenges);
-  
-  // If no challenges available, return null
-  if (allAvailableChallenges.length === 0) {
+  // Create the final pool of challenges to select from
+  // If we have no challenges available, return null
+  if (availableStandardChallenges.length === 0 && availableCustomChallenges.length === 0) {
     console.log('No available challenges found');
     return null;
   }
   
   // Create a weighted selection mechanism that:
-  // 1. Ensures both standard and custom challenges are mixed
-  // 2. Gives reusable challenges higher probability
-  const enhancedChallenges = allAvailableChallenges.map(challenge => {
+  // 1. Ensures custom challenges are always included
+  // 2. Gives higher priority to unused custom challenges
+  // 3. Uses appropriate weighting for standard challenges
+  const enhancedChallenges = [];
+  
+  // Process custom challenges first - they MUST be in the mix
+  for (const challenge of availableCustomChallenges) {
+    // Count how many times this challenge has been used
+    const usageCount = usedChallenges.filter(id => id === challenge.id).length;
+    
+    // Calculate weight for custom challenges
+    let weight = 1; // Base weight
+    
+    // If this challenge hasn't been used yet, give it higher priority
+    if (usageCount === 0) {
+      weight = 5; // High priority for unused custom challenges
+    } 
+    // For reusable challenges that have been used before
+    else if (challenge.canReuse) {
+      // If it has a max reuse count, decrease weight as it approaches its limit
+      if (challenge.maxReuseCount !== undefined) {
+        const remainingUses = challenge.maxReuseCount - usageCount;
+        weight = Math.max(1, remainingUses + 1); // Still give it slightly higher weight
+      } else {
+        weight = Math.max(1, 3 - usageCount);
+      }
+    }
+    // For non-reusable challenges that have been used before
+    else if (!challenge.canReuse && usageCount > 0) {
+      weight = 0; // Skip this challenge
+      continue;
+    }
+    
+    enhancedChallenges.push({ challenge, weight });
+  }
+  
+  // Then add standard challenges with their weights
+  for (const challenge of availableStandardChallenges) {
     // Count how many times this challenge has been used
     const usageCount = usedChallenges.filter(id => id === challenge.id).length;
     
@@ -125,9 +136,14 @@ export const getNextChallenge = (
       }
     }
     
-    // Return the challenge with its calculated weight
-    return { challenge, weight };
-  });
+    enhancedChallenges.push({ challenge, weight });
+  }
+  
+  // If we have no challenges with positive weights, return null
+  if (enhancedChallenges.length === 0) {
+    console.log('No challenges with positive weights found');
+    return null;
+  }
   
   // Calculate total weight
   const totalWeight = enhancedChallenges.reduce((sum, item) => sum + item.weight, 0);
@@ -139,16 +155,16 @@ export const getNextChallenge = (
   for (const { challenge, weight } of enhancedChallenges) {
     randomValue -= weight;
     if (randomValue <= 0) {
-      console.log(`Selected challenge: "${challenge.title}" (ID: ${challenge.id}), Type: ${challenge.type}, isPrebuilt: ${challenge.isPrebuilt || false}`);
+      console.log(`Selected challenge: "${challenge.title}" (ID: ${challenge.id}), Type: ${challenge.type}, isCustom: ${!challenge.isPrebuilt || false}`);
       return challenge;
     }
   }
   
   // Fallback to a plain random selection if the weighted selection fails for any reason
-  const randomIndex = Math.floor(Math.random() * allAvailableChallenges.length);
-  const selectedChallenge = allAvailableChallenges[randomIndex];
+  const randomIndex = Math.floor(Math.random() * enhancedChallenges.length);
+  const selectedChallenge = enhancedChallenges[randomIndex].challenge;
   
-  console.log(`Fallback selection: "${selectedChallenge.title}" (ID: ${selectedChallenge.id}), Type: ${selectedChallenge.type}, isPrebuilt: ${selectedChallenge.isPrebuilt || false}`);
+  console.log(`Fallback selection: "${selectedChallenge.title}" (ID: ${selectedChallenge.id}), Type: ${selectedChallenge.type}, isCustom: ${!selectedChallenge.isPrebuilt || false}`);
   
   return selectedChallenge;
 };

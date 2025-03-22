@@ -209,11 +209,36 @@ const ChallengeDisplay: React.FC<ChallengeDisplayProps> = ({
         // For one-on-one, team, or all vs all challenges, use the selected winners
         // If there's only one winner, use the traditional single-winner format
         const winnerIds = Object.keys(selectedWinners);
+        
+        // Debug logging
+        console.log('Selected winners:', selectedWinners);
+        console.log('Winner IDs:', winnerIds);
+        
         if (winnerIds.length === 1) {
+          console.log('Single winner case:', winnerIds[0], { [winnerIds[0]]: selectedWinners[winnerIds[0]] });
           onComplete(true, winnerIds[0], { [winnerIds[0]]: selectedWinners[winnerIds[0]] });
         } else {
-          // Multiple winners with scores
-          onComplete(true, undefined, selectedWinners);
+          // Multiple winners case
+          console.log('Multiple winners case:', selectedWinners);
+          
+          // When we have multiple winners, we need to ensure that:
+          // 1. We pass the first winner ID as the main winner
+          // 2. We pass ALL winners with their points in the scores object
+          // 3. We make sure each winner has valid points (not 0)
+          
+          // Make sure all winners have valid points
+          const validScores: Record<string, number> = {};
+          winnerIds.forEach(id => {
+            const pointValue = selectedWinners[id] || challenge.points || 1;
+            validScores[id] = pointValue;
+          });
+          
+          // Use the first winner as the main winner ID, but include all winners in scores
+          const mainWinnerId = winnerIds[0];
+          console.log('Multiple winners with valid points:', validScores);
+          
+          // Pass ALL scores in the third parameter
+          onComplete(true, mainWinnerId, validScores);
         }
       } else if (challenge.type === ChallengeType.ONE_ON_ONE || 
                 challenge.type === ChallengeType.TEAM || 
@@ -533,6 +558,17 @@ const ChallengeDisplay: React.FC<ChallengeDisplayProps> = ({
             {Object.keys(selectedWinners).length > 0 && (
               <div className="mt-4 text-center text-sm text-teal-600 dark:text-teal-200">
                 <p>{t('game.assigningPoints', { points: challenge.points || 1 })}</p>
+                {/* Display selected winners and their points */}
+                <div className="mt-2 flex flex-wrap justify-center gap-2">
+                  {Object.entries(selectedWinners).map(([winnerId, points]) => {
+                    const participant = getParticipantById(winnerId, players, teams);
+                    return participant ? (
+                      <span key={winnerId} className="inline-block bg-teal-100 dark:bg-teal-800/30 text-teal-700 dark:text-teal-300 px-2 py-1 rounded text-xs">
+                        {participant.name}: {points} {points === 1 ? t('common.point') : t('common.points')}
+                      </span>
+                    ) : null;
+                  })}
+                </div>
               </div>
             )}
           </div>

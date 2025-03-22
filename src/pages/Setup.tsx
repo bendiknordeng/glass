@@ -202,6 +202,18 @@ const Setup: React.FC = () => {
     setIsLoading(true);
     
     try {
+      // Validate that the number of custom challenges doesn't exceed the total selected challenges
+      const selectedCustomChallenges = stateRef.current.customChallenges.filter(c => c.isSelected);
+      
+      // Get max challenges from game duration if type is 'challenges', otherwise default to 15
+      const maxChallenges = stateRef.current.gameDuration.type === 'challenges' 
+        ? stateRef.current.gameDuration.value 
+        : 15; // Default to 15 if not set
+      
+      if (selectedCustomChallenges.length > maxChallenges) {
+        throw new Error('Too many custom challenges selected');
+      }
+      
       // Load default challenges if not already loaded
       if (stateRef.current.challenges.length === 0) {
         const defaultChallenges = generateDefaultChallenges();
@@ -254,7 +266,14 @@ const Setup: React.FC = () => {
       navigate('/game');
     } catch (error) {
       console.error('Error starting game:', error);
-      alert('Failed to start game: Could not load challenges');
+      if (error instanceof Error && error.message === 'Too many custom challenges selected') {
+        const maxChallenges = stateRef.current.gameDuration.type === 'challenges' 
+          ? stateRef.current.gameDuration.value 
+          : 15;
+        alert(`Failed to start game: You have selected more custom challenges than the total challenges limit (${maxChallenges}). Please reduce the number of custom challenges or increase the challenge limit in settings.`);
+      } else {
+        alert('Failed to start game: Could not load challenges');
+      }
     } finally {
       setIsLoading(false);
     }
