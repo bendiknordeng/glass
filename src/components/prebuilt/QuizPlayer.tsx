@@ -720,7 +720,29 @@ const QuizPlayer: React.FC<QuizPlayerProps> = ({
     setScores(finalScores);
     console.log('Final scores:', finalScores);
     
-    // Final sync of scores with game state
+    // IMPORTANT: Retrieve the ACTUAL current scores from the game state
+    // instead of relying on calculated scores which might be missing partial points
+    const actualScores: Record<string, number> = {};
+    
+    // Get current scores for all participants
+    activeParticipants.forEach(participantId => {
+      const participant = getParticipantById(participantId, state.players, state.teams);
+      if (participant) {
+        const currentScore = 'teamColor' in participant
+          ? state.teams.find(t => t.id === participantId)?.score || 0
+          : state.players.find(p => p.id === participantId)?.score || 0;
+        
+        // Only include participants with non-zero scores
+        if (currentScore > 0) {
+          actualScores[participantId] = currentScore;
+          console.log(`[COMPLETION] Participant ${participantId} has actual score: ${currentScore}`);
+        }
+      }
+    });
+    
+    console.log('[COMPLETION] Actual scores from game state:', actualScores);
+    
+    // Final sync of scores with game state if needed
     // This ensures the ScoreBoard reflects all points accumulated throughout the quiz
     if (Object.keys(finalScores).length > 0) {
       // For each participant with points, ensure their score in the game state matches
@@ -762,11 +784,11 @@ const QuizPlayer: React.FC<QuizPlayerProps> = ({
       });
     }
     
-    // Find the winner(s) with the highest score
+    // Find the winner(s) with the highest score from the ACTUAL game state scores
     let maxScore = 0;
     let winners: string[] = [];
     
-    Object.entries(finalScores).forEach(([participantId, score]) => {
+    Object.entries(actualScores).forEach(([participantId, score]) => {
       if (score > maxScore) {
         maxScore = score;
         winners = [participantId];
@@ -785,16 +807,16 @@ const QuizPlayer: React.FC<QuizPlayerProps> = ({
       questions,
       questionPoints: correctParticipants,
       currentQuestionIndex: questions.length - 1, // Mark as completed
-      finalScores: finalScores // Save the final scores in the settings for persistence
+      finalScores: actualScores // Save the actual scores in the settings for persistence
     };
     
     // Use a much shorter timeout to make the quiz feel responsive
     setTimeout(() => {
-      // Pass the winner ID and scores to the parent component
+      // Pass the winner ID and ACTUAL scores to the parent component
       // Make sure all participants with points are recorded, not just the winner
       // This ensures proper integration with useGameState and ScoreBoard display
-      console.log('Completing quiz with winner:', winnerId, 'and scores:', finalScores);
-      onComplete(true, winnerId, finalScores);
+      console.log('Completing quiz with winner:', winnerId, 'and actual scores:', actualScores);
+      onComplete(true, winnerId, actualScores);
     }, 300);
   };
   
