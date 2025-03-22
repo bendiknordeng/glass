@@ -40,6 +40,11 @@ const ScoreBoard: React.FC<ScoreBoardProps> = ({
     if (!team) return [];
     return players.filter(player => team.playerIds.includes(player.id));
   };
+
+  // Get player by id
+  const getPlayerById = (playerId: string): Player | undefined => {
+    return players.find(player => player.id === playerId);
+  };
   
   // Animation variants
   const container = {
@@ -116,6 +121,25 @@ const ScoreBoard: React.FC<ScoreBoardProps> = ({
                     `}>
                       {index + 1}
                     </div>
+                    
+                    {/* Display player image in free for all mode */}
+                    {gameMode === GameMode.FREE_FOR_ALL && entry.type === 'player' && (
+                      <div className="w-10 h-10 mr-3 overflow-hidden rounded-full">
+                        {(() => {
+                          const player = getPlayerById(entry.id);
+                          if (player) {
+                            return (
+                              <img 
+                                src={player.image} 
+                                alt={player.name} 
+                                className="w-full h-full object-cover"
+                              />
+                            );
+                          }
+                          return null;
+                        })()}
+                      </div>
+                    )}
                     
                     <div>
                       <span className="font-medium text-gray-800 dark:text-white">
