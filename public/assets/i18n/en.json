@@ -296,6 +296,10 @@
         "celebrities": "Say words after turn that belong to the category Celebrities. First to fail loses!",
         "movies": "Say words after turn that belong to the category Movies. First to fail loses!",
         "sports": "Say words after turn that belong to the category Sports. First to fail loses!"
+      },
+      "backAgainstBack": {
+        "title": "Back Against Back",
+        "description": "Stand back to back. The rest of the players come up with statements where the goal is for only one player to drink. The game is over when they manage to get three in a row."
       }
     },
     "allRecentChallenges": "All Recent Challenges",

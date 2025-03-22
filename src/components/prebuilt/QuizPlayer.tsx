@@ -971,6 +971,24 @@ const QuizPlayer: React.FC<QuizPlayerProps> = ({
           </h4>
           
           <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+            {/* Add button to give all participants full score */}
+            <div className="mb-4 flex justify-end">
+              <Button
+                variant="success"
+                size="sm"
+                onClick={() => {
+                  // Mark all active participants as correct for this question
+                  activeParticipants.forEach(participantId => {
+                    markCorrect(revealQuestion.id, participantId);
+                  });
+                }}
+                className="flex items-center"
+              >
+                <CheckIcon className="h-4 w-4 mr-1" />
+                {t('prebuilt.quiz.giveAllFullScore', 'Give All Full Score')}
+              </Button>
+            </div>
+            
             <div className="space-y-4">
               {activeParticipants.map(participantId => {
                 const isCorrect = questionCorrectParticipants.includes(participantId);

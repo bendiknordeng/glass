@@ -93,6 +93,16 @@ const gameReducer = (state: GameState, action: GameAction): GameState => {
         currentTurnIndex: 0,
         usedChallenges: [],
         results: [],
+        // Reset player scores
+        players: state.players.map(player => ({
+          ...player,
+          score: 0
+        })),
+        // Reset team scores
+        teams: state.teams.map(team => ({
+          ...team,
+          score: 0
+        }))
       };
 
     case 'END_GAME':

@@ -277,6 +277,10 @@
         "celebrities": "Si ord etter tur som hører til kategorien Kjente personer. Første som bommer taper!",
         "movies": "Si ord etter tur som hører til kategorien Filmer. Første som bommer taper!",
         "sports": "Si ord etter tur som hører til kategorien Sport. Første som bommer taper!"
+      },
+      "backAgainstBack": {
+        "title": "Rygg mot rygg",
+        "description": "Still dere opp rygg mot rygg. Resten av spillerne kommer med påstander der målet er at kun én spiller skal drikke. Spillet er over når dere klarer tre på rad."
       }
     },
     "punishment": "Straff",
@@ -435,7 +439,7 @@
       "dragDropImage": "Dra og slipp et bilde her eller klikk for å velge",
       "dropImageHere": "Slipp bildet her",
       "titlePlaceholder": "Eksempel: Flaggquiz",
-      "descriptionPlaceholder": "Eksempel: Gjett hvilken land hvert flagg hører til!",
+      "descriptionPlaceholder": "Eksempel: Gjett hvilket land hvert flagg hører til!",
       "pointsPerQuestion": "Poeng per spørsmål",
       "punishment": "Straff",
       "punishmentType": "Straffetype",
