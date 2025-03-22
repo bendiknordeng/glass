@@ -388,7 +388,8 @@
       "incorrect": "Feil svar",
       "correct": "Riktig svar",
       "participants": "Deltakere",
-      "selectWinner": "Velg en vinner"
+      "selectWinner": "Velg en vinner",
+      "didPlayerAnswerCorrectly": "Svarte {{player}} riktig?"
     },
     "quiz": {
       "title": "Egendefinert Quiz",

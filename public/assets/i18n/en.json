@@ -401,7 +401,8 @@
       "incorrect": "Incorrect",
       "correct": "Correct",
       "participants": "Participants",
-      "selectWinner": "Select a winner"
+      "selectWinner": "Select a winner",
+      "didPlayerAnswerCorrectly": "Did {{player}} answer correctly?"
     },
     "quiz": {
       "title": "Custom Quiz",
