@@ -271,6 +271,8 @@
       "sips": "Sips",
       "custom": "Custom"
     },
+    "addAllToGame": "Add All to Game",
+    "removeAllFromGame": "Remove All from Game",
     "sips": "Sips",
     "custom": "Custom",
     "numberOfSips": "Number of Sips",
@@ -307,6 +309,7 @@
     "lostOrFailed": "Did you lose or fail?",
     "unlimited": "Unlimited",
     "deletePermanently": "Delete Challenge",
+    "challengeUpdated": "Challenge Updated",
     "removeFromGame": "Remove from Game",
     "teamPoints": "Team Points",
     "teamPointsHelp": "Points for the winning team",

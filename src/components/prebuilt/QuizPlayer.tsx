@@ -83,17 +83,17 @@ const QuizPlayer: React.FC<QuizPlayerProps> = ({
   
   // Initialize active participants based on challenge type
   useEffect(() => {
-    if (challenge.type === ChallengeType.ONE_ON_ONE && selectedParticipantPlayers) {
-      // For one-on-one, use the selected participant players
-      setActiveParticipants(selectedParticipantPlayers.map(p => p.id));
-    } else if (challenge.type === ChallengeType.TEAM) {
+    // For quiz scoring, we always want to show all players/teams to award points to
+    // regardless of the challenge type
+    if (challenge.type === ChallengeType.TEAM) {
       // For team challenges, use all teams
       setActiveParticipants(state.teams.map(team => team.id));
     } else {
-      // For individual or all-vs-all challenges, use all players
+      // For all player-based challenges (individual, one-on-one, all-vs-all),
+      // always show all players for point assignment
       setActiveParticipants(state.players.map(player => player.id));
     }
-  }, [challenge.type, selectedParticipantPlayers, state.players, state.teams]);
+  }, [challenge.type, state.players, state.teams]);
   
   // Initialize question points if they haven't been set
   useEffect(() => {

@@ -203,7 +203,7 @@ export const generateDefaultChallenges = () => {
       id: `cat-${index}-${category}`, // Ensure unique IDs for each category challenge
       title: `challenges.standard.categories.title`,
       description: `challenges.standard.categories.${category}`,
-      type: ChallengeType.ONE_ON_ONE,
+      type: ChallengeType.ALL_VS_ALL,
       canReuse: false,
       points: 2,
       category: "knowledge",
@@ -212,7 +212,7 @@ export const generateDefaultChallenges = () => {
         value: 3,
       },
     })),
-    {
+    { 
       id: "water-vodka-1", // Fixed unique ID
       title: "challenges.standard.waterOrVodka.title",
       description: "challenges.standard.waterOrVodka.description",

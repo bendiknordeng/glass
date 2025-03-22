@@ -245,50 +245,43 @@ const GameSettings: React.FC = () => {
       setTimeout(() => {
         setDeleteFromCurrentGame(false);
       }, 0);
+      return; // Don't perform other updates when we're deleting
     }
 
-    // This will ensure the recent challenges list is always up-to-date
-    // and doesn't contain any challenges that are in the current game
-    const updatedRecentChallenges = getRecentChallenges();
-    
-    // Only update state if there are differences to avoid unnecessary rerenders
-    // Use both ID and title for uniqueness
-    const currentIdentifiers = new Set(
-      recentChallenges.map(getChallengeUniqueIdentifier)
-    );
-    const updatedIdentifiers = new Set(
-      updatedRecentChallenges.map(getChallengeUniqueIdentifier)
-    );
-    
-    // Double-check for any challenges that might be in the current game
-    const hasOverlap = updatedRecentChallenges.some(challenge => 
-      isChallengeInGame(challenge, state.customChallenges)
-    );
-    
-    // Check if the lists are different or if there's an overlap with current game
-    if (currentIdentifiers.size !== updatedIdentifiers.size || 
-        recentChallenges.some(c => !updatedIdentifiers.has(getChallengeUniqueIdentifier(c))) ||
-        updatedRecentChallenges.some(c => !currentIdentifiers.has(getChallengeUniqueIdentifier(c))) ||
-        hasOverlap) {
-      console.log('Recent challenges list needs refresh');
-      
-      // Make one final filter to ensure no overlaps
-      const filteredChallenges = hasOverlap 
-        ? updatedRecentChallenges.filter(c => !isChallengeInGame(c, state.customChallenges))
-        : updatedRecentChallenges;
-        
-      setRecentChallenges(filteredChallenges);
+    // Don't run this effect during initial mount - the other useEffect handles that
+    if (prevChallengesCount === 0 && state.customChallenges.length === 0) {
+      return;
     }
+
+    // Only refresh if the customChallenges count has changed, which indicates
+    // something was added or removed, or if challenges list changed
+    const challengesChanged = prevChallengesCount !== state.customChallenges.length;
+    const standardChallengesChanged = prevStandardChallengesCount !== state.challenges.length;
     
-    // Update the previous counts
-    setPrevChallengesCount(state.customChallenges.length);
+    if (challengesChanged || standardChallengesChanged) {
+      console.log('Challenges changed - refreshing recent challenges list');
+      
+      // Sync localStorage first to ensure it's up to date
+      syncChallengesWithLocalStorage();
+      
+      // Then get fresh recent challenges
+      const freshRecentChallenges = getRecentChallenges();
+      
+      console.log(`Setting recent challenges to ${freshRecentChallenges.length} challenges after game state change`);
+      
+      // Update the state in a single update
+      setRecentChallenges(freshRecentChallenges);
+      
+      // Update the previous counts
+      setPrevChallengesCount(state.customChallenges.length);
+      setPrevStandardChallengesCount(state.challenges.length);
+    }
   }, [
-    // Update when any of these change
-    state.customChallenges, 
-    state.challenges,
-    deleteFromCurrentGame
-    // Avoid infinite loop by not including recentChallenges in dependencies
-    // We compare them manually inside the effect
+    state.customChallenges.length, 
+    state.challenges.length,
+    deleteFromCurrentGame,
+    prevChallengesCount,
+    prevStandardChallengesCount
   ]);
 
   // Load challenges on mount
@@ -324,6 +317,14 @@ const GameSettings: React.FC = () => {
       
       // Get the current challenges in the game for filtering
       const currentGameChallenges = state.customChallenges;
+      console.log(`getRecentChallenges: Current game has ${currentGameChallenges.length} challenges`);
+      
+      // Create a map of game challenge IDs and titles for faster lookups
+      const gameChallengeLookup = new Map();
+      currentGameChallenges.forEach(gc => {
+        if (gc.id) gameChallengeLookup.set(gc.id, true);
+        if (gc.title) gameChallengeLookup.set(gc.title.toLowerCase(), true);
+      });
       
       // Construct updated challenges array - only including challenges NOT in the current game
       const updatedChallenges: Challenge[] = [];
@@ -335,8 +336,11 @@ const GameSettings: React.FC = () => {
           console.log(`getRecentChallenges: Found prebuilt challenge "${storedChallenge.title}" with type: ${storedChallenge.prebuiltType}`);
         }
         
-        // Check if this challenge is currently in the game
-        const isInGame = isChallengeInGame(storedChallenge, currentGameChallenges);
+        // Check if this challenge is currently in the game using our lookup map
+        // This is faster than calling isChallengeInGame for each challenge
+        const isInGame = 
+          (storedChallenge.id && gameChallengeLookup.has(storedChallenge.id)) ||
+          (storedChallenge.title && gameChallengeLookup.has(storedChallenge.title.toLowerCase()));
         
         // If challenge selection state is out of sync with game state, update it in localStorage
         if (isInGame !== (storedChallenge.isSelected || false)) {
@@ -359,6 +363,8 @@ const GameSettings: React.FC = () => {
             prebuiltType: storedChallenge.prebuiltType,
             prebuiltSettings: storedChallenge.prebuiltSettings
           });
+        } else {
+          console.log(`getRecentChallenges: Skipping challenge "${storedChallenge.title}" because it's already in the game`);
         }
       }
       
@@ -508,16 +514,33 @@ const GameSettings: React.FC = () => {
       if (!stored) return;
       
       const storedChallenges = JSON.parse(stored) as Challenge[];
+      console.log(`syncChallengesWithLocalStorage: Processing ${storedChallenges.length} stored challenges`);
       
       // Get the current challenges in the game for comparison
       const currentGameChallenges = state.customChallenges;
+      console.log(`syncChallengesWithLocalStorage: Current game has ${currentGameChallenges.length} challenges`);
+      
+      // Create a map for faster lookups
+      const gameChallengeLookup = new Map();
+      currentGameChallenges.forEach(gc => {
+        if (gc.id) gameChallengeLookup.set(gc.id, true);
+        if (gc.title) gameChallengeLookup.set(gc.title.toLowerCase(), true);
+      });
+      
+      // Count how many challenges are updated
+      let updatedCount = 0;
       
       // Update each challenge in localStorage with correct selection state
       const updatedChallenges = storedChallenges.map(challenge => {
-        const isInGame = isChallengeInGame(challenge, currentGameChallenges);
+        // Check if this challenge is currently in the game
+        const isInGame = 
+          (challenge.id && gameChallengeLookup.has(challenge.id)) ||
+          (challenge.title && gameChallengeLookup.has(challenge.title.toLowerCase()));
         
         // Only update if the selection state is different
         if (isInGame !== (challenge.isSelected || false)) {
+          updatedCount++;
+          
           return {
             ...challenge,
             isSelected: isInGame,
@@ -532,11 +555,18 @@ const GameSettings: React.FC = () => {
         return challenge;
       });
       
+      console.log(`syncChallengesWithLocalStorage: Updated selection state for ${updatedCount} challenges`);
+      
       // Check for challenges in the game that might not be in localStorage yet
       // This can happen when adding a challenge directly without going through the recent list
+      let newChallengesAdded = 0;
+      
       state.customChallenges.forEach(gameChallenge => {
+        // Check if the challenge exists in the updated list (by ID or title)
         const existsInStorage = updatedChallenges.some(storedChallenge => 
-          isChallengeInGame(storedChallenge, [gameChallenge])
+          (gameChallenge.id && storedChallenge.id === gameChallenge.id) ||
+          (gameChallenge.title && storedChallenge.title && 
+           storedChallenge.title.toLowerCase() === gameChallenge.title.toLowerCase())
         );
         
         // If it's not in localStorage, add it
@@ -548,13 +578,18 @@ const GameSettings: React.FC = () => {
           });
           
           updatedChallenges.push(challengeToAdd);
+          newChallengesAdded++;
         }
       });
+      
+      if (newChallengesAdded > 0) {
+        console.log(`syncChallengesWithLocalStorage: Added ${newChallengesAdded} new challenges from game to localStorage`);
+      }
       
       // Save updated challenges back to localStorage
       localStorage.setItem(RECENT_CHALLENGES_KEY, JSON.stringify(updatedChallenges));
       
-      console.log(`Synchronized ${updatedChallenges.length} challenges with localStorage`);
+      console.log(`syncChallengesWithLocalStorage: Synchronized ${updatedChallenges.length} challenges with localStorage`);
     } catch (error) {
       console.error("Error syncing challenges with localStorage:", error);
     }
@@ -562,17 +597,15 @@ const GameSettings: React.FC = () => {
 
   // Add a recent challenge to current game
   const handleAddRecentChallenge = (challenge: Challenge) => {
+    // Store the challenge ID and title for logging
+    const challengeId = challenge.id;
+    const challengeTitle = challenge.title;
+    
+    console.log(`Adding challenge to game: ${challengeId} - ${challengeTitle}`);
+    
     // Check if the challenge is already in the game to avoid duplicates
     if (isChallengeInGame(challenge, state.customChallenges)) {
-      console.log(`Challenge ${challenge.title} is already in the current game, not adding again`);
-      
-      // Still remove from recent challenges to avoid confusion
-      setRecentChallenges(prevRecentChallenges => 
-        prevRecentChallenges.filter(recentChallenge => 
-          recentChallenge.id !== challenge.id && 
-          recentChallenge.title.toLowerCase() !== challenge.title.toLowerCase()
-        )
-      );
+      console.log(`Challenge ${challengeTitle} is already in the current game, not adding again`);
       return;
     }
     
@@ -590,10 +623,10 @@ const GameSettings: React.FC = () => {
       });
     }
     
-    // First update recent challenges list in localStorage - mark as selected
-    updateRecentChallenges(preservedChallenge, true);
+    // Block the UI while we're making changes to prevent multiple clicks/race conditions
+    setIsLoadingChallenges(true);
     
-    // Add the challenge to the game's custom challenges with isSelected explicitly set to true
+    // 1. Add the challenge to the game first
     dispatch({
       type: "ADD_CUSTOM_CHALLENGE",
       payload: {
@@ -602,13 +635,26 @@ const GameSettings: React.FC = () => {
       },
     });
     
-    // Immediately remove it from the recent challenges list
-    setRecentChallenges(prevRecentChallenges => 
-      prevRecentChallenges.filter(recentChallenge => 
-        recentChallenge.id !== preservedChallenge.id && 
-        recentChallenge.title.toLowerCase() !== preservedChallenge.title.toLowerCase()
-      )
-    );
+    // 2. Mark the challenge as selected in localStorage
+    updateRecentChallenges(preservedChallenge, true);
+    
+    // 3. Force a sync with localStorage to ensure everything is up to date
+    syncChallengesWithLocalStorage();
+    
+    // 4. Use setTimeout with a more generous timeout to ensure the state has time to update
+    // This ensures we handle the local state update after the dispatch has been processed
+    setTimeout(() => {
+      // Get fresh recent challenges with the latest game state taken into account
+      const freshRecentChallenges = getRecentChallenges();
+      
+      console.log(`Setting recent challenges list to ${freshRecentChallenges.length} challenges`);
+      
+      // Set the recent challenges in a single state update
+      setRecentChallenges(freshRecentChallenges);
+      
+      // Unblock the UI
+      setIsLoadingChallenges(false);
+    }, 150); // Increased from 50ms to 150ms for more stability
   };
 
   /**
@@ -979,6 +1025,9 @@ const GameSettings: React.FC = () => {
     if (gameChallenge) {
       console.log(`Removing challenge from game: ${challenge.id} - ${challenge.title}`);
       
+      // Block the UI while we're making changes to prevent multiple clicks/race conditions
+      setIsLoadingChallenges(true);
+      
       // Track this challenge as recently removed for animation
       setRecentlyRemovedChallenge(challenge.id);
       
@@ -993,39 +1042,151 @@ const GameSettings: React.FC = () => {
         isSelected: false
       });
       
-      // First, update the challenge in localStorage to mark as unselected
+      // 1. Update the challenge in localStorage to mark as unselected
       updateRecentChallenges(challengeCopy, false);
       
-      // Then remove it from the game
+      // 2. Remove it from the game
       dispatch({
         type: "REMOVE_CUSTOM_CHALLENGE",
         payload: challenge.id
       });
       
-      // Force immediate synchronization with localStorage
+      // 3. Force immediate synchronization with localStorage
       syncChallengesWithLocalStorage();
       
-      // Add the challenge directly to the recentChallenges state if it doesn't exist
-      setRecentChallenges(prevChallenges => {
-        // Check if it already exists in the list
-        const exists = prevChallenges.some(
+      // 4. Update the recent challenges list after a more generous delay to ensure state is updated
+      setTimeout(() => {
+        // Get fresh challenges after the state has updated
+        const freshRecentChallenges = getRecentChallenges();
+        
+        // Check if the removed challenge is already in the list
+        const isChallengeInList = freshRecentChallenges.some(
           c => c.id === challengeCopy.id || 
                c.title.toLowerCase() === challengeCopy.title.toLowerCase()
         );
         
-        // If it already exists, don't add it again
-        if (exists) {
-          console.log(`Challenge ${challengeCopy.title} already exists in recent challenges, not adding again`);
-          return prevChallenges;
+        // If not in the list, add it at the beginning
+        if (!isChallengeInList) {
+          console.log(`Adding challenge ${challengeCopy.title} to recent challenges list`);
+          setRecentChallenges([challengeCopy, ...freshRecentChallenges]);
+        } else {
+          // Otherwise just use the fresh list
+          console.log(`Challenge ${challengeCopy.title} is already in recent list, using fresh list`);
+          setRecentChallenges(freshRecentChallenges);
         }
         
-        // Create a new array with the removed challenge at the beginning
-        console.log(`Adding challenge ${challengeCopy.title} to recent challenges list`);
-        return [challengeCopy, ...prevChallenges];
-      });
+        // Unblock the UI
+        setIsLoadingChallenges(false);
+      }, 150); // Increased from 50ms to 150ms for more stability
     } else {
       console.error('Failed to find challenge in game:', challenge.id);
     }
+  };
+
+  /**
+   * Add all recent challenges to the current game
+   */
+  const handleAddAllRecentChallenges = () => {
+    if (recentChallenges.length === 0) {
+      console.log('No recent challenges to add');
+      return;
+    }
+    
+    console.log(`Adding all ${recentChallenges.length} recent challenges to the game`);
+    
+    // Block the UI while we're making changes
+    setIsLoadingChallenges(true);
+    
+    // Create a copy of the challenges to add
+    const challengesToAdd = [...recentChallenges];
+    
+    // Process each challenge
+    challengesToAdd.forEach(challenge => {
+      // Skip if it's already in the game
+      if (isChallengeInGame(challenge, state.customChallenges)) {
+        console.log(`Challenge ${challenge.title} is already in the game, skipping`);
+        return;
+      }
+      
+      const preservedChallenge = ensurePrebuiltPropertiesPreserved(challenge);
+      
+      // Mark as selected in localStorage
+      updateRecentChallenges(preservedChallenge, true);
+      
+      // Add to the game
+      dispatch({
+        type: "ADD_CUSTOM_CHALLENGE",
+        payload: {
+          ...preservedChallenge,
+          isSelected: true
+        },
+      });
+    });
+    
+    // Sync with localStorage
+    syncChallengesWithLocalStorage();
+    
+    // Update recent challenges list after a delay
+    setTimeout(() => {
+      // Get fresh recent challenges
+      const freshRecentChallenges = getRecentChallenges();
+      
+      // Update the state
+      setRecentChallenges(freshRecentChallenges);
+      
+      // Unblock the UI
+      setIsLoadingChallenges(false);
+    }, 200);
+  };
+
+  /**
+   * Remove all selected challenges from the current game
+   */
+  const handleRemoveAllSelectedChallenges = () => {
+    if (state.customChallenges.length === 0) {
+      console.log('No selected challenges to remove');
+      return;
+    }
+    
+    console.log(`Removing all ${state.customChallenges.length} challenges from the game`);
+    
+    // Block the UI while we're making changes
+    setIsLoadingChallenges(true);
+    
+    // Create a copy of the challenges to remove
+    const challengesToRemove = [...state.customChallenges];
+    
+    // Process each challenge
+    challengesToRemove.forEach(challenge => {
+      const preservedChallenge = ensurePrebuiltPropertiesPreserved({
+        ...challenge,
+        isSelected: false
+      });
+      
+      // Update in localStorage to mark as unselected
+      updateRecentChallenges(preservedChallenge, false);
+      
+      // Remove from the game
+      dispatch({
+        type: "REMOVE_CUSTOM_CHALLENGE",
+        payload: challenge.id
+      });
+    });
+    
+    // Sync with localStorage
+    syncChallengesWithLocalStorage();
+    
+    // Update recent challenges list after a delay
+    setTimeout(() => {
+      // Get fresh recent challenges
+      const freshRecentChallenges = getRecentChallenges();
+      
+      // Update the state
+      setRecentChallenges(freshRecentChallenges);
+      
+      // Unblock the UI
+      setIsLoadingChallenges(false);
+    }, 200);
   };
 
   return (
@@ -1320,121 +1481,150 @@ const GameSettings: React.FC = () => {
           {/* Custom Challenges List */}
           <div className="mb-6">
             {state.customChallenges.length > 0 ? (
-              <div className="space-y-4">
-                <AnimatePresence>
-                {state.customChallenges.map((challenge) => (
-                  <motion.div
-                    key={`selected-challenge-${challenge.id}`}
-                    className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4 border border-gray-200 dark:border-gray-600 group"
-                    layoutId={`challenge-${challenge.id}`}
-                    initial={{ opacity: 1, scale: 1 }}
-                    exit={{
-                      opacity: 0,
-                      scale: 0.8,
-                      x: 300,
-                      transition: { duration: 0.3 }
-                    }}
+              <div>
+                <div className="flex justify-between items-center mb-4">
+                  <h4 className="text-md font-medium text-gray-700 dark:text-gray-300">
+                    {t("challenges.customChallenges")} ({state.customChallenges.length})
+                  </h4>
+                  <button
+                    onClick={handleRemoveAllSelectedChallenges}
+                    className="text-amber-500 hover:text-amber-600 dark:text-amber-400 dark:hover:text-amber-300 text-sm font-medium flex items-center gap-1 px-3 py-1 rounded-md hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-colors"
+                    title={t("challenges.removeAllFromGame")}
+                    disabled={isLoadingChallenges}
                   >
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <h4 className="font-medium text-gray-800 dark:text-white">
-                          {challenge.title}
-                        </h4>
-                        <p className="text-sm text-gray-600 dark:text-gray-300 mt-1">
-                          {challenge.description}
-                        </p>
-                        <div className="flex gap-2 mt-2">
-                          <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-game-secondary/10 text-game-secondary">
-                            {challenge.type === "individual"
-                              ? t("game.challengeTypes.individual")
-                              : challenge.type === "oneOnOne"
-                              ? t("game.challengeTypes.oneOnOne")
-                              : challenge.type === "allVsAll"
-                              ? t("game.challengeTypes.allVsAll")
-                              : t("game.challengeTypes.team")}
-                          </span>
-                          <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-game-accent/10 text-game-accent">
-                            {challenge.points}{" "}
-                            {challenge.points === 1
-                              ? t("common.point")
-                              : t("common.points")}
-                          </span>
-                          {challenge.category && (
-                            <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-gray-100 dark:bg-gray-600 text-gray-600 dark:text-gray-300">
-                              {challenge.category}
+                    <svg
+                      className="w-4 h-4"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M15 12H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z"
+                      />
+                    </svg>
+                    {t("challenges.removeAllFromGame")}
+                  </button>
+                </div>
+                <div className="space-y-4">
+                  <AnimatePresence>
+                  {state.customChallenges.map((challenge) => (
+                    <motion.div
+                      key={`selected-challenge-${challenge.id}`}
+                      className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4 border border-gray-200 dark:border-gray-600 group"
+                      layoutId={`challenge-${challenge.id}`}
+                      initial={{ opacity: 1, scale: 1 }}
+                      exit={{
+                        opacity: 0,
+                        scale: 0.8,
+                        x: 300,
+                        transition: { duration: 0.3 }
+                      }}
+                    >
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <h4 className="font-medium text-gray-800 dark:text-white">
+                            {challenge.title}
+                          </h4>
+                          <p className="text-sm text-gray-600 dark:text-gray-300 mt-1">
+                            {challenge.description}
+                          </p>
+                          <div className="flex gap-2 mt-2">
+                            <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-game-secondary/10 text-game-secondary">
+                              {challenge.type === "individual"
+                                ? t("game.challengeTypes.individual")
+                                : challenge.type === "oneOnOne"
+                                ? t("game.challengeTypes.oneOnOne")
+                                : challenge.type === "allVsAll"
+                                ? t("game.challengeTypes.allVsAll")
+                                : t("game.challengeTypes.team")}
                             </span>
-                          )}
+                            <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-game-accent/10 text-game-accent">
+                              {challenge.points}{" "}
+                              {challenge.points === 1
+                                ? t("common.point")
+                                : t("common.points")}
+                            </span>
+                            {challenge.category && (
+                              <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-gray-100 dark:bg-gray-600 text-gray-600 dark:text-gray-300">
+                                {challenge.category}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => openEditForm(challenge)}
+                            className="text-blue-500 hover:text-blue-600 dark:text-blue-400 dark:hover:text-blue-300 p-1"
+                            title={t("common.edit")}
+                          >
+                            <svg
+                              className="w-5 h-5"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                              xmlns="http://www.w3.org/2000/svg"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                              />
+                            </svg>
+                          </button>
+                          <button
+                            onClick={() => handleDirectRemoveChallenge(challenge)}
+                            className="text-amber-500 hover:text-amber-600 dark:text-amber-400 dark:hover:text-amber-300 p-1"
+                            title={t("challenges.removeFromGame")}
+                          >
+                            <svg
+                              className="w-5 h-5"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                              xmlns="http://www.w3.org/2000/svg"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M15 12H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z"
+                              />
+                            </svg>
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              initiateDeleteChallenge(challenge);
+                            }}
+                            className="text-red-500 hover:text-red-600 dark:text-red-400 dark:hover:text-red-300 p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                            title={t("challenges.deletePermanently")}
+                          >
+                            <svg
+                              className="w-5 h-5"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                              xmlns="http://www.w3.org/2000/svg"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                              />
+                            </svg>
+                          </button>
                         </div>
                       </div>
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => openEditForm(challenge)}
-                          className="text-blue-500 hover:text-blue-600 dark:text-blue-400 dark:hover:text-blue-300 p-1"
-                          title={t("common.edit")}
-                        >
-                          <svg
-                            className="w-5 h-5"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                            xmlns="http://www.w3.org/2000/svg"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-                            />
-                          </svg>
-                        </button>
-                        <button
-                          onClick={() => handleDirectRemoveChallenge(challenge)}
-                          className="text-amber-500 hover:text-amber-600 dark:text-amber-400 dark:hover:text-amber-300 p-1"
-                          title={t("challenges.removeFromGame")}
-                        >
-                          <svg
-                            className="w-5 h-5"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                            xmlns="http://www.w3.org/2000/svg"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              d="M15 12H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z"
-                            />
-                          </svg>
-                        </button>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            initiateDeleteChallenge(challenge);
-                          }}
-                          className="text-red-500 hover:text-red-600 dark:text-red-400 dark:hover:text-red-300 p-1 opacity-0 group-hover:opacity-100 transition-opacity"
-                          title={t("challenges.deletePermanently")}
-                        >
-                          <svg
-                            className="w-5 h-5"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                            xmlns="http://www.w3.org/2000/svg"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                            />
-                          </svg>
-                        </button>
-                      </div>
-                    </div>
-                  </motion.div>
-                ))}
-                </AnimatePresence>
+                    </motion.div>
+                  ))}
+                  </AnimatePresence>
+                </div>
               </div>
             ) : (
               <div className="bg-gray-50 dark:bg-gray-700/30 rounded-lg p-8 border border-dashed border-gray-300 dark:border-gray-600 text-center">
@@ -1498,29 +1688,56 @@ const GameSettings: React.FC = () => {
             <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-200">
               {t("challenges.recentCustomChallenges")}
             </h3>
-            {recentChallenges.length > 0 && (
-              <button
-                onClick={initiateDeleteAllRecentChallenges}
-                className="text-red-500 hover:text-red-600 dark:text-red-400 dark:hover:text-red-300 text-sm font-medium flex items-center gap-1 px-3 py-1 rounded-md hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
-                title={t("challenges.deleteAllRecent")}
-              >
-                <svg
-                  className="w-4 h-4"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                  xmlns="http://www.w3.org/2000/svg"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                  />
-                </svg>
-                {t("challenges.clearAllRecent")}
-              </button>
-            )}
+            <div className="flex gap-2">
+              {recentChallenges.length > 0 && (
+                <>
+                  <button
+                    onClick={handleAddAllRecentChallenges}
+                    className="text-blue-500 hover:text-blue-600 dark:text-blue-400 dark:hover:text-blue-300 text-sm font-medium flex items-center gap-1 px-3 py-1 rounded-md hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
+                    title={t("challenges.addAllToGame")}
+                    disabled={isLoadingChallenges}
+                  >
+                    <svg
+                      className="w-4 h-4"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M12 6v6m0 0v6m0-6h6m-6 0H6"
+                      />
+                    </svg>
+                    {t("challenges.addAllToGame")}
+                  </button>
+                  <button
+                    onClick={initiateDeleteAllRecentChallenges}
+                    className="text-red-500 hover:text-red-600 dark:text-red-400 dark:hover:text-red-300 text-sm font-medium flex items-center gap-1 px-3 py-1 rounded-md hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                    title={t("challenges.deleteAllRecent")}
+                    disabled={isLoadingChallenges}
+                  >
+                    <svg
+                      className="w-4 h-4"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                      />
+                    </svg>
+                    {t("challenges.clearAllRecent")}
+                  </button>
+                </>
+              )}
+            </div>
           </div>
 
           <div className="mt-6">
@@ -1561,42 +1778,32 @@ const GameSettings: React.FC = () => {
                 <AnimatePresence>
                 {recentChallenges.map((challenge) => (
                   <motion.div
-                    key={`recent-challenge-${challenge.id}`}
+                    key={`recent-challenge-${challenge.id || challenge.title}`}
                     className={`bg-gray-50 dark:bg-gray-700/50 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg p-3 border ${
                       recentlyRemovedChallenge === challenge.id 
                         ? 'border-game-accent border-2' 
                         : 'border-gray-200 dark:border-gray-600'
                     } transition-colors relative group`}
-                    whileHover={{ scale: 1.01 }}
-                    whileTap={{ scale: 0.99 }}
-                    layoutId={`recent-${challenge.id}`}
-                    initial={recentlyRemovedChallenge === challenge.id ? { 
-                      opacity: 0, 
-                      scale: 0.8,
-                      x: -300
-                    } : { opacity: 1, scale: 1 }}
-                    animate={recentlyRemovedChallenge === challenge.id ? {
-                      opacity: 1,
-                      scale: [1, 1.05, 1],
-                      x: 0,
-                      boxShadow: [
-                        '0 0 0 rgba(0, 0, 0, 0)',
-                        '0 0 8px rgba(234, 88, 12, 0.5)',
-                        '0 0 0 rgba(0, 0, 0, 0)',
-                      ],
-                      transition: {
-                        duration: 0.6,
-                        ease: "easeInOut"
-                      }
-                    } : { 
+                    layout="position"
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ 
                       opacity: 1, 
-                      scale: 1, 
-                      x: 0, 
+                      y: 0,
                       transition: { 
-                        type: "spring", 
-                        stiffness: 500, 
-                        damping: 30 
-                      } 
+                        duration: 0.2,
+                        ease: "easeOut" 
+                      }
+                    }}
+                    exit={{ 
+                      opacity: 0, 
+                      scale: 0.95,
+                      transition: { 
+                        duration: 0.15,
+                        ease: "easeIn"
+                      }
+                    }}
+                    transition={{
+                      layout: { duration: 0.2, ease: "easeInOut" }
                     }}
                   >
                     <div

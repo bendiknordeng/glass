@@ -248,10 +248,13 @@
     "maxReuseCountHelp": "Antall ganger en utfordring kan gjenbrukes i samme spill",
     "maxReuseCount": "Maksimalt antall ganger",
     "punishmentType": "Straffetype",
+    "challengeUpdated": "Utfordring oppdatert",
     "punishmentTypes": {
       "sips": "Slurker",
       "custom": "Egendefinert"
     },
+    "addAllToGame": "Legg til alle i spillet",
+    "removeAllFromGame": "Fjern alle fra spillet",
     "type": {
       "individual": "Individuell",
       "team": "Lag",
