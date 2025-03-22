@@ -36,7 +36,8 @@
     "description": "Beskrivelse",
     "type": "Type",
     "create": "Opprett",
-    "submitting": "Oppretter..."
+    "submitting": "Oppretter...",
+    "players": "Spillere"
   },
   "home": {
     "newGame": "Nytt spill",
@@ -97,7 +98,25 @@
     "teamsRequired": "Vennligst opprett minst 2 lag",
     "allPlayersAssigned": "Alle spillere må være tildelt et lag",
     "confirmDeletePlayer": "Er du sikker på at du vil slette {{item}}?",
-    "removeAllPlayers": "Fjern alle spillere"
+    "removeAllPlayers": "Fjern alle spillere",
+    "gameSummary": "Spillsammendrag",
+    "playerCount": "Spillere",
+    "teamCount": "Lag",
+    "challengeCount": "Utfordringer",
+    "gameModeLabel": "Modus",
+    "expectedDuration": "Forventet varighet",
+    "allChangesAutoSaved": "Alle spillinnstillingene dine lagres automatisk.",
+    "clickNextToStart": "Når du er klar, klikk på 'Neste'-knappen for å starte spillet!",
+    "gameTypeAndDuration": "Spilltype og varighet",
+    "duration": "Varighet",
+    "challengesCount": "Antall utfordringer",
+    "customChallenges": "Egendefinerte utfordringer",
+    "standardChallenges": "Standard utfordringer",
+    "gameValidation": "Spillvalidering",
+    "enoughPlayers": "Nok spillere",
+    "teamsCreated": "Lag opprettet",
+    "noStandardChallenges": "Ingen standard utfordringer",
+    "noCustomChallenges": "Ingen egendefinerte utfordringer"
   },
   "game": {
     "round": "Runde {{round}}",
@@ -354,7 +373,7 @@
       "finish": "Fullfør quiz",
       "songCounter": "Sang {{current}} av {{total}}",
       "guessPrompt": "Hvilken sang og artist er dette?",
-      "currentParticipants": "Nåværende spillere",
+      "currentParticipants": "Utfordringens deltakere",
       "updateChallenge": "Oppdater musikk-quiz",
       "awardPointsTo": "Gi poeng til vinneren",
       "pointsAwarded": "{{points}} poeng tildelt",

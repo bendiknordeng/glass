@@ -8,6 +8,7 @@ import Button from '@/components/common/Button';
 import PlayerRegistration from '@/components/setup/PlayerRegistration';
 import TeamCreation, { TeamCreationRef } from '@/components/setup/TeamCreation';
 import GameSettings from '@/components/setup/GameSettings';
+import GameSummary from '@/components/setup/GameSummary';
 import { GameMode } from '@/types/Team';
 import { Challenge } from '@/types/Challenge';
 
@@ -45,14 +46,20 @@ const Setup: React.FC = () => {
   // Save game state to localStorage
   const saveGameStateToLocalStorage = () => {
     try {
-      // Save relevant parts of the state
+      // Save only the minimal essential data needed for game setup
+      // Optimize by removing large arrays or limiting their size
       const stateToSave = {
         players: state.players,
         teams: state.teams,
         gameMode: state.gameMode,
         gameDuration: state.gameDuration,
-        challenges: state.challenges,
-        customChallenges: state.customChallenges
+        // Don't save full challenges arrays - they can be too large
+        // Instead, store only IDs or selected status for custom challenges
+        customChallengeIds: state.customChallenges.map(c => ({
+          id: c.id,
+          isSelected: c.isSelected || false
+        }))
+        // challenges array is loaded dynamically, no need to store in localStorage
       };
       
       // Store in localStorage
@@ -105,6 +112,17 @@ const Setup: React.FC = () => {
             type: 'SET_GAME_DURATION',
             payload: parsedState.gameDuration
           });
+        }
+        
+        // If using new format with customChallengeIds (to support backward compatibility)
+        if (parsedState.customChallengeIds && parsedState.customChallengeIds.length > 0) {
+          console.log('Found stored custom challenge IDs:', parsedState.customChallengeIds.length);
+          
+          // We'll restore the selection state of custom challenges when they're loaded
+          // This is handled in the GameSettings component's useEffect for challenge loading
+          
+          // Store the IDs in localStorage for the GameSettings component to use
+          localStorage.setItem('selectedCustomChallengeIds', JSON.stringify(parsedState.customChallengeIds));
         }
         
         console.log('Game state restored from localStorage');
@@ -176,6 +194,12 @@ const Setup: React.FC = () => {
       title: t('setup.gameSettings'),
       component: <GameSettings />,
       canContinue: true // Always allow continuing from settings step
+    },
+    {
+      id: 'summary',
+      title: t('setup.gameSummary'),
+      component: <GameSummary />,
+      canContinue: true // Always allow continuing from summary step
     }
   ];
   
@@ -214,10 +238,11 @@ const Setup: React.FC = () => {
         throw new Error('Too many custom challenges selected');
       }
       
-      // Load default challenges if not already loaded
+      // The challenges should already be loaded in the GameSummary step
       if (stateRef.current.challenges.length === 0) {
+        // As a fallback, load default challenges if they're not already loaded
+        console.log("Fallback: Loading default challenges");
         const defaultChallenges = generateDefaultChallenges();
-        console.log(defaultChallenges);
         
         // Dispatch challenges and wait for state to update
         await new Promise<void>((resolve) => {

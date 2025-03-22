@@ -74,6 +74,29 @@ const ensurePrebuiltPropertiesPreserved = (challenge: Challenge): Challenge => {
     prebuiltSettings: challenge.prebuiltSettings,
   };
   
+  // For Quiz challenges that are missing prebuiltSettings, create default settings
+  if (challengeWithPreservedProps.prebuiltType === PrebuiltChallengeType.QUIZ && 
+      !challengeWithPreservedProps.prebuiltSettings) {
+    console.log('Creating default prebuiltSettings for Quiz challenge');
+    challengeWithPreservedProps.prebuiltSettings = {
+      questions: [],
+      currentQuestionIndex: 0
+    } as QuizSettings;
+  }
+  
+  // For Spotify Music Quiz challenges that are missing prebuiltSettings, create default settings
+  if (challengeWithPreservedProps.prebuiltType === PrebuiltChallengeType.SPOTIFY_MUSIC_QUIZ && 
+      !challengeWithPreservedProps.prebuiltSettings) {
+    console.log('Creating default prebuiltSettings for Spotify Music Quiz challenge');
+    challengeWithPreservedProps.prebuiltSettings = {
+      playlistUrl: '',
+      playlistName: '',
+      numberOfSongs: 5,
+      playDurationSeconds: 10,
+      songs: []
+    } as SpotifyMusicQuizSettings;
+  }
+  
   // Log if this is a prebuilt challenge with details
   if (challengeWithPreservedProps.isPrebuilt) {
     console.log('GameSettings: Preserving prebuilt properties for challenge:', {
@@ -307,6 +330,11 @@ const GameSettings: React.FC = () => {
       
       // Process each challenge in localStorage
       for (const storedChallenge of parsedChallenges) {
+        // Debug logging for prebuilt challenges
+        if (storedChallenge.isPrebuilt) {
+          console.log(`getRecentChallenges: Found prebuilt challenge "${storedChallenge.title}" with type: ${storedChallenge.prebuiltType}`);
+        }
+        
         // Check if this challenge is currently in the game
         const isInGame = isChallengeInGame(storedChallenge, currentGameChallenges);
         
@@ -359,6 +387,20 @@ const GameSettings: React.FC = () => {
       // Load local challenges while waiting for DB response
       const localChallenges = getRecentChallenges();
       
+      // Check if we have saved selection states from Setup.tsx
+      let savedSelectionStates: {id: string, isSelected: boolean}[] = [];
+      try {
+        const savedSelectionData = localStorage.getItem('selectedCustomChallengeIds');
+        if (savedSelectionData) {
+          savedSelectionStates = JSON.parse(savedSelectionData);
+          console.log(`Found ${savedSelectionStates.length} saved challenge selection states`);
+          // Clear it after reading to avoid reusing old data
+          localStorage.removeItem('selectedCustomChallengeIds');
+        }
+      } catch (err) {
+        console.error("Error reading saved challenge selection states:", err);
+      }
+      
       // Wait for DB challenges to load
       const challenges = await challengesPromise;
       
@@ -373,6 +415,11 @@ const GameSettings: React.FC = () => {
           maxReuseCount: dbChallenge.max_reuse_count || undefined,
           points: dbChallenge.points,
           createdBy: dbChallenge.user_id,
+          // Add prebuilt properties
+          isPrebuilt: dbChallenge.is_prebuilt || false,
+          prebuiltType: dbChallenge.prebuilt_type || undefined,
+          prebuiltSettings: dbChallenge.prebuilt_settings || undefined,
+          punishment: dbChallenge.punishment || undefined
         }));
         
         // Store database challenges
@@ -395,10 +442,31 @@ const GameSettings: React.FC = () => {
         
         convertedChallenges.forEach(dbChallenge => {
           // Check if this challenge is already in the game
-          const alreadyInGame = isChallengeInGame(dbChallenge, currentGameChallenges);
+          let isInGame = isChallengeInGame(dbChallenge, currentGameChallenges);
+          
+          // Apply saved selection state if available
+          const savedSelectionState = savedSelectionStates.find(s => s.id === dbChallenge.id);
+          if (savedSelectionState && savedSelectionState.isSelected && !isInGame) {
+            console.log(`Restoring selection state for challenge: ${dbChallenge.title}`);
+            
+            // Add to game (dispatch ADD_CUSTOM_CHALLENGE)
+            const challengeToAdd = ensurePrebuiltPropertiesPreserved({
+              ...dbChallenge,
+              isSelected: true
+            });
+            
+            dispatch({
+              type: 'ADD_CUSTOM_CHALLENGE',
+              payload: challengeToAdd
+            });
+            
+            // Mark as already in game to prevent adding to updatedChallenges
+            // which would make it available in "recent challenges" list
+            isInGame = true;
+          }
           
           // Only add if not already in the game
-          if (!alreadyInGame) {
+          if (!isInGame) {
             // Check if already in our collection (by ID)
             if (existingChallengeMap.has(dbChallenge.id)) {
               // Replace with database version
@@ -525,10 +593,13 @@ const GameSettings: React.FC = () => {
     // First update recent challenges list in localStorage - mark as selected
     updateRecentChallenges(preservedChallenge, true);
     
-    // Add the challenge to the game's custom challenges
+    // Add the challenge to the game's custom challenges with isSelected explicitly set to true
     dispatch({
       type: "ADD_CUSTOM_CHALLENGE",
-      payload: preservedChallenge,
+      payload: {
+        ...preservedChallenge,
+        isSelected: true
+      },
     });
     
     // Immediately remove it from the recent challenges list
@@ -722,27 +793,41 @@ const GameSettings: React.FC = () => {
 
   // Helper to open the appropriate edit form based on challenge type
   const openEditForm = (challenge: Challenge) => {
-    // Use utility function to ensure prebuilt properties are preserved
+    console.log(`Opening edit form for challenge: ${challenge.title}`);
+    
+    // Ensure prebuilt properties are preserved
     const preservedChallenge = ensurePrebuiltPropertiesPreserved(challenge);
     
-    // Set the challenge being edited
+    // Set the challenge to edit first
     setEditingChallenge(preservedChallenge);
     
-    // Log the challenge properties to help with debugging
-    console.log('Opening edit form for challenge:', {
+    // Log the challenge properties for debugging
+    console.log('Challenge properties for form selection:', {
       id: preservedChallenge.id,
       title: preservedChallenge.title,
       isPrebuilt: preservedChallenge.isPrebuilt,
-      prebuiltType: preservedChallenge.prebuiltType,
-      hasPrebuiltSettings: !!preservedChallenge.prebuiltSettings
+      prebuiltType: preservedChallenge.prebuiltType
     });
     
-    // Make sure to close any other open forms first
-    setShowCustomChallengeForm(false);
-    setShowSpotifyMusicQuizForm(false);
-    setShowQuizForm(false);
+    // First check if it's a quiz challenge directly by prebuiltType
+    if (preservedChallenge.prebuiltType === PrebuiltChallengeType.QUIZ) {
+      console.log('Opening Quiz Form based on prebuiltType');
+      setShowQuizForm(true);
+      // Add to recent challenges when edited and mark as selected
+      updateRecentChallenges(preservedChallenge, true);
+      return;
+    }
     
-    // Use our utility function to determine if it's a prebuilt challenge
+    // Check for Spotify Music Quiz challenge directly
+    if (preservedChallenge.prebuiltType === PrebuiltChallengeType.SPOTIFY_MUSIC_QUIZ) {
+      console.log('Opening Spotify Music Quiz Form based on prebuiltType');
+      setShowSpotifyMusicQuizForm(true);
+      // Add to recent challenges when edited and mark as selected
+      updateRecentChallenges(preservedChallenge, true);
+      return;
+    }
+    
+    // Use our utility function as a fallback
     if (isPrebuiltChallenge(preservedChallenge)) {
       console.log(`Opening edit form for prebuilt challenge type: ${preservedChallenge.prebuiltType}`);
       
@@ -828,7 +913,10 @@ const GameSettings: React.FC = () => {
       // Also add to the current game's custom challenges
       dispatch({
         type: "ADD_CUSTOM_CHALLENGE",
-        payload: challengeToUpdate,
+        payload: {
+          ...challengeToUpdate,
+          isSelected: true
+        },
       });
     } else {
       // Update in the game state for existing challenges
@@ -873,7 +961,10 @@ const GameSettings: React.FC = () => {
     // Add to the challenges array in state
     dispatch({
       type: "ADD_STANDARD_CHALLENGE",
-      payload: preservedChallenge
+      payload: {
+        ...preservedChallenge,
+        isSelected: true
+      }
     });
   };
 
@@ -1596,7 +1687,10 @@ const GameSettings: React.FC = () => {
             // since the dispatch in CustomChallengeForm might not be reflected in this component
             dispatch({
               type: "ADD_CUSTOM_CHALLENGE",
-              payload: preservedChallenge
+              payload: {
+                ...preservedChallenge,
+                isSelected: true
+              },
             });
           }
           

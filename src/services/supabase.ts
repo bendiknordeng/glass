@@ -581,7 +581,7 @@ export const challengesService = {
       // Build the query with only necessary fields for better performance
       let query = supabase
         .from('challenges')
-        .select('id, title, type, user_id, can_reuse, max_reuse_count, points, created_at')
+        .select('id, title, description, type, user_id, can_reuse, max_reuse_count, points, created_at, is_prebuilt, prebuilt_type, prebuilt_settings, punishment')
         .order('created_at', { ascending: false });
         
       // Apply user_id filter if provided  
@@ -705,7 +705,7 @@ export const challengesService = {
       // Actual database request - select only essential fields
       const dbPromise = supabase
         .from('challenges')
-        .select('id, title, type, user_id, can_reuse, max_reuse_count, points')
+        .select('id, title, description, type, user_id, can_reuse, max_reuse_count, points, is_prebuilt, prebuilt_type, prebuilt_settings, punishment')
         .in('id', challengeIds);
       
       // Race the DB request against the timeout
@@ -727,7 +727,7 @@ export const challengesService = {
   },
   
   // Add a new challenge
-  async addChallenge(challenge: DBChallenge) {
+  async addChallenge(challenge: Omit<DBChallenge, "id" | "created_at" | "updated_at" | "times_played">) {
     try {
       // Set a timeout for the request
       const timeoutPromise = new Promise((_, reject) => {

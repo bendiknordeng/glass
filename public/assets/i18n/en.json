@@ -36,7 +36,8 @@
     "description": "Description",
     "type": "Type",
     "create": "Create",
-    "submitting": "Submitting..."
+    "submitting": "Submitting...",
+    "players": "Players"
   },
   "home": {
     "newGame": "New Game",
@@ -96,7 +97,25 @@
     "teamsRequired": "Please create at least 2 teams",
     "allPlayersAssigned": "All players must be assigned to a team",
     "confirmDeletePlayer": "Are you sure you want to delete {{item}}?",
-    "removeAllPlayers": "Remove all players"
+    "removeAllPlayers": "Remove all players",
+    "gameSummary": "Game Summary",
+    "playerCount": "Players",
+    "teamCount": "Teams",
+    "challengeCount": "Challenges",
+    "gameModeLabel": "Mode",
+    "expectedDuration": "Expected duration",
+    "allChangesAutoSaved": "All your game settings are automatically saved.",
+    "clickNextToStart": "When you're ready, click the 'Next' button to start the game!",
+    "gameTypeAndDuration": "Game Type & Duration",
+    "duration": "Duration",
+    "challengesCount": "Number of challenges",
+    "customChallenges": "Custom Challenges",
+    "standardChallenges": "Standard Challenges",
+    "gameValidation": "Game Validation",
+    "enoughPlayers": "Enough players",
+    "teamsCreated": "Teams created",
+    "noStandardChallenges": "No standard challenges",
+    "noCustomChallenges": "No custom challenges"
   },
   "game": {
     "round": "Round {{round}}",

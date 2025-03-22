@@ -245,6 +245,8 @@ const gameReducer = (state: GameState, action: GameAction): GameState => {
         ...action.payload,
         // Only generate a new ID if one isn't provided in the payload
         id: action.payload.id || generateId(),
+        // Always set isSelected to true for challenges added to the game
+        isSelected: action.payload.isSelected !== undefined ? action.payload.isSelected : true
       };
       console.log("GameContext: Adding challenge with ID:", newChallenge.id);
       return {
@@ -680,6 +682,8 @@ const gameReducer = (state: GameState, action: GameAction): GameState => {
         isPrebuilt: action.payload.isPrebuilt,
         prebuiltType: action.payload.prebuiltType,
         prebuiltSettings: action.payload.prebuiltSettings,
+        // Ensure isSelected is set to true
+        isSelected: true
       };
       
       // Log if this is a prebuilt challenge
@@ -689,7 +693,8 @@ const gameReducer = (state: GameState, action: GameAction): GameState => {
           title: newChallenge.title,
           isPrebuilt: newChallenge.isPrebuilt,
           prebuiltType: newChallenge.prebuiltType,
-          hasSettings: !!newChallenge.prebuiltSettings
+          hasSettings: !!newChallenge.prebuiltSettings,
+          isSelected: newChallenge.isSelected
         });
       }
       
