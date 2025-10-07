@@ -1,0 +1,97 @@
+version: 1.0
+services:
+  supabase:
+    type: database
+    provider: supabase
+    config:
+      url: ${SUPABASE_URL}
+      key: ${SUPABASE_ANON_KEY}
+
+tools:
+  - name: game-generator
+    description: Generate game challenges and questions using AI
+    endpoint: /api/generate-challenge
+    parameters:
+      - name: type
+        type: string
+        description: Type of challenge (quiz, category, etc.)
+      - name: difficulty
+        type: string
+        description: Difficulty level (easy, medium, hard)
+      - name: theme
+        type: string
+        description: Optional theme for the challenge
+    
+  - name: code-assistant
+    description: Help with Swift development and game logic
+    patterns:
+      - "*.swift"
+      - "Package.swift"
+      - "**/*.swift"
+    capabilities:
+      - code_completion
+      - error_detection
+      - refactoring
+      - documentation
+    
+  - name: supabase-sync
+    description: Synchronize game data with Supabase
+    capabilities:
+      - database_operations
+      - real_time_updates
+      - user_management
+      - game_sessions
+    
+  - name: analytics
+    description: Track game metrics and player behavior
+    endpoints:
+      - /api/track-event
+      - /api/get-metrics
+    
+schemas:
+  challenge:
+    type: object
+    properties:
+      id: 
+        type: string
+      type:
+        type: string
+        enum: [quiz, drinking, category, geoguessing, creative, truth, dare, reaction]
+      title:
+        type: string
+      difficulty:
+        type: string
+        enum: [easy, medium, hard]
+      content:
+        type: object
+        
+  game_session:
+    type: object
+    properties:
+      id:
+        type: string
+      host_id:
+        type: string
+      game_code:
+        type: string
+      players:
+        type: array
+        items:
+          $ref: "#/schemas/player"
+      status:
+        type: string
+        enum: [waiting, starting, in_progress, paused, finished, abandoned]
+        
+  player:
+    type: object
+    properties:
+      id:
+        type: string
+      name:
+        type: string
+      color:
+        type: string
+      score:
+        type: integer
+      is_ready:
+        type: boolean
