@@ -50,13 +50,17 @@ import SwiftUI
         func startCasting() {
             // For AirPlay, the system handles most of the setup
             // Chromecast functionality disabled for testing
-            isCasting = true
+            Task { @MainActor in
+                isCasting = true
+            }
             print("📺 Casting started (AirPlay mode)")
         }
 
         func stopCasting() {
             // GCKCastContext.sharedInstance().sessionManager.endSession()
-            isCasting = false
+            Task { @MainActor in
+                isCasting = false
+            }
             print("📺 Casting stopped")
         }
 

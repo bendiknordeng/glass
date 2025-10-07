@@ -1,7 +1,9 @@
 import Combine
 import Foundation
 
-class GameEngine: ObservableObject, @unchecked Sendable {
+class GameEngine: ObservableObject {
+    static let shared = GameEngine()
+
     @Published var currentSession: GameSession?
     @Published var gameState: GameState = .idle
     @Published var currentChallenge: Challenge?
@@ -9,7 +11,7 @@ class GameEngine: ObservableObject, @unchecked Sendable {
     @Published var playerAnswers: [String: String] = [:]
 
     private let webSocketServer = WebSocketServer()
-    private let castingService = CastingService()
+    private lazy var castingService = CastingService()
     private let supabase = SupabaseService.shared
     private var challengeTimer: Timer?
     private var cancellables = Set<AnyCancellable>()
@@ -24,7 +26,7 @@ class GameEngine: ObservableObject, @unchecked Sendable {
         case finished
     }
 
-    init() {
+    private init() {
         setupBindings()
     }
 
@@ -34,6 +36,23 @@ class GameEngine: ObservableObject, @unchecked Sendable {
                 self?.updateSessionPlayers(players)
             }
             .store(in: &cancellables)
+    }
+
+    private func updateSessionPlayers(_ players: [ConnectedPlayer]) {
+        Task { @MainActor in
+            guard var session = currentSession else { return }
+
+            // Update players in session
+            session.players = players.map { connectedPlayer in
+                Player(
+                    id: connectedPlayer.id.uuidString,
+                    name: connectedPlayer.name,
+                    isHost: false
+                )
+            }
+
+            currentSession = session
+        }
     }
 
     // MARK: - Host Functions
@@ -46,7 +65,10 @@ class GameEngine: ObservableObject, @unchecked Sendable {
         }
 
         let session = GameSession(hostId: hostId, settings: gameSettings)
-        currentSession = session
+
+        await MainActor.run {
+            currentSession = session
+        }
 
         // Start local WebSocket server
         try await webSocketServer.start()
@@ -59,7 +81,9 @@ class GameEngine: ObservableObject, @unchecked Sendable {
             try await supabase.createGameSession(session)
         }
 
-        gameState = .hosting
+        await MainActor.run {
+            gameState = .hosting
+        }
     }
 
     func startGame() async throws {
@@ -69,19 +93,23 @@ class GameEngine: ObservableObject, @unchecked Sendable {
             throw GameEngineError.insufficientPlayers
         }
 
-        // Generate challenge queue
-        session.challengeQueue = try await generateChallengeQueue(for: session)
+        // Generate and set challenge queue
+        let challenges = try await generateChallengeQueue(for: session)
+        session.addChallengesToQueue(challenges)
         session.status = .inProgress
         session.startedAt = Date()
 
-        currentSession = session
-        gameState = .playing
+        let finalSession = session
+        await MainActor.run {
+            currentSession = finalSession
+            gameState = .playing
+        }
 
         // Broadcast game start
         webSocketServer.broadcast(
             GameMessage(
                 type: .gameStart,
-                data: .gameStart(.init(session: session))
+                data: .gameStart(.init(session: finalSession))
             ))
 
         // Start first challenge
@@ -97,26 +125,27 @@ class GameEngine: ObservableObject, @unchecked Sendable {
             return
         }
 
-        // Get next challenge
-        guard !session.challengeQueue.isEmpty else {
+        // Get next challenge using the new API
+        guard let challenge = session.nextChallenge() else {
             throw GameEngineError.noChallengesAvailable
         }
 
-        let challenge = session.challengeQueue.removeFirst()
-        session.currentChallenge = challenge
         session.currentRound += 1
 
-        currentSession = session
-        currentChallenge = challenge
-        timeRemaining = challenge.timeLimit
-        playerAnswers.removeAll()
+        let finalSession = session
+        await MainActor.run {
+            currentSession = finalSession
+            currentChallenge = challenge
+            timeRemaining = challenge.timeLimit
+            playerAnswers.removeAll()
+        }
 
         // Broadcast challenge start
         webSocketServer.broadcast(
             GameMessage(
                 type: .challengeStart,
                 data: .challengeStart(
-                    .init(challenge: challenge, roundNumber: session.currentRound))
+                    .init(challenge: challenge, roundNumber: finalSession.currentRound))
             ))
 
         // Start timer
@@ -139,10 +168,14 @@ class GameEngine: ObservableObject, @unchecked Sendable {
             session.updatePlayerScore(playerId: result.playerId, points: result.pointsEarned)
         }
 
-        currentSession = session
+        let finalSession = session
+        await MainActor.run {
+            currentSession = finalSession
+            gameState = .scoreboard
+        }
 
         // Broadcast round end
-        let scoresDict = session.players.reduce(into: [UUID: Int]()) { dict, player in
+        let scoresDict = finalSession.players.reduce(into: [UUID: Int]()) { dict, player in
             if let playerId = UUID(uuidString: player.id) {
                 dict[playerId] = player.score
             }
@@ -159,8 +192,6 @@ class GameEngine: ObservableObject, @unchecked Sendable {
                         nextRoundDelay: 5
                     ))
             ))
-
-        gameState = .scoreboard
 
         // Auto-advance after showing results
         Task { @MainActor in
@@ -181,8 +212,11 @@ class GameEngine: ObservableObject, @unchecked Sendable {
         let leaderboard = session.getLeaderboard()
         let winner = leaderboard.first?.0
 
-        currentSession = session
-        gameState = .finished
+        let updatedSession = session
+        await MainActor.run {
+            currentSession = updatedSession
+            gameState = .finished
+        }
 
         // Broadcast game end
         webSocketServer.broadcast(
@@ -191,19 +225,19 @@ class GameEngine: ObservableObject, @unchecked Sendable {
                 data: .gameEnd(
                     .init(
                         winner: winner,
-                        finalScores: session.scores,
+                        finalScores: updatedSession.scores,
                         gameStats: .init(
-                            totalRounds: session.currentRound,
-                            totalPlayers: session.players.count,
+                            totalRounds: updatedSession.currentRound,
+                            totalPlayers: updatedSession.players.count,
                             duration: Date().timeIntervalSince(
-                                session.startedAt ?? session.createdAt),
+                                updatedSession.startedAt ?? updatedSession.createdAt),
                             averageResponseTime: 0  // TODO: Calculate
                         )
                     ))
             ))
 
         // Update user stats
-        updateUserStats(session: session, winner: winner)
+        updateUserStats(session: updatedSession, winner: winner)
     }
 
     // MARK: - Player Functions
@@ -235,14 +269,18 @@ class GameEngine: ObservableObject, @unchecked Sendable {
                 senderId: player.id
             ))
 
-        currentSession = session
-        gameState = .waiting
+        await MainActor.run {
+            currentSession = session
+            gameState = .waiting
+        }
     }
 
     func submitAnswer(_ answer: String) {
         guard let playerId = AuthenticationManager.shared.currentUser?.id else { return }
 
-        playerAnswers[playerId] = answer
+        Task { @MainActor in
+            playerAnswers[playerId] = answer
+        }
 
         webSocketServer.send(
             GameMessage(
@@ -268,12 +306,14 @@ class GameEngine: ObservableObject, @unchecked Sendable {
         challengeTimer?.invalidate()
         challengeTimer = nil
 
-        // Reset state
-        currentSession = nil
-        currentChallenge = nil
-        gameState = .idle
-        playerAnswers.removeAll()
-        timeRemaining = 0
+        // Reset state on main thread
+        Task { @MainActor in
+            currentSession = nil
+            currentChallenge = nil
+            gameState = .idle
+            playerAnswers.removeAll()
+            timeRemaining = 0
+        }
 
         // Cancel any ongoing operations
         cancellables.removeAll()
@@ -354,11 +394,13 @@ class GameEngine: ObservableObject, @unchecked Sendable {
             [weak self] _ in
             guard let self = self else { return }
 
-            if self.timeRemaining > 0 {
-                self.timeRemaining -= 1
-            } else {
-                Task {
-                    try await self.endChallenge()
+            Task { @MainActor in
+                if self.timeRemaining > 0 {
+                    self.timeRemaining -= 1
+                } else {
+                    Task {
+                        try await self.endChallenge()
+                    }
                 }
             }
         }
@@ -401,17 +443,6 @@ class GameEngine: ObservableObject, @unchecked Sendable {
         default:
             return !answer.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         }
-    }
-
-    private func updateSessionPlayers(_ connectedPlayers: [ConnectedPlayer]) {
-        guard var session = currentSession else { return }
-
-        // Update players based on connected players
-        session.players = connectedPlayers.map { connectedPlayer in
-            Player(id: connectedPlayer.id.uuidString, name: connectedPlayer.name, isHost: false)
-        }
-
-        currentSession = session
     }
 
     private func updateUserStats(session: GameSession, winner: Player?) {

@@ -6,7 +6,7 @@ import Starscream
 // Explicitly specify Starscream's WebSocket to avoid ambiguity
 typealias GlassWebSocket = Starscream.WebSocket
 
-class WebSocketServer: NSObject, ObservableObject, @unchecked Sendable {
+class WebSocketServer: NSObject, ObservableObject {
     @Published var connectedPlayers: [ConnectedPlayer] = []
     @Published var isServerRunning = false
     @Published var serverPort: UInt16 = 8080

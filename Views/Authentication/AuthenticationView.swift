@@ -95,6 +95,7 @@ struct AuthenticationView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .dismissKeyboardOnTap()
         #if os(iOS)
             .statusBarHidden(false)
             .ignoresSafeArea(.keyboard)

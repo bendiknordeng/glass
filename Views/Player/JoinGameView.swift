@@ -42,6 +42,7 @@ struct JoinGameView: View {
                 }
             }
         }
+        .dismissKeyboardOnTap()
         .onAppear {
             if let username = authManager.currentUser?.username {
                 playerName = username

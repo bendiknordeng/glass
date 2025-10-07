@@ -39,6 +39,18 @@ struct RootView: View {
         .animation(.spring(response: 0.6, dampingFraction: 0.8), value: authManager.isInitializing)
         .animation(.spring(response: 0.6, dampingFraction: 0.8), value: authManager.isAuthenticated)
         .animation(.spring(response: 0.6, dampingFraction: 0.8), value: appState.currentGameSession)
+        .onChange(of: authManager.isAuthenticated) { _ in
+            // Dismiss keyboard when authentication state changes
+            #if os(iOS)
+                UIApplication.shared.dismissKeyboard()
+            #endif
+        }
+        .onChange(of: appState.currentGameSession) { _ in
+            // Dismiss keyboard when game state changes
+            #if os(iOS)
+                UIApplication.shared.dismissKeyboard()
+            #endif
+        }
     }
 }
 

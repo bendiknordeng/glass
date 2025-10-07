@@ -147,6 +147,18 @@ class SupabaseService {
         do {
             guard let client = client else { return }
 
+            // Only sync if user is authenticated with Supabase
+            guard let currentAuthUser = client.auth.currentUser else {
+                print("ℹ️ Skipping sync for guest user: \(user.username)")
+                return
+            }
+
+            // Ensure the user ID matches the authenticated user
+            guard user.id == currentAuthUser.id.uuidString else {
+                print("⚠️ User ID mismatch, skipping sync for: \(user.username)")
+                return
+            }
+
             try await client
                 .from("users")
                 .upsert(user)
@@ -200,7 +212,14 @@ class SupabaseService {
             .execute()
             .value
 
-        return response.first
+        guard var session = response.first else {
+            return nil
+        }
+
+        // Load full challenge data for the session
+        try await loadChallengeData(for: &session)
+
+        return session
     }
 
     func getGameSession(code: String) async throws -> GameSession? {
@@ -212,11 +231,54 @@ class SupabaseService {
             try await client
             .from("game_sessions")
             .select()
-            .eq("code", value: code)
+            .eq("game_code", value: code)
             .execute()
             .value
 
-        return response.first
+        guard var session = response.first else {
+            return nil
+        }
+
+        // Load full challenge data for the session
+        try await loadChallengeData(for: &session)
+
+        return session
+    }
+
+    // Helper method to load challenge objects from IDs
+    private func loadChallengeData(for session: inout GameSession) async throws {
+        guard let client = client else {
+            throw SupabaseError.clientNotConfigured
+        }
+
+        // Load current challenge if it exists
+        if let currentChallengeId = session.currentChallengeId {
+            let currentChallengeResponse: [Challenge] =
+                try await client
+                .from("challenges")
+                .select()
+                .eq("id", value: currentChallengeId)
+                .execute()
+                .value
+
+            session.currentChallenge = currentChallengeResponse.first
+        }
+
+        // Load challenge queue objects
+        if !session.challengeQueue.isEmpty {
+            let queueChallengesResponse: [Challenge] =
+                try await client
+                .from("challenges")
+                .select()
+                .in("id", values: session.challengeQueue)
+                .execute()
+                .value
+
+            // Maintain the order of challenges as specified in the queue
+            session.challengeQueueObjects = session.challengeQueue.compactMap { challengeId in
+                queueChallengesResponse.first { $0.id == challengeId }
+            }
+        }
     }
 
     // MARK: - Challenge Management

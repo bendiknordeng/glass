@@ -21,15 +21,6 @@ import SwiftUI
             // Force portrait orientation from launch
             AppDelegate.orientationLock = .portrait
 
-            // Disable rotation completely
-            if #available(iOS 16.0, *) {
-                // For iOS 16+, this will be handled in scene configuration
-            } else {
-                // For older iOS versions
-                let value = UIInterfaceOrientation.portrait.rawValue
-                UIDevice.current.setValue(value, forKey: "orientation")
-            }
-
             return true
         }
 
@@ -53,17 +44,9 @@ import SwiftUI
         ) {
             guard let windowScene = scene as? UIWindowScene else { return }
 
-            // Force portrait orientation and proper scaling
+            // Set initial portrait orientation
             if #available(iOS 16.0, *) {
                 windowScene.requestGeometryUpdate(.iOS(interfaceOrientations: .portrait))
-            }
-
-            // Configure all windows in the scene
-            for window in windowScene.windows {
-                window.backgroundColor = UIColor.systemBackground
-                // Reset any cached transforms
-                window.transform = CGAffineTransform.identity
-                window.layer.transform = CATransform3DIdentity
             }
         }
 
@@ -72,7 +55,7 @@ import SwiftUI
             interfaceOrientation previousInterfaceOrientation: UIInterfaceOrientation,
             traitCollection previousTraitCollection: UITraitCollection
         ) {
-            // Force portrait if orientation changes
+            // Only update orientation if it's not portrait
             if windowScene.interfaceOrientation != .portrait {
                 if #available(iOS 16.0, *) {
                     windowScene.requestGeometryUpdate(.iOS(interfaceOrientations: .portrait))
@@ -85,8 +68,8 @@ import SwiftUI
 @main
 struct GlassApp: App {
     @StateObject private var appState = AppState()
-    @StateObject private var authManager = AuthenticationManager()
-    @StateObject private var gameEngine = GameEngine()
+    @StateObject private var authManager = AuthenticationManager.shared
+    @StateObject private var gameEngine = GameEngine.shared
 
     #if os(iOS)
         @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
@@ -94,6 +77,7 @@ struct GlassApp: App {
 
     init() {
         setupServices()
+        setupDefaultSettings()
         #if os(macOS)
             // Force app activation on macOS
             DispatchQueue.main.async {
@@ -117,9 +101,19 @@ struct GlassApp: App {
                         // Simple orientation lock
                         AppDelegate.orientationLock = .portrait
 
-                        // Force portrait if device is currently landscape
-                        let value = UIInterfaceOrientation.portrait.rawValue
-                        UIDevice.current.setValue(value, forKey: "orientation")
+                        // Use modern orientation API if available
+                        if #available(iOS 16.0, *),
+                            let windowScene = UIApplication.shared.connectedScenes.first
+                                as? UIWindowScene
+                        {
+                            let geometryPreferences = UIWindowScene.GeometryPreferences.iOS(
+                                interfaceOrientations: .portrait)
+                            windowScene.requestGeometryUpdate(geometryPreferences)
+                        } else {
+                            // Fallback for older iOS versions
+                            let value = UIInterfaceOrientation.portrait.rawValue
+                            UIDevice.current.setValue(value, forKey: "orientation")
+                        }
                     }
                 #endif
         }
@@ -135,6 +129,25 @@ struct GlassApp: App {
 
         if !supabaseURL.isEmpty && !supabaseKey.isEmpty {
             SupabaseService.shared.configure(url: supabaseURL, anonKey: supabaseKey)
+        }
+    }
+
+    private func setupDefaultSettings() {
+        let defaults = UserDefaults.standard
+
+        // Set default values if not already set
+        if !defaults.bool(forKey: "hasSetDefaultSettings") {
+            defaults.set(true, forKey: UserDefaults.Keys.soundEnabled)
+
+            #if targetEnvironment(simulator)
+                // Disable haptics in simulator to prevent errors
+                defaults.set(false, forKey: UserDefaults.Keys.hapticEnabled)
+            #else
+                // Enable haptics on real devices
+                defaults.set(true, forKey: UserDefaults.Keys.hapticEnabled)
+            #endif
+
+            defaults.set(true, forKey: "hasSetDefaultSettings")
         }
     }
 }

@@ -125,10 +125,12 @@ class AuthenticationManager: ObservableObject {
     }
 
     private func handleSuccessfulLogin(user: User) {
-        self.currentUser = user
-        self.isAuthenticated = true
-        self.isLoading = false
-        self.errorMessage = nil
+        Task { @MainActor in
+            self.currentUser = user
+            self.isAuthenticated = true
+            self.isLoading = false
+            self.errorMessage = nil
+        }
 
         // Store user data
         if let userData = try? JSONEncoder().encode(user) {
@@ -142,28 +144,35 @@ class AuthenticationManager: ObservableObject {
     }
 
     private func handleAuthenticationError(_ message: String) {
-        self.errorMessage = message
-        self.isLoading = false
+        Task { @MainActor in
+            self.errorMessage = message
+            self.isLoading = false
+        }
 
         // Log detailed error for debugging
         print("🚨 Authentication Error: \(message)")
 
         // Provide user-friendly error messages
+        let userFriendlyMessage: String
         if message.contains("Invalid login credentials") {
-            self.errorMessage = "Invalid email or password. Please try again."
+            userFriendlyMessage = "Invalid email or password. Please try again."
         } else if message.contains("Email not confirmed") {
-            self.errorMessage = "Please check your email and confirm your account."
+            userFriendlyMessage = "Please check your email and confirm your account."
         } else if message.contains("User already registered") {
-            self.errorMessage = "An account with this email already exists."
+            userFriendlyMessage = "An account with this email already exists."
         } else if message.contains("Password should be at least") {
-            self.errorMessage = "Password must be at least 6 characters long."
+            userFriendlyMessage = "Password must be at least 6 characters long."
         } else if message.contains("Unable to validate email address") {
-            self.errorMessage = "Please enter a valid email address."
+            userFriendlyMessage = "Please enter a valid email address."
         } else if message.contains("Network") || message.contains("connection") {
-            self.errorMessage = "Network error. Please check your connection and try again."
+            userFriendlyMessage = "Network error. Please check your connection and try again."
         } else {
             // Keep the original message if we don't have a user-friendly version
-            self.errorMessage = message
+            userFriendlyMessage = message
+        }
+
+        Task { @MainActor in
+            self.errorMessage = userFriendlyMessage
         }
     }
 }

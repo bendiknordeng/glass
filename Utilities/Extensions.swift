@@ -182,22 +182,80 @@ extension UserDefaults {
 
     class HapticManager {
         static let shared = HapticManager()
+        private var impactGenerator: UIImpactFeedbackGenerator?
+        private var currentImpactStyle: UIImpactFeedbackGenerator.FeedbackStyle?
+        private var notificationGenerator: UINotificationFeedbackGenerator?
+        private var selectionGenerator: UISelectionFeedbackGenerator?
 
-        private init() {}
+        private init() {
+            // Only initialize generators on physical devices
+            guard UIDevice.current.userInterfaceIdiom != .mac else { return }
+
+            // Check if haptics are supported and enabled
+            if isHapticsEnabled() {
+                prepareGenerators()
+            }
+        }
+
+        private func isHapticsEnabled() -> Bool {
+            // Check user preference
+            guard UserDefaults.standard.bool(forKey: UserDefaults.Keys.hapticEnabled) else {
+                return false
+            }
+
+            // Check if running on simulator (haptics don't work reliably in simulator)
+            #if targetEnvironment(simulator)
+                return false
+            #else
+                return true
+            #endif
+        }
+
+        private func prepareGenerators() {
+            impactGenerator = UIImpactFeedbackGenerator(style: .medium)
+            currentImpactStyle = .medium
+            notificationGenerator = UINotificationFeedbackGenerator()
+            selectionGenerator = UISelectionFeedbackGenerator()
+
+            // Prepare generators to reduce latency
+            impactGenerator?.prepare()
+            notificationGenerator?.prepare()
+            selectionGenerator?.prepare()
+        }
 
         func impact(_ style: UIImpactFeedbackGenerator.FeedbackStyle = .medium) {
-            let generator = UIImpactFeedbackGenerator(style: style)
-            generator.impactOccurred()
+            guard isHapticsEnabled() else { return }
+
+            // Use existing generator if style matches, otherwise create new one
+            if currentImpactStyle != style {
+                impactGenerator = UIImpactFeedbackGenerator(style: style)
+                currentImpactStyle = style
+                impactGenerator?.prepare()
+            }
+
+            impactGenerator?.impactOccurred()
         }
 
         func notification(_ type: UINotificationFeedbackGenerator.FeedbackType) {
-            let generator = UINotificationFeedbackGenerator()
-            generator.notificationOccurred(type)
+            guard isHapticsEnabled() else { return }
+
+            if notificationGenerator == nil {
+                notificationGenerator = UINotificationFeedbackGenerator()
+                notificationGenerator?.prepare()
+            }
+
+            notificationGenerator?.notificationOccurred(type)
         }
 
         func selection() {
-            let generator = UISelectionFeedbackGenerator()
-            generator.selectionChanged()
+            guard isHapticsEnabled() else { return }
+
+            if selectionGenerator == nil {
+                selectionGenerator = UISelectionFeedbackGenerator()
+                selectionGenerator?.prepare()
+            }
+
+            selectionGenerator?.selectionChanged()
         }
     }
 #else
@@ -520,3 +578,55 @@ struct AnimatedButton<Content: View>: View {
             }, perform: {})
     }
 }
+
+// MARK: - Keyboard Handling
+
+#if os(iOS)
+    extension View {
+        /// Dismisses the keyboard when tapping outside of text fields
+        func dismissKeyboardOnTap() -> some View {
+            self.onTapGesture {
+                UIApplication.shared.sendAction(
+                    #selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+            }
+        }
+
+        /// Adds toolbar with done button to dismiss keyboard
+        func keyboardToolbar() -> some View {
+            self.toolbar {
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("Done") {
+                        UIApplication.shared.sendAction(
+                            #selector(UIResponder.resignFirstResponder), to: nil, from: nil,
+                            for: nil)
+                    }
+                }
+            }
+        }
+    }
+
+    extension UIApplication {
+        /// Dismiss keyboard properly and clear any cached keyboard state
+        func dismissKeyboard() {
+            // Primary dismissal method
+            sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+
+            // Additional cleanup for keyboard candidate system
+            DispatchQueue.main.async {
+                // Force end editing on all windows to clear keyboard candidate cache
+                self.connectedScenes
+                    .compactMap { $0 as? UIWindowScene }
+                    .flatMap { $0.windows }
+                    .forEach { window in
+                        window.endEditing(true)
+                    }
+            }
+        }
+    }
+#else
+    extension View {
+        func dismissKeyboardOnTap() -> some View { self }
+        func keyboardToolbar() -> some View { self }
+    }
+#endif

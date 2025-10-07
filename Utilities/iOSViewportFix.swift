@@ -4,46 +4,44 @@ import SwiftUI
     import UIKit
 
     struct iOSViewportFixModifier: ViewModifier {
+        @State private var hasAppliedFix = false
+
         func body(content: Content) -> some View {
             content
                 .onAppear {
-                    // Force proper device orientation and scaling
-                    setupiOSViewport()
+                    if !hasAppliedFix {
+                        setupOrientation()
+                        hasAppliedFix = true
+                    }
                 }
                 .onReceive(
                     NotificationCenter.default.publisher(
                         for: UIDevice.orientationDidChangeNotification)
                 ) { _ in
-                    // Re-enforce portrait mode if device orientation changes
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                        setupiOSViewport()
+                    // Minimal orientation handling - only set orientation, don't manipulate windows
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                        setupOrientation()
                     }
                 }
         }
 
-        private func setupiOSViewport() {
-            // Force portrait orientation
-            let value = UIInterfaceOrientation.portrait.rawValue
-            UIDevice.current.setValue(value, forKey: "orientation")
+        private func setupOrientation() {
+            guard
+                let windowScene = UIApplication.shared.connectedScenes
+                    .compactMap({ $0 as? UIWindowScene })
+                    .first
+            else { return }
 
-            // Get the window scene and configure it
-            if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene {
-                // Request portrait geometry
-                if #available(iOS 16.0, *) {
-                    windowScene.requestGeometryUpdate(.iOS(interfaceOrientations: .portrait))
-                }
-
-                // Configure windows for proper scaling
-                for window in windowScene.windows {
-                    window.backgroundColor = UIColor.systemBackground
-                    // Ensure 1:1 scaling
-                    window.contentScaleFactor = UIScreen.main.scale
-                    window.transform = CGAffineTransform.identity
-                    window.layer.transform = CATransform3DIdentity
-
-                    // Force layout update
-                    window.setNeedsLayout()
-                    window.layoutIfNeeded()
+            // Only handle orientation, don't touch window properties
+            if #available(iOS 16.0, *) {
+                let geometryPreferences = UIWindowScene.GeometryPreferences.iOS(
+                    interfaceOrientations: .portrait)
+                windowScene.requestGeometryUpdate(geometryPreferences)
+            } else {
+                // Fallback for iOS 15 and below
+                DispatchQueue.main.async {
+                    let value = UIInterfaceOrientation.portrait.rawValue
+                    UIDevice.current.setValue(value, forKey: "orientation")
                 }
             }
         }

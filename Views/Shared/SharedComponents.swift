@@ -560,6 +560,7 @@ struct TextAnswerInput: View {
             .buttonStyle(.borderedProminent)
             .disabled(answer.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
         }
+        .dismissKeyboardOnTap()
     }
 }
 
