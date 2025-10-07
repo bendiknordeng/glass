@@ -12,7 +12,10 @@ struct RootView: View {
 
     var body: some View {
         Group {
-            if authManager.isAuthenticated {
+            if authManager.isInitializing {
+                // Show loading screen during app initialization
+                AppLoadingView()
+            } else if authManager.isAuthenticated {
                 if appState.currentGameSession != nil {
                     HeroPageTransition(animationType: .spring) {
                         GameView()
@@ -33,6 +36,7 @@ struct RootView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .fixiOSViewport()  // Apply iOS viewport fix
+        .animation(.spring(response: 0.6, dampingFraction: 0.8), value: authManager.isInitializing)
         .animation(.spring(response: 0.6, dampingFraction: 0.8), value: authManager.isAuthenticated)
         .animation(.spring(response: 0.6, dampingFraction: 0.8), value: appState.currentGameSession)
     }

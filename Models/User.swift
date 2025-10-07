@@ -18,6 +18,17 @@ struct User: Codable, Identifiable {
         self.createdAt = Date()
         self.lastActive = Date()
     }
+
+    // Custom coding keys for Supabase compatibility
+    enum CodingKeys: String, CodingKey {
+        case id
+        case username
+        case email
+        case avatar
+        case stats
+        case createdAt = "created_at"
+        case lastActive = "last_active"
+    }
 }
 
 struct UserStats: Codable {
@@ -29,5 +40,12 @@ struct UserStats: Codable {
     }
     var winRate: Double {
         gamesPlayed > 0 ? Double(gamesWon) / Double(gamesPlayed) : 0
+    }
+
+    // Custom coding keys for Supabase compatibility
+    enum CodingKeys: String, CodingKey {
+        case gamesPlayed = "games_played"
+        case gamesWon = "games_won"
+        case totalScore = "total_score"
     }
 }

@@ -105,6 +105,11 @@ struct AuthenticationView: View {
         VStack(spacing: 20) {
             TextField("Email", text: $email)
                 .textFieldStyle(CleanTextFieldStyle())
+                #if os(iOS)
+                    .keyboardType(.emailAddress)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                #endif
 
             SecureField("Password", text: $password)
                 .textFieldStyle(CleanTextFieldStyle())
@@ -113,7 +118,7 @@ struct AuthenticationView: View {
                 authManager.signInWithEmail(email: email, password: password)
             }
             .buttonStyle(CleanButtonStyle())
-            .disabled(email.isEmpty || password.isEmpty || authManager.isLoading)
+            .disabled(!isValidEmail(email) || password.isEmpty || authManager.isLoading)
         }
         .padding(.horizontal, 40)
     }
@@ -122,11 +127,20 @@ struct AuthenticationView: View {
         VStack(spacing: 20) {
             TextField("Username", text: $username)
                 .textFieldStyle(CleanTextFieldStyle())
+                #if os(iOS)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                #endif
 
             TextField("Email", text: $email)
                 .textFieldStyle(CleanTextFieldStyle())
+                #if os(iOS)
+                    .keyboardType(.emailAddress)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                #endif
 
-            SecureField("Password", text: $password)
+            SecureField("Password (min 6 characters)", text: $password)
                 .textFieldStyle(CleanTextFieldStyle())
 
             Button("Sign Up") {
@@ -134,9 +148,17 @@ struct AuthenticationView: View {
             }
             .buttonStyle(CleanButtonStyle())
             .disabled(
-                username.isEmpty || email.isEmpty || password.isEmpty || authManager.isLoading)
+                username.isEmpty || !isValidEmail(email) || password.count < 6
+                    || authManager.isLoading)
         }
         .padding(.horizontal, 40)
+    }
+
+    // MARK: - Helper Functions
+
+    private func isValidEmail(_ email: String) -> Bool {
+        let emailRegex = "^[A-Z0-9a-z._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$"
+        return NSPredicate(format: "SELF MATCHES %@", emailRegex).evaluate(with: email)
     }
 
     private var guestSignInForm: some View {

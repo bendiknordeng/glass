@@ -6,6 +6,7 @@ class AuthenticationManager: ObservableObject {
     @Published var currentUser: User?
     @Published var isLoading = false
     @Published var errorMessage: String?
+    @Published var isInitializing = true // New property for app startup loading
 
     static let shared = AuthenticationManager()
 
@@ -20,13 +21,16 @@ class AuthenticationManager: ObservableObject {
         isLoading = true
         errorMessage = nil
 
-        // TODO: Implement Supabase email authentication
-        // Placeholder implementation
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
-            if email.contains("@") {
-                self.handleSuccessfulLogin(user: User(username: "Email User", email: email))
-            } else {
-                self.handleAuthenticationError("Invalid email format")
+        Task {
+            do {
+                let user = try await SupabaseService.shared.signIn(email: email, password: password)
+                await MainActor.run {
+                    self.handleSuccessfulLogin(user: user)
+                }
+            } catch {
+                await MainActor.run {
+                    self.handleAuthenticationError(error.localizedDescription)
+                }
             }
         }
     }
@@ -35,11 +39,22 @@ class AuthenticationManager: ObservableObject {
         isLoading = true
         errorMessage = nil
 
-        // TODO: Implement user registration
-        // Placeholder implementation
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
-            let newUser = User(username: username, email: email)
-            self.handleSuccessfulLogin(user: newUser)
+        print("🔄 Starting signup for: \(username) with email: \(email)")
+
+        Task {
+            do {
+                let user = try await SupabaseService.shared.signUp(
+                    email: email, password: password, username: username)
+                await MainActor.run {
+                    print("✅ Signup successful for: \(username)")
+                    self.handleSuccessfulLogin(user: user)
+                }
+            } catch {
+                await MainActor.run {
+                    print("❌ Signup failed for: \(username) - \(error)")
+                    self.handleAuthenticationError(error.localizedDescription)
+                }
+            }
         }
     }
 
@@ -51,21 +66,61 @@ class AuthenticationManager: ObservableObject {
     }
 
     func signOut() {
-        currentUser = nil
-        isAuthenticated = false
+        Task {
+            do {
+                try await SupabaseService.shared.signOut()
+            } catch {
+                print("Error signing out: \(error)")
+            }
 
-        // Clear any stored credentials
-        UserDefaults.standard.removeObject(forKey: "currentUser")
+            await MainActor.run {
+                self.currentUser = nil
+                self.isAuthenticated = false
+
+                // Clear any stored credentials
+                UserDefaults.standard.removeObject(forKey: "currentUser")
+            }
+        }
     }
 
     // MARK: - Private Methods
     private func checkAuthenticationStatus() {
-        // Check if user is already logged in
+        // Start initialization
+        isInitializing = true
+        
+        // First check local storage for guest users
         if let userData = UserDefaults.standard.data(forKey: "currentUser"),
             let user = try? JSONDecoder().decode(User.self, from: userData)
         {
             currentUser = user
             isAuthenticated = true
+        }
+
+        // Then check Supabase for authenticated users
+        Task {
+            do {
+                if let supabaseUser = try await SupabaseService.shared.getCurrentUser() {
+                    await MainActor.run {
+                        self.currentUser = supabaseUser
+                        self.isAuthenticated = true
+
+                        // Update local storage
+                        if let userData = try? JSONEncoder().encode(supabaseUser) {
+                            UserDefaults.standard.set(userData, forKey: "currentUser")
+                        }
+                    }
+                }
+            } catch {
+                print("No existing Supabase session found: \(error)")
+            }
+            
+            // Always finish initialization after checking both local and remote
+            // Add a small delay to ensure smooth loading experience
+            try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
+            
+            await MainActor.run {
+                self.isInitializing = false
+            }
         }
     }
 
@@ -80,12 +135,35 @@ class AuthenticationManager: ObservableObject {
             UserDefaults.standard.set(userData, forKey: "currentUser")
         }
 
-        // Sync with Supabase if available
-        SupabaseService.shared.syncUser(user)
+        // Sync with Supabase if available (non-blocking)
+        Task {
+            await SupabaseService.shared.syncUser(user)
+        }
     }
 
     private func handleAuthenticationError(_ message: String) {
         self.errorMessage = message
         self.isLoading = false
+
+        // Log detailed error for debugging
+        print("🚨 Authentication Error: \(message)")
+
+        // Provide user-friendly error messages
+        if message.contains("Invalid login credentials") {
+            self.errorMessage = "Invalid email or password. Please try again."
+        } else if message.contains("Email not confirmed") {
+            self.errorMessage = "Please check your email and confirm your account."
+        } else if message.contains("User already registered") {
+            self.errorMessage = "An account with this email already exists."
+        } else if message.contains("Password should be at least") {
+            self.errorMessage = "Password must be at least 6 characters long."
+        } else if message.contains("Unable to validate email address") {
+            self.errorMessage = "Please enter a valid email address."
+        } else if message.contains("Network") || message.contains("connection") {
+            self.errorMessage = "Network error. Please check your connection and try again."
+        } else {
+            // Keep the original message if we don't have a user-friendly version
+            self.errorMessage = message
+        }
     }
 }

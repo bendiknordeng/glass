@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		1A123456123456789012345A /* GlassApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A123456123456789012345B /* GlassApp.swift */; };
 		1A123456123456789012345C /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A123456123456789012345D /* ContentView.swift */; };
+		F10115812E95C493007FDD01 /* AppLoadingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10115802E95C493007FDD01 /* AppLoadingView.swift */; };
 		F17BE13C2E95BA8900C4A389 /* User.swift in Sources */ = {isa = PBXBuildFile; fileRef = F17BE11D2E95BA8900C4A389 /* User.swift */; };
 		F17BE13D2E95BA8900C4A389 /* SupabaseService.swift in Sources */ = {isa = PBXBuildFile; fileRef = F17BE1282E95BA8900C4A389 /* SupabaseService.swift */; };
 		F17BE13E2E95BA8900C4A389 /* GameMessage.swift in Sources */ = {isa = PBXBuildFile; fileRef = F17BE11A2E95BA8900C4A389 /* GameMessage.swift */; };
@@ -42,6 +43,7 @@
 		1A123456123456789012345D /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		1A123456123456789012345E /* Glass.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Glass.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		1A123456123456789012345F /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		F10115802E95C493007FDD01 /* AppLoadingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppLoadingView.swift; sourceTree = "<group>"; };
 		F17BE1162E95BA8900C4A389 /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
 		F17BE1172E95BA8900C4A389 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
 		F17BE1192E95BA8900C4A389 /* Challenge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Challenge.swift; sourceTree = "<group>"; };
@@ -233,6 +235,7 @@
 		F17BE13A2E95BA8900C4A389 /* Shared */ = {
 			isa = PBXGroup;
 			children = (
+				F10115802E95C493007FDD01 /* AppLoadingView.swift */,
 				F17BE1362E95BA8900C4A389 /* GameView.swift */,
 				F17BE1372E95BA8900C4A389 /* MainMenuView.swift */,
 				F17BE1382E95BA8900C4A389 /* SettingsView.swift */,
@@ -345,6 +348,7 @@
 				F17BE1412E95BA8900C4A389 /* MCPService.swift in Sources */,
 				F17BE1422E95BA8900C4A389 /* AuthenticationView.swift in Sources */,
 				F17BE1432E95BA8900C4A389 /* MainMenuView.swift in Sources */,
+				F10115812E95C493007FDD01 /* AppLoadingView.swift in Sources */,
 				F17BE1442E95BA8900C4A389 /* WebSocketServer.swift in Sources */,
 				F17BE1452E95BA8900C4A389 /* SettingsView.swift in Sources */,
 				F17BE1462E95BA8900C4A389 /* SharedComponents.swift in Sources */,
