@@ -39,19 +39,19 @@ class SupabaseService {
         let authUser = authResponse.user
 
         // Wait a moment for the auth session to be fully established
-        try await Task.sleep(nanoseconds: 1_000_000_000) // 1 second
+        try await Task.sleep(nanoseconds: 1_000_000_000)  // 1 second
 
         // Create user profile in our database with retry logic
         let user = User(id: authUser.id.uuidString, username: username, email: email)
-        
+
         // Try creating the profile with retries
         var retryCount = 0
         let maxRetries = 3
-        
+
         while retryCount < maxRetries {
             do {
                 try await createUserProfile(user)
-                break // Success, exit retry loop
+                break  // Success, exit retry loop
             } catch {
                 retryCount += 1
                 if retryCount >= maxRetries {
@@ -61,7 +61,7 @@ class SupabaseService {
                     break
                 } else {
                     // Wait a bit before retrying
-                    try await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
+                    try await Task.sleep(nanoseconds: 500_000_000)  // 0.5 seconds
                 }
             }
         }
@@ -114,12 +114,12 @@ class SupabaseService {
         }
 
         print("🔄 Creating user profile for: \(user.username)")
-        
+
         try await client
             .from("users")
             .insert(user)
             .execute()
-        
+
         print("✅ User profile created successfully for: \(user.username)")
     }
 

@@ -6,7 +6,7 @@ class AuthenticationManager: ObservableObject {
     @Published var currentUser: User?
     @Published var isLoading = false
     @Published var errorMessage: String?
-    @Published var isInitializing = true // New property for app startup loading
+    @Published var isInitializing = true  // New property for app startup loading
 
     static let shared = AuthenticationManager()
 
@@ -87,7 +87,7 @@ class AuthenticationManager: ObservableObject {
     private func checkAuthenticationStatus() {
         // Start initialization
         isInitializing = true
-        
+
         // First check local storage for guest users
         if let userData = UserDefaults.standard.data(forKey: "currentUser"),
             let user = try? JSONDecoder().decode(User.self, from: userData)
@@ -113,11 +113,11 @@ class AuthenticationManager: ObservableObject {
             } catch {
                 print("No existing Supabase session found: \(error)")
             }
-            
+
             // Always finish initialization after checking both local and remote
             // Add a small delay to ensure smooth loading experience
-            try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
-            
+            try? await Task.sleep(nanoseconds: 500_000_000)  // 0.5 seconds
+
             await MainActor.run {
                 self.isInitializing = false
             }

@@ -6,7 +6,7 @@ struct AppLoadingView: View {
     @State private var logoOpacity: Double = 0.0
     @State private var loadingDots = 0
     @State private var shimmerOffset: CGFloat = -1.0
-    
+
     var body: some View {
         ZStack {
             // Background with subtle gradient
@@ -14,13 +14,13 @@ struct AppLoadingView: View {
                 colors: [
                     Color.black,
                     Color.black.opacity(0.95),
-                    Color.black
+                    Color.black,
                 ],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )
             .ignoresSafeArea()
-            
+
             VStack(spacing: 50) {
                 // App Logo with Enhanced Animation
                 VStack(spacing: 20) {
@@ -31,7 +31,7 @@ struct AppLoadingView: View {
                             .foregroundColor(.white.opacity(0.1))
                             .scaleEffect(logoScale * 1.2)
                             .blur(radius: 20)
-                        
+
                         // Main logo
                         Image(systemName: "gamecontroller.fill")
                             .font(.system(size: 100, weight: .light))
@@ -45,7 +45,7 @@ struct AppLoadingView: View {
                             logoOpacity = 1.0
                         }
                     }
-                    
+
                     // App name with shimmer effect
                     ZStack {
                         Text("Glass")
@@ -53,7 +53,7 @@ struct AppLoadingView: View {
                             .foregroundColor(.white.opacity(0.9))
                             .tracking(8)
                             .opacity(logoOpacity)
-                        
+
                         // Shimmer overlay
                         Text("Glass")
                             .font(.system(size: 48, weight: .thin, design: .default))
@@ -64,7 +64,7 @@ struct AppLoadingView: View {
                                     colors: [
                                         .clear,
                                         .white.opacity(0.6),
-                                        .clear
+                                        .clear,
                                     ],
                                     startPoint: .leading,
                                     endPoint: .trailing
@@ -79,11 +79,13 @@ struct AppLoadingView: View {
                             .opacity(logoOpacity)
                     }
                     .onAppear {
-                        withAnimation(.linear(duration: 2.0).repeatForever(autoreverses: false).delay(1.5)) {
+                        withAnimation(
+                            .linear(duration: 2.0).repeatForever(autoreverses: false).delay(1.5)
+                        ) {
                             shimmerOffset = 1.0
                         }
                     }
-                    
+
                     Text("The Ultimate Party Game")
                         .font(.system(size: 18, weight: .light))
                         .foregroundColor(.white.opacity(0.7))
@@ -91,9 +93,9 @@ struct AppLoadingView: View {
                         .opacity(logoOpacity)
                 }
                 .padding(.top, 100)
-                
+
                 Spacer()
-                
+
                 // Enhanced Loading Indicator
                 VStack(spacing: 20) {
                     // Custom loading dots
@@ -115,7 +117,7 @@ struct AppLoadingView: View {
                             loadingDots = (loadingDots + 1) % 3
                         }
                     }
-                    
+
                     Text("Loading")
                         .font(.system(size: 16, weight: .light))
                         .foregroundColor(.white.opacity(0.8))
